@@ -180,12 +180,24 @@ class TranscriptionService {
   }
 
   List<DialogueSegment> _splitIntoDialogue(String fullText) {
-    // Разбиваем по предложениям (точка, восклицательный, вопросительный знак)
-    final sentences = fullText
-        .split(RegExp(r'[.!?]+'))
+    // Сначала пробуем по пунктуации
+    var sentences = fullText
+        .split(RegExp(r'[.!?]+\s*'))
         .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
+        .where((s) => s.length > 3)
         .toList();
+
+    // Если мало предложений (нет пунктуации) — режем по длине
+    if (sentences.length <= 2 && fullText.length > 40) {
+      final words = fullText.split(RegExp(r'\s+'));
+      sentences = [];
+      final chunkSize = words.length <= 20 ? 8 : 12;
+      for (int i = 0; i < words.length; i += chunkSize) {
+        final end = (i + chunkSize).clamp(0, words.length);
+        final chunk = words.sublist(i, end).join(' ');
+        if (chunk.length > 3) sentences.add(chunk);
+      }
+    }
 
     if (sentences.isEmpty) {
       return [

@@ -70,7 +70,7 @@ class SummaryService {
     r'надо|стоит|лучше|давай|купи|позвони|напомни|сделай|запиши|'
     r'пойд[её]м|поедем|встретимся|забудь|не забудь|'
     r'приходи|приезжай|отправь|напиши|скажи|передай'
-    r')([^.,!?]*[.,!?]?)',
+    r')([^.,!?]{10,150}[.,!?]?)',
     caseSensitive: false,
   );
 
@@ -108,7 +108,7 @@ class SummaryService {
 
     for (final entry in speakerMap.entries) {
       final allText = entry.value.join(' ');
-      final wordCount = _tokenize(allText).length;
+      final wordCount = _tokenizeForCount(allText).length;
       final topWords = _topWords(allText, 5);
 
       stats.add({
@@ -159,6 +159,15 @@ class SummaryService {
         .replaceAll(RegExp(r'[^\w\s\-]'), '')
         .split(RegExp(r'\s+'))
         .where((w) => w.isNotEmpty && !_isStopWord(w))
+        .toList();
+  }
+
+  static List<String> _tokenizeForCount(String text) {
+    return text
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^\w\s\-]'), '')
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
         .toList();
   }
 
