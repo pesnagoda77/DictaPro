@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'audio_service.dart';
-import 'summary_service.dart';
+import 'services/enhanced_summary_service.dart';
 
 class SummaryPage extends StatelessWidget {
   final Recording recording;
@@ -12,23 +12,20 @@ class SummaryPage extends StatelessWidget {
     final rec = recording;
     final hasData = rec.transcription != null && rec.transcription!.isNotEmpty;
 
-    final summary = recording.summary != null && recording.summary!.isNotEmpty
-        ? recording.summary!.split('\n')
-        : hasData
-            ? SummaryService.getSummary(recording.transcription!, sentencesCount: 3)
-            : [];
+    // Используем EnhancedSummaryService для генерации саммари
+    final SummaryResult summaryResult = hasData
+        ? EnhancedSummaryService.generateSummary(recording.transcription!)
+        : SummaryResult.empty();
+
+    final summary = summaryResult.points;
 
     final decisions = recording.decisions != null && recording.decisions!.isNotEmpty
         ? recording.decisions!
-        : hasData
-            ? SummaryService.getDecisions(recording.transcription!)
-            : [];
+        : [];
 
     final speakerStats = recording.speakerStats != null && recording.speakerStats!.isNotEmpty
         ? recording.speakerStats!
-        : (recording.segments != null && recording.segments!.isNotEmpty)
-            ? SummaryService.getSpeakerStats(recording.segments!)
-            : [];
+        : [];
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A1A),
@@ -51,39 +48,62 @@ class SummaryPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Заголовок с типом
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _getTypeColor(summaryResult.type).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: _getTypeColor(summaryResult.type).withOpacity(0.5),
+                      ),
+                    ),
+                    child: Text(
+                      _getTypeLabel(summaryResult.type),
+                      style: TextStyle(
+                        color: _getTypeColor(summaryResult.type),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
                   // Суть
-                  _SectionTitle(icon: Icons.summarize, title: 'Суть записи'),
+                  _SectionTitle(icon: Icons.summarize, title: summaryResult.title),
                   const SizedBox(height: 8),
                   ...summary.map((s) => _BulletText(s)).toList(),
                   const SizedBox(height: 24),
 
-                  // Решения
-                  _SectionTitle(icon: Icons.check_circle, title: 'Ключевые решения'),
-                  const SizedBox(height: 8),
-                  if (decisions.isEmpty)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.white38, size: 18),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'В записи не найдено маркеров решений',
-                            style: TextStyle(color: Colors.white38, fontSize: 13),
-                          ),
+                  // Решения (только для business)
+                  if (summaryResult.type == TextType.business) ...[
+                    _SectionTitle(icon: Icons.check_circle, title: 'Ключевые решения'),
+                    const SizedBox(height: 8),
+                    if (decisions.isEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      ],
-                    ),
-                  )
-                else
-                  ...decisions.map((d) => _DecisionItem(d)).toList(),
-                  const SizedBox(height: 24),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.white38, size: 18),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'В записи не найдено маркеров решений',
+                                style: TextStyle(color: Colors.white38, fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      ...decisions.map((d) => _DecisionItem(d)).toList(),
+                    const SizedBox(height: 24),
+                  ],
 
                   // Говорящие
                   if (speakerStats.isNotEmpty) ...[
@@ -95,6 +115,32 @@ class SummaryPage extends StatelessWidget {
               ),
             ),
     );
+  }
+
+  Color _getTypeColor(TextType type) {
+    switch (type) {
+      case TextType.narrative:
+        return Colors.orange;
+      case TextType.business:
+        return Colors.green;
+      case TextType.educational:
+        return Colors.blue;
+      case TextType.general:
+        return Colors.purple;
+    }
+  }
+
+  String _getTypeLabel(TextType type) {
+    switch (type) {
+      case TextType.narrative:
+        return 'История / Рассказ';
+      case TextType.business:
+        return 'Совещание / Деловая встреча';
+      case TextType.educational:
+        return 'Лекция / Образование';
+      case TextType.general:
+        return 'Общая запись';
+    }
   }
 }
 
