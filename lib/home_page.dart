@@ -243,6 +243,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Future<void> _transcribeRecording(rec) async {
+    // Проверяем, что файл существует
+    if (!File(rec.filePath).existsSync()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Файл не найден: ${rec.filePath}'),
+          backgroundColor: Colors.red.shade900,
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -314,9 +325,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     for (final picked in result.files) {
       final sourcePath = picked.path;
-      if (sourcePath == null) continue;
+      final fileBytes = picked.bytes;
       
-      final ext = sourcePath.toLowerCase().split('.').last;
+      final ext = (picked.extension ?? picked.name.split('.').last).toLowerCase();
       if (!allowedExts.contains(ext)) {
         failCount++;
         continue;
@@ -325,9 +336,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       try {
         final dir = await getApplicationDocumentsDirectory();
         final id = DateTime.now().millisecondsSinceEpoch.toString();
-        final ext = sourcePath.split('.').last;
         final destPath = '${dir.path}/imported_${id}_${successCount}.$ext';
-        await File(sourcePath).copy(destPath);
+        
+        if (sourcePath != null && sourcePath.isNotEmpty) {
+          await File(sourcePath).copy(destPath);
+        } else if (fileBytes != null && fileBytes.isNotEmpty) {
+          await File(destPath).writeAsBytes(fileBytes);
+        } else {
+          failCount++;
+          continue;
+        }
 
         final file = File(destPath);
         final size = await file.length();
@@ -649,7 +667,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
                 onChanged: (value) => setState(() => _searchQuery = value),
               )
-            : const Text('Smart Recorder',
+            : const Text('ДиктаПро',
                 style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: !_isSearching,
         elevation: 0,
@@ -915,8 +933,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             ),
                           )
                         : ListView.builder(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
+                            padding: const EdgeInsets.only(
+                                left: 16, right: 16, top: 8, bottom: 80),
                             itemCount: filtered.length,
                             itemBuilder: (context, index) {
                               final rec = filtered[index];
