@@ -7,6 +7,7 @@ import 'package:vosk_flutter/vosk_flutter.dart';
 
 import 'services/vosk_custom_words_extended.dart';
 import 'services/vosk_auto_correction_extended.dart';
+import 'services/speaker_diarization.dart' as diarization;
 
 class DialogueSegment {
   final String speaker;
@@ -148,8 +149,10 @@ class TranscriptionService {
     // Apply auto-correction for common recognition mistakes
     fullText = VoskAutoCorrectionExtended.correctText(fullText);
 
-    // Разбиваем на диалог — по предложениям, чередуем говорящих
-    final segments = _splitIntoDialogue(fullText);
+    // Speaker diarization: build chunks from VOSK results with timestamps
+    final chunks = _buildChunksFromResults(rawResults);
+    final diarizationSegments = diarization.SpeakerDiarizationService.segmentSpeakers(chunks);
+    final segments = _convertDiarizationSegments(diarizationSegments);
 
     return TranscriptionResult(
       fullText: fullText,
@@ -188,41 +191,49 @@ class TranscriptionService {
     return results;
   }
 
-  List<DialogueSegment> _splitIntoDialogue(String fullText) {
-    // Сначала пробуем по пунктуации
-    var sentences = fullText
-        .split(RegExp(r'[.!?]+\s*'))
-        .map((s) => s.trim())
-        .where((s) => s.length > 3)
-        .toList();
-
-    // Если мало предложений (нет пунктуации) — режем по длине
-    if (sentences.length <= 2 && fullText.length > 40) {
-      final words = fullText.split(RegExp(r'\s+'));
-      sentences = [];
-      final chunkSize = words.length <= 20 ? 8 : 12;
-      for (int i = 0; i < words.length; i += chunkSize) {
-        final end = (i + chunkSize).clamp(0, words.length);
-        final chunk = words.sublist(i, end).join(' ');
-        if (chunk.length > 3) sentences.add(chunk);
-      }
-    }
-
-    if (sentences.isEmpty) {
-      return [
-        DialogueSegment(speaker: 'A', text: fullText, startTime: 0, endTime: 0)
-      ];
-    }
-
-    return sentences.asMap().entries.map((entry) {
-      final isA = entry.key % 2 == 0;
+  List<DialogueSegment> _convertDiarizationSegments(
+    List<diarization.DialogueSegment> diarizationSegments,
+  ) {
+    return diarizationSegments.map((seg) {
+      final speakerLabel = seg.speaker.contains('Speaker 2') ? 'B' : 'A';
       return DialogueSegment(
-        speaker: isA ? 'A' : 'B',
-        text: entry.value,
-        startTime: 0,
-        endTime: 0,
+        speaker: speakerLabel,
+        text: seg.text,
+        startTime: seg.chunks.isNotEmpty ? seg.chunks.first.startTime : 0.0,
+        endTime: seg.chunks.isNotEmpty ? seg.chunks.last.endTime : 0.0,
       );
     }).toList();
+  }
+
+  List<diarization.TranscriptionChunk> _buildChunksFromResults(
+    List<Map<String, dynamic>> results,
+  ) {
+    final List<diarization.TranscriptionChunk> chunks = [];
+    const bytesPerSecond = 32000; // 16000 Hz * 2 bytes
+    const chunkSize = 8192;
+    const secondsPerChunk = chunkSize / bytesPerSecond; // ~0.256s
+
+    double currentTime = 0.0;
+
+    for (var result in results) {
+      final text = (result['text'] as String? ?? '').trim();
+      if (text.isEmpty) {
+        currentTime += secondsPerChunk;
+        continue;
+      }
+
+      chunks.add(diarization.TranscriptionChunk(
+        text: text,
+        startTime: currentTime,
+        endTime: currentTime + secondsPerChunk,
+        pitch: null,
+        volume: null,
+        confidence: (result['confidence'] as num?)?.toDouble() ?? 0.8,
+      ));
+      currentTime += secondsPerChunk;
+    }
+
+    return chunks;
   }
 
   // ========== Live Transcription ==========
