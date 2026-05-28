@@ -5,6 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:vosk_flutter/vosk_flutter.dart';
 
+import 'services/vosk_custom_words_extended.dart';
+import 'services/vosk_auto_correction_extended.dart';
+
 class DialogueSegment {
   final String speaker;
   final String text;
@@ -65,6 +68,9 @@ class TranscriptionService {
       model: model,
       sampleRate: 16000,
     );
+
+    // Add custom words to improve recognition quality
+    VoskCustomWordsExtended.initWords(_recognizer!);
 
     _isModelLoaded = true;
   }
@@ -138,6 +144,9 @@ class TranscriptionService {
       }
     }
     fullText = fullText.trim();
+
+    // Apply auto-correction for common recognition mistakes
+    fullText = VoskAutoCorrectionExtended.correctText(fullText);
 
     // Разбиваем на диалог — по предложениям, чередуем говорящих
     final segments = _splitIntoDialogue(fullText);
