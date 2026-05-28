@@ -3,7 +3,7 @@
 ## Файлы
 - `lib/services/vosk_custom_words_extended.dart` — 620 слов
 - `lib/services/vosk_auto_correction_extended.dart` — 80+ паттернов
-- `lib/services/transcription_service_updated.dart` — пример интеграции
+- `lib/services/transcription_service.dart` — пример интеграции
 
 ## Как встроить
 
