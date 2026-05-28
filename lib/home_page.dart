@@ -15,6 +15,7 @@ import 'player_page.dart';
 import 'settings_page.dart';
 import 'summary_page.dart';
 import 'summary_service.dart';
+import 'services/enhanced_summary_service.dart';
 
 
 class HomePage extends StatefulWidget {
@@ -200,7 +201,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           latest.transcription = fullText;
           latest.segments = result.segments.map((s) => s.toMap()).toList();
           latest.tags = TagService.extractTags(fullText);
-          latest.summary = SummaryService.getSummary(fullText, sentencesCount: 3).join('\n');
+          latest.summary = EnhancedSummaryService.generateSummary(fullText).formatted;
           latest.decisions = SummaryService.getDecisions(fullText);
           await AudioService().updateRecording(latest);
           _loadRecordings();
@@ -212,7 +213,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           final latest = recordings.first;
           latest.transcription = liveText;
           latest.tags = TagService.extractTags(liveText);
-          latest.summary = SummaryService.getSummary(liveText, sentencesCount: 3).join('\n');
+          latest.summary = EnhancedSummaryService.generateSummary(liveText).formatted;
           latest.decisions = SummaryService.getDecisions(liveText);
           await AudioService().updateRecording(latest);
           _loadRecordings();
@@ -266,7 +267,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       rec.transcription = result.fullText;
       rec.segments = result.segments.map((s) => s.toMap()).toList();
       rec.tags = TagService.extractTags(result.fullText);
-      rec.summary = SummaryService.getSummary(result.fullText, sentencesCount: 3).join('\n');
+      rec.summary = EnhancedSummaryService.generateSummary(result.fullText).formatted;
       rec.decisions = SummaryService.getDecisions(result.fullText);
       rec.speakerStats = SummaryService.getSpeakerStats(result.segments.map((s) => s.toMap()).toList());
       await AudioService().updateRecording(rec);
