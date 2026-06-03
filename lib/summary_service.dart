@@ -1,454 +1,182 @@
-import 'dart:math';
-
-import 'dart:math' as math;
-
-/// AI-саммари записей через TextRank.
-///
-/// Извлекает:
-/// 1. Краткое содержание (ключевые предложения)
-/// 2. Ключевые решения (по маркерам)
-/// 3. Сводка по говорящим
 class SummaryService {
+  static String generateSummary(String text) {
+    String type = _detectType(text);
+    List<String> dates = _extractDates(text);
+    List<String> amounts = _extractAmounts(text);
+    List<String> phones = _extractPhones(text);
+    List<String> actionItems = _extractActions(text);
+    List<String> sentences = text.split('.').map((s) => s.trim()).where((s) => s.length > 10).toList();
 
-  // ========== TextRank: Краткое содержание ==========
+    StringBuffer summary = StringBuffer();
+    summary.writeln('Тип: $type');
+    summary.writeln();
 
-  static List<String> getSummary(String text, {int sentencesCount = 3}) {
-    final sentences = _splitSentences(text);
+    if (dates.isNotEmpty) summary.writeln('Даты: ${dates.join(', ')}');
+    if (amounts.isNotEmpty) summary.writeln('Суммы: ${amounts.join(', ')}');
+    if (phones.isNotEmpty) summary.writeln('Контакты: ${phones.join(', ')}');
 
-    // Короткий текст — просто берём первые N фраз
-    if (sentences.length <= sentencesCount) {
-      if (sentences.isNotEmpty) return sentences;
-      // Fallback: если совсем короткий — первые 150 символов
-      final clean = text.trim().replaceAll(RegExp(r'\s+'), ' ');
-      if (clean.length > 10) {
-        final end = clean.length.clamp(30, 200);
-        // Не обрезаем посередине слова
-        final cut = clean.substring(0, end);
-        final lastSpace = cut.lastIndexOf(' ');
-        if (lastSpace > end * 0.7) {
-          return [clean.substring(0, lastSpace)];
-        }
-        return [cut];
+    summary.writeln();
+    summary.writeln('Ключевые моменты:');
+    List<String> keyPoints = _extractKeyPoints(sentences, type);
+    for (var point in keyPoints.take(5)) {
+      summary.writeln('• $point');
+    }
+
+    if (actionItems.isNotEmpty) {
+      summary.writeln();
+      summary.writeln('Действия:');
+      for (var action in actionItems) {
+        summary.writeln('• $action');
       }
-      return ['Текст слишком короткий для саммари'];
     }
 
-    final wordsPerSentence = sentences.map(_tokenize).toList();
-
-    // Если после токенизации почти ничего не осталось
-    final nonEmptyCount = wordsPerSentence.where((w) => w.isNotEmpty).length;
-    if (nonEmptyCount < 2) {
-      return sentences.take(sentencesCount).toList();
-    }
-
-    final wordFreq = _buildWordFreq(wordsPerSentence);
-    final weights = _calcSentenceWeights(wordsPerSentence, wordFreq);
-
-    final scored = <Map<String, dynamic>>[];
-    for (int i = 0; i < sentences.length; i++) {
-      scored.add({'index': i, 'sentence': sentences[i], 'weight': weights[i]});
-    }
-
-    scored.sort((a, b) => (b['weight'] as double).compareTo(a['weight'] as double));
-
-    final topIndices = scored
-        .take(sentencesCount)
-        .map((e) => e['index'] as int)
-        .toList()
-      ..sort();
-
-    return topIndices.map((i) => sentences[i]).toList();
+    return summary.toString();
   }
 
-  // ========== Ключевые решения ==========
+  static String _detectType(String text) {
+    text = text.toLowerCase();
+    int lectureScore = 0, businessScore = 0, interviewScore = 0, notesScore = 0, documentScore = 0, audiobookScore = 0;
 
-  static final _decisionPatterns = RegExp(
-    r'(решили|договорились|приняли решение|нужно|необходимо|должны|обязаны|'
-    r'будем|планируем|запланировано|дедлайн|срок|до \d+|'
-    r'поручил|ответственный|ответственность|'
-    r'следующий шаг|action item|задача:|'
-    r'надо|стоит|лучше|давай|купи|позвони|напомни|сделай|запиши|'
-    r'пойд[её]м|поедем|встретимся|забудь|не забудь|'
-    r'приходи|приезжай|отправь|напиши|скажи|передай|'
-    r'поспор|оплат|зашёл|тупик|встрет|забронир|закаж|куп|плат|'
-    r'сдела|пиш|звон|иди|едь|лети|приход|уход|начни|закончи|'
-    r'провер|отправ|получ|дай|возьми|покаж|расскаж|объясн|'
-    r'соглас|отказ|подпиш|расторг|продли|отмен|перенес|'
-    r'встрет|познаком|поговор|обсуд|договор|спор|суд|треб|'
-    r'обяз|долж|нужн|необходим|важн|срочн|быстре|немедлен|'
-    r'сегодн|завтр|послезавтр|в понедельник|во вторник|в среду|'
-    r'в четверг|в пятницу|в субботу|в воскресенье|'
-    r'утром|днём|вечером|ночью|'
-    r'через час|через два часа|через день|через неделю|'
-    r'до конца|до завтра|до понедельника|до пятницы|'
-    r'в течение|в ближайше|в следующ|'
-    r'не забудь|не опозд|не пропуст|не потер|'
-    r'обрати внимание|учти|имей в виду|помни|'
-    r'вызови|запишися|запишись|подпишись|оформи|'
-    r'забронируй|закажи|купи|оплати|переведи|'
-    r'пришли|отправь|покажи|скажи|передай|сообщи|'
-    r'встреться|позвони|напиши|приди|приезжай|'
-    r'начни|закончи|заверши|продолжи|остановись|'
-    r'проверь|посмотри|убедись|контролир|следи|'
-    r'подготовь|соберись|организуй|планируй|распланируй|'
-    r'согласуй|утверди|одобри|подпиши|закрепи|'
-    r'забери|получи|возьми|прими|отдай|верни|'
-    r'покажи|расскажи|объясни|докажи|подтверди|'
-    r'вызови|пригласи|позови|приведи|'
-    r'закрой|открой|включи|выключи|переключи|'
-    r'поставь|подними|опусти|перемести|перенеси|'
-    r'запусти|останови|перезапусти|обнови|'
-    r'сохрани|запиши|скопируй|вставь|удали|очисти|'
-    r'найди|поищи|отыщи|определи|установи|'
-    r'замени|поменяй|обменяй|переделай|'
-    r'исправь|почини|восстанови|верни|'
-    r'проверь|тестируй|убедись|контролируй|'
-    r'подготовь|создай|сделай|собери|сформируй|'
-    r'заполни|опиши|охарактеризуй|оцени|проанализируй|'
-    r'посчитай|вычисли|определи|рассчитай|'
-    r'придумай|выбери|установи|назначь|'
-    r'назови|обзови|окрести|'
-    r'пришли|отправь|передай|сообщи|доложи|'
-    r'покажи|продемонстрируй|представь|'
-    r'объясни|разъясни|истолкуй|поясни|'
-    r'научи|обучи|'
-    r'убеди|докажи|подтверди|подкрепи|'
-    r'предложи|рекомендуй|советуй|посоветуй|'
-    r'требуй|настаивай|'
-    r'проси|попроси|запроси|'
-    r'жди|подожди|ожидай|'
-    r'верь|надейся|полагайся|рассчитывай|'
-    r'бойся|опасайся|остерегайся|будь осторожен|'
-    r'молчи|замолчи|умолкни|помолчи|'
-    r'пой|запой|пропой|напевай|'
-    r'танцуй|пляши|запляши|'
-    r'беги|побеги|помчись|пустись|'
-    r'иди|пойди|отправляйся|направляйся|'
-    r'сиди|усядься|присядь|возьми место|'
-    r'стой|встань|поднимись|вскочи|'
-    r'лежи|приляг|уложись|распластайся|'
-    r'спи|засыпай|погружайся|погрузись|'
-    r'ешь|поешь|покушай|насыщайся|'
-    r'пей|выпей|опустоши|осуши|'
-    r'готовь|приготовь|свари|пожарь|испеки|'
-    r'мой|вымой|очисти|помой|'
-    r'чисти|почисти|протри|'
-    r'шьей|пошей|сшей|вышей|'
-    r'режь|вырежи|отрежь|'
-    r'коли|выколи|проколи|пронзи|'
-    r'копай|выкопай|раскопай|зарой|'
-    r'строй|построй|возведи|сооруди|'
-    r'ломай|сломай|разрушь|разбей|'
-    r'чинь|почини|отремонтируй|исправь|'
-    r'крась|выкрась|окрась|раскрась|'
-    r'рисуй|нарисуй|зарисуй|набросай|'
-    r'пиши|напиши|запиши|выведи|'
-    r'читай|прочитай|зачитай|выучи|'
-    r'считай|посчитай|вычисли|подсчитай|'
-    r'помни|запомни|запоминай|держи в памяти|'
-    r'забудь|позабудь|выброси из головы|не помни|'
-    r'учи|выучи|заучи|'
-    r'знай|узнай|разузнай|выясни|'
-    r'думай|подумай|размышляй|обдумай|'
-    r'думаю|считаю|полагаю|надеюсь|верю|'
-    r'знаю|вижу|слышу|чувствую|ощущаю|'
-    r'хочу|желаю|стремлюсь|мечтаю|'
-    r'могу|умею|способен|в состоянии|'
-    r'должен|обязан|'
-    r'буду|собираюсь|планирую|намерен|'
-    r'можешь|умеешь|'
-    r'должна|обязана|'
-    r'будешь|собираешься|планируешь|'
-    r'может|умеет|'
-    r'должно|обязано|'
-    r'будет|собирается|планирует|'
-    r'можем|умеем|'
-    r'должны|обязаны|'
-    r'будем|собираемся|планируем|'
-    r'могут|умеют|'
-    r'должны|обязаны|'
-    r'будут|собираются|планируют|'
-    r'мог|умел|'
-    r'должен|обязан|'
-    r'был|собирался|планировал|'
-    r'могла|умела|'
-    r'должна|обязана|'
-    r'была|собиралась|планировала|'
-    r'могло|умело|'
-    r'должно|обязано|'
-    r'было|собиралось|планировало|'
-    r'могли|умели|'
-    r'должны|обязаны|'
-    r'были|собирались|планировали|'
-    r'пусть|'
-    r'давай|давайте|начнём|начните|начни|'
-    r'начинай|начинайте|приступай|приступайте|'
-    r'продолжай|продолжайте|продолжи|продолжите|'
-    r'заканчивай|заканчивайте|закончи|закончите|'
-    r'останавливай|останавливайте|останови|остановите|'
-    r'жди|ждите|подожди|подождите|'
-    r'иди|идите|пойди|пойдите|'
-    r'сиди|сидите|сядь|сядьте|'
-    r'стой|стойте|встань|встаньте|'
-    r'лежи|лежите|ляг|лягте|'
-    r'беги|бегите|побеги|побегите|'
-    r'прыгай|прыгайте|прыгни|прыгните|'
-    r'лети|летите|полети|полетите|'
-    r'плыви|плывите|поплыви|поплывите|'
-    r'ползи|ползите|поползи|поползите|'
-    r'ползай|ползайте|поползай|поползайте|'
-    r'катись|катитесь|покатись|покатитесь|'
-    r'езжай|езжайте|поезжай|поезжайте|'
-    r'неси|несите|понеси|понесите|'
-    r'тащи|тащите|потащи|потащите|'
-    r'таскай|таскайте|потаскай|потаскайте|'
-    r'толкай|толкайте|потолкай|потолкайте|'
-    r'тянни|тяните|потянни|потяните|'
-    r'дёргай|дёргайте|подёргай|подёргайте|'
-    r'жми|жмите|нажми|нажмите|'
-    r'крути|крутите|покрути|покрутите|'
-    r'верти|вертите|поверти|повертите|'
-    r'махай|махайте|помахай|помахайте|'
-    r'маши|машите|помаши|помашите|'
-    r'хлопай|хлопайте|похлопай|похлопайте|'
-    r'щёлкай|щёлкайте|пощёлкай|пощёлкайте|'
-    r'щелкни|щёлкните|кликни|кликните|'
-    r'гладь|гладьте|погладь|погладьте|'
-    r'чеши|чешите|почеши|почешите|'
-    r'грей|грейте|погрей|погрейте|'
-    r'морозь|морозьте|поморозь|поморозьте|'
-    r'вари|варите|провари|проварите|'
-    r'жарь|жарьте|пожарь|пожарьте|'
-    r'пеки|пеките|испеки|испеките|'
-    r'свари|сварите|'
-    r'парь|парьте|попарь|попарьте|'
-    r'туши|тушите|потуши|потушите|'
-    r'соли|солите|посоли|посолите|'
-    r'сахари|сахарьте|посахари|посахарьте|'
-    r'перчи|перчите|поперчи|поперчите|'
-    r'рубь|рубьте|рубани|рубаните|'
-    r'пили|пилите|распили|распилите|'
-    r'строгай|строгайте|построгай|построгайте|'
-    r'долби|долбите|долбани|долбаните|'
-    r'сверли|сверлите|просверли|просверлите|'
-    r'клади|кладите|положи|положите|'
-    r'вешай|вешайте|повесь|повесьте|'
-    r'суши|сушите|высуши|высушите|'
-    r'мочи|мочите|вымочи|вымочите|'
-    r'жми|жмите|выжми|выжмите|'
-    r'цеди|цедите|выцеди|выцедите|'
-    r'процеживай|процеживайте|процеди|процедите|'
-    r'прессуй|прессуйте|прессани|прессаните|'
-    r'отжимай|отжимайте|отожми|отожмите|'
-    r'выжимай|выжимайте|выжми|выжмите|'
-    r'сгущай|сгущайте|сгусти|сгустите|'
-    r'разводи|разводите|разведи|разведите|'
-    r'разбавляй|разбавляйте|разбавь|разбавьте|'
-    r'концентрируй|концентрируйте|сконцентрируй|сконцентрируйте|'
-    r'смешивай|смешивайте|смешай|смешайте|'
-    r'соединяй|соединяйте|соедини|соедините|'
-    r'разъединяй|разъединяйте|разъедини|разъедините|'
-    r'склеивай|склеивайте|склей|склейте|'
-    r'разделяй|разделяйте|раздели|разделите|'
-    r'распиливай|распиливайте|распили|распилите|'
-    r'раскалывай|раскалывайте|расколи|расколите|'
-    r'разрубай|разрубайте|разруби|разрубите|'
-    r'рассекай|рассекайте|рассеки|рассеките|'
-    r'разрезай|разрезайте|разрежь|разрежьте|'
-    r'отделяй|отделяйте|отдели|отделите|'
-    r'отрывай|отрывайте|оторви|оторвите|'
-    r'оторвать|оторваться|'
-    r')([^.,!?]{10,150}[.,!?]?)',
-    caseSensitive: false,
-  );
+    List<String> audiobookWords = ['глава', 'автор', 'читает', 'читатель', 'лекция', 'лекции', 'лектор', 'курс', 'курса', 'курсе', 'аудиокнига', 'аудиокниги', 'научпоп', 'нон-фикшн', 'биография', 'роман', 'повесть', 'рассказ', 'сборник', 'издание', 'издательство', 'перевод', 'переводчик', 'озвучил', 'озвучка', 'диктор', 'чтец', 'спикер', 'ведущий', 'ведущая', 'подкаст', 'подкасты', 'эпизод', 'серия', 'сезон', 'выпуск', 'выпуски'];
+    for (var w in audiobookWords) if (text.contains(w)) audiobookScore += 4;
 
-  static List<String> getDecisions(String text) {
-    final matches = _decisionPatterns.allMatches(text);
-    final results = <String>[];
-    for (final m in matches) {
-      var phrase = m.group(0)!.trim();
-      if (phrase.length > 300) phrase = phrase.substring(0, 300);
-      results.add(phrase);
-    }
-    return results.isEmpty ? [] : results;
+    List<String> documentWords = ['доклад', 'доклады', 'докладчик', 'статья', 'статьи', 'публикация', 'реферат', 'монография', 'диссертация', 'исследование', 'научный', 'академический', 'ораторское', 'выступление', 'презентация'];
+    for (var w in documentWords) if (text.contains(w)) documentScore += 3;
+
+    List<String> lectureWords = ['лекц', 'студент', 'занят', 'тема', 'экзамен', 'предмет', 'преподавател', 'аудитор', 'конспект', 'курс', 'учебник', 'семинар', 'практикум'];
+    for (var w in lectureWords) if (text.contains(w)) lectureScore += 2;
+
+    List<String> businessWords = ['встреч', 'договор', 'цена', 'сумма', 'заказ', 'клиент', 'сделк', 'оплат', 'контракт', 'согласов', 'переговор', 'совещание', 'заседание', 'конференц', 'деловой', 'бизнес', 'коммерческий', 'финансовый', 'бюджет', 'смета', 'поставщик', 'партнёр', 'инвестор', 'директор', 'менеджер', 'руководитель', 'компания', 'фирма', 'организация'];
+    for (var w in businessWords) if (text.contains(w)) businessScore += 2;
+
+    List<String> interviewWords = ['интервью', 'расскажите', 'как вы', 'почему', 'когда вы', 'опыт', 'работали', 'трудоустройство', 'собеседование', 'кандидат', 'резюме', 'вакансия', 'позиция', 'должность', 'hr', 'рекрутер', 'найм', 'подбор', 'персонал', 'кадры', 'зарплата', 'оклад'];
+    for (var w in interviewWords) if (text.contains(w)) interviewScore += 2;
+
+    List<String> notesWords = ['надо', 'нужно', 'купить', 'позвонить', 'сделать', 'встретиться', 'забрать', 'оплатить', 'идея', 'запомнить', 'не забыть', 'задача', 'список', 'дела', 'покупки', 'план', 'цели', 'мечта', 'желание', 'решение', 'выбор', 'итог', 'вывод', 'результат', 'рефлексия', 'размышления', 'мысли', 'впечатления', 'эмоции', 'чувства', 'настроение', 'день', 'вечер', 'утро', 'неделя', 'месяц', 'год', 'вчера', 'сегодня', 'завтра', 'ежедневник', 'дневник', 'запись', 'заметка', 'конспект', 'наброски', 'черновик', 'проект', 'задумка'];
+    for (var w in notesWords) if (text.contains(w)) notesScore += 2;
+
+    if (text.contains('лекц') || text.contains('студент') || text.contains('занят')) businessScore -= 5;
+    if (text.contains('доклад') || text.contains('выступление') || text.contains('презентация')) { lectureScore -= 3; businessScore -= 5; }
+
+    Map<String, int> scores = {
+      'Аудиокнига / Лекция': audiobookScore,
+      'Доклад / Документ': documentScore,
+      'Лекция / Образование': lectureScore,
+      'Бизнес-встреча': businessScore,
+      'Интервью': interviewScore,
+      'Заметки': notesScore,
+    };
+
+    String bestType = 'Заметки';
+    int bestScore = 0;
+    scores.forEach((type, score) {
+      if (score > bestScore) { bestScore = score; bestType = type; }
+    });
+    return bestType;
   }
 
-  // ========== Кто что сказал ==========
+  static List<String> _extractKeyPoints(List<String> sentences, String type) {
+    List<String> points = [];
+    Map<String, List<String>> keywordsByType = {
+      'Аудиокнига / Лекция': ['глава', 'автор', 'читает', 'лекция', 'лектор', 'курс', 'тема', 'темы', 'вопрос', 'вопросы', 'понятие', 'понятия', 'закон', 'законы', 'принцип', 'принципы', 'метод', 'методы', 'теория', 'теории', 'практика', 'практики', 'задача', 'задачи', 'решение', 'решения', 'результат', 'результаты', 'вывод', 'выводы', 'опыт', 'опыты', 'наблюдение', 'наблюдения', 'явление', 'явления', 'процесс', 'процессы', 'система', 'системы', 'структура', 'структуры', 'функция', 'функции', 'свойство', 'свойства', 'признак', 'признаки', 'причина', 'причины', 'следствие', 'следствия', 'цель', 'цели', 'значение', 'значения', 'смысл', 'смыслы', 'идея', 'идеи', 'мысль', 'мысли', 'знание', 'знания', 'информация', 'данные', 'факт', 'факты', 'доказательство', 'доказательства', 'аргумент', 'аргументы', 'пример', 'примеры', 'иллюстрация', 'иллюстрации', 'аналогия', 'аналогии', 'сравнение', 'сравнения', 'обобщение', 'обобщения', 'итог', 'итоги', 'суть', 'сущность', 'сущности', 'содержание', 'содержания', 'формулировка', 'формулировки', 'определение', 'определения', 'утверждение', 'утверждения', 'положение', 'положения', 'тезис', 'тезисы', 'обоснование', 'обоснования', 'пояснение', 'пояснения', 'комментарий', 'комментарии', 'примечание', 'примечания', 'дополнение', 'дополнения', 'уточнение', 'уточнения', 'поправка', 'поправки', 'исправление', 'исправления', 'доработка', 'доработки', 'пересмотр', 'пересмотры', 'корректировка', 'корректировки'],
+      'Доклад / Документ': ['ясность', 'краткость', 'точность', 'структура', 'подбор слов', 'жаргон', 'аббревиатуры', 'стиль', 'доклад', 'доклады', 'докладчик', 'статья', 'статьи', 'публикация', 'реферат', 'монография', 'диссертация', 'исследование', 'научный', 'академический', 'ораторское', 'выступление', 'презентация'],
+      'Лекция / Образование': ['лекция', 'лекции', 'лектор', 'студент', 'студенты', 'занятие', 'занятия', 'тема', 'темы', 'вопрос', 'вопросы', 'экзамен', 'экзамены', 'предмет', 'предметы', 'преподаватель', 'преподаватели', 'аудитория', 'конспект', 'план', 'курс', 'учебник', 'семинар', 'практикум'],
+      'Бизнес-встреча': ['встреча', 'встречи', 'договор', 'цена', 'сумма', 'заказ', 'клиент', 'сделка', 'оплата', 'контракт', 'согласование', 'переговоры', 'совещание', 'заседание', 'решение', 'решения', 'итог', 'итоги', 'план', 'планы', 'задача', 'задачи', 'срок', 'сроки', 'дедлайн', 'бюджет', 'финансы'],
+      'Интервью': ['интервью', 'вопрос', 'ответ', 'опыт', 'работа', 'должность', 'компания', 'зарплата', 'кандидат', 'резюме', 'вакансия', 'навыки', 'умения', 'квалификация'],
+      'Заметки': ['идея', 'идеи', 'задача', 'задачи', 'план', 'планы', 'цель', 'цели', 'мечта', 'желание', 'решение', 'выбор', 'итог', 'вывод', 'результат', 'мысль', 'мысли', 'заметка', 'запись', 'напоминание'],
+    };
 
-  static Map<String, List<String>> getSpeakerSummary(
-    List<Map<String, dynamic>> segments,
-  ) {
-    final map = <String, List<String>>{};
+    List<String> keywords = keywordsByType[type] ?? [];
+    final personalPronouns = {'я', 'мы', 'ты', 'вы', 'он', 'она', 'оно', 'они', 'мне', 'тебе', 'ему', 'ей', 'нам', 'вам', 'им'};
+
+    // Фильтруем: исключаем предложения с личными местоимениями
+    List<String> filtered = [];
+    for (var sentence in sentences) {
+      String lower = sentence.toLowerCase();
+      bool hasPersonal = false;
+      for (var pronoun in personalPronouns) {
+        if (lower.contains(' ' + pronoun + ' ') || lower.startsWith(pronoun + ' ')) {
+          hasPersonal = true;
+          break;
+        }
+      }
+      if (!hasPersonal) filtered.add(sentence);
+    }
+
+    // Ищем предложения с ключевыми словами
+    for (var sentence in filtered) {
+      String lower = sentence.toLowerCase();
+      for (var keyword in keywords) {
+        if (lower.contains(keyword)) {
+          if (sentence.length > 10 && sentence.length < 150) {
+            points.add(sentence);
+          }
+          break;
+        }
+      }
+    }
+
+    points = points.toSet().toList();
+
+    // Если мало — добавляем первое и последнее (из filtered)
+    if (points.length < 3 && filtered.isNotEmpty) {
+      if (filtered.first.length > 10) points.add(filtered.first);
+      if (filtered.length > 1 && filtered.last.length > 10) points.add(filtered.last);
+    }
+    // Если совсем мало — берём из оригинальных (даже с местоимениями)
+    if (points.length < 3 && sentences.isNotEmpty) {
+      if (sentences.first.length > 10) points.add(sentences.first);
+      if (sentences.length > 1 && sentences.last.length > 10) points.add(sentences.last);
+    }
+
+    return points.take(5).toList();
+  }
+
+  static List<String> _extractDates(String text) => [];
+  static List<String> _extractAmounts(String text) => [];
+  static List<String> _extractPhones(String text) => [];
+  static List<String> _extractActions(String text) {
+    List<String> actions = [];
+    List<String> markers = ['надо', 'нужно', 'купить', 'позвонить', 'отправить', 'сделать'];
+    List<String> sentences = text.split('.');
+    for (var sentence in sentences) {
+      for (var marker in markers) {
+        if (sentence.toLowerCase().contains(marker)) {
+          actions.add(sentence.trim());
+          break;
+        }
+      }
+    }
+    return actions;
+  }
+
+  static List<String> getDecisions(String text) => _extractActions(text);
+  static List<Map<String, dynamic>> getSpeakerStats(List<Map<String, dynamic>> segments) {
+    final speakerMap = <String, List<String>>{};
     for (final seg in segments) {
       final speaker = seg['speaker'] as String? ?? '?';
       final text = seg['text'] as String? ?? '';
-      map.putIfAbsent(speaker, () => []);
-      map[speaker]!.add(text);
+      speakerMap.putIfAbsent(speaker, () => []);
+      speakerMap[speaker]!.add(text);
     }
-    return map;
-  }
 
-  static List<Map<String, dynamic>> getSpeakerStats(
-    List<Map<String, dynamic>> segments,
-  ) {
-    final speakerMap = getSpeakerSummary(segments);
     final stats = <Map<String, dynamic>>[];
-
     for (final entry in speakerMap.entries) {
       final allText = entry.value.join(' ');
-      final wordCount = _tokenizeForCount(allText).length;
-      final topWords = _topWords(allText, 5);
+      final wordCount = allText.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+      final words = allText.toLowerCase().split(RegExp(r'[^\p{L}\p{N}]+', unicode: true)).where((w) => w.isNotEmpty).toList();
+      final freq = <String, int>{};
+      for (final w in words) { freq[w] = (freq[w] ?? 0) + 1; }
+      final topWords = freq.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
 
       stats.add({
         'speaker': entry.key,
         'utteranceCount': entry.value.length,
         'wordCount': wordCount,
-        'topWords': topWords,
-        'summary': getSummary(allText, sentencesCount: 2),
+        'topWords': topWords.take(5).map((e) => '${e.key}(${e.value})').toList(),
       });
     }
-
     stats.sort((a, b) => (b['wordCount'] as int).compareTo(a['wordCount'] as int));
     return stats;
-  }
-
-  // ========== Внутренние утилиты TextRank ==========
-
-  static List<String> _splitSentences(String text) {
-    // Сначала пробуем разделить по знакам препинания
-    final pattern = RegExp(r'[.!?]+\s*');
-    final raw = text.split(pattern);
-    var sentences = raw
-        .map((s) => s.trim())
-        .where((s) => s.length > 3 && s.contains(RegExp(r'[а-яА-Я\w]')))
-        .toList();
-
-    // Если получилось мало предложений (VOSK не ставит точки),
-    // разбиваем по длине — каждые 8-12 слов
-    if (sentences.length <= 1 && text.length > 40) {
-      final words = text.split(RegExp(r'\s+'));
-      sentences = [];
-      final chunkSize = words.length <= 20 ? 8 : 12;
-      for (int i = 0; i < words.length; i += chunkSize) {
-        final end = (i + chunkSize).clamp(0, words.length);
-        final chunk = words.sublist(i, end).join(' ');
-        if (chunk.length > 3) {
-          sentences.add(chunk);
-        }
-      }
-    }
-
-    return sentences;
-  }
-
-  static List<String> _tokenize(String sentence) {
-    return sentence
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^\p{L}\p{N}\s\-]', unicode: true), '')
-        .split(RegExp(r'\s+'))
-        .where((w) => w.isNotEmpty && !_isStopWord(w))
-        .toList();
-  }
-
-  static List<String> _tokenizeForCount(String text) {
-    return text
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^\p{L}\p{N}\s\-]', unicode: true), '')
-        .split(RegExp(r'\s+'))
-        .where((w) => w.isNotEmpty)
-        .toList();
-  }
-
-  static bool _isStopWord(String word) {
-    const stopWords = {
-      'и', 'в', 'во', 'не', 'что', 'он', 'на', 'я', 'с', 'со', 'как', 'а', 'то',
-      'все', 'она', 'так', 'его', 'но', 'да', 'ты', 'к', 'у', 'же', 'вы', 'за',
-      'бы', 'по', 'только', 'ее', 'мне', 'было', 'вот', 'от', 'меня', 'еще',
-      'нет', 'о', 'из', 'ему', 'теперь', 'когда', 'даже', 'ну', 'вдруг', 'ли',
-      'если', 'уже', 'или', 'ни', 'быть', 'был', 'него', 'до', 'вас', 'нибудь',
-      'опять', 'уж', 'вам', 'ведь', 'там', 'потом', 'себя', 'ничего', 'ей',
-      'может', 'они', 'тут', 'где', 'есть', 'надо', 'ней', 'для', 'мы', 'тебя',
-      'их', 'чем', 'была', 'сам', 'чтоб', 'без', 'будто', 'чего', 'раз',
-      'тоже', 'себе', 'под', 'будет', 'ж', 'тогда', 'кто', 'этот', 'того',
-      'потому', 'этого', 'какой', 'совсем', 'ним', 'здесь', 'этом', 'один',
-      'почти', 'мой', 'тем', 'чтобы', 'нее', 'сейчас', 'были', 'куда',
-      'зачем', 'всех', 'можно', 'про', 'наконец', 'два', 'об', 'другой',
-      'хоть', 'после', 'над', 'больше', 'тот', 'через', 'эти', 'нас',
-      'всего', 'них', 'какая', 'много', 'разве', 'три', 'эту', 'моя',
-      'впрочем', 'хорошо', 'свою', 'этой', 'перед', 'иногда', 'лучше',
-      'чуть', 'том', 'нельзя', 'такой', 'им', 'более', 'всегда', 'конечно',
-      'всю', 'между',
-    };
-    return stopWords.contains(word);
-  }
-
-  static Map<String, int> _buildWordFreq(List<List<String>> wordsPerSentence) {
-    final freq = <String, int>{};
-    for (final words in wordsPerSentence) {
-      for (final w in words) {
-        freq[w] = (freq[w] ?? 0) + 1;
-      }
-    }
-    return freq;
-  }
-
-  static List<double> _calcSentenceWeights(
-    List<List<String>> wordsPerSentence,
-    Map<String, int> wordFreq,
-  ) {
-    final n = wordsPerSentence.length;
-    final weights = List<double>.filled(n, 0.0);
-
-    for (int i = 0; i < n; i++) {
-      for (int j = 0; j < n; j++) {
-        if (i == j) continue;
-        final sim = _cosineSimilarity(wordsPerSentence[i], wordsPerSentence[j], wordFreq);
-        weights[i] += sim;
-      }
-    }
-
-    // Нормализуем
-    final maxWeight = weights.reduce(math.max);
-    if (maxWeight > 0) {
-      for (int i = 0; i < n; i++) {
-        weights[i] /= maxWeight;
-      }
-    }
-
-    return weights;
-  }
-
-  static double _cosineSimilarity(
-    List<String> a,
-    List<String> b,
-    Map<String, int> wordFreq,
-  ) {
-    final allWords = <String>{...a, ...b};
-    double dot = 0;
-    double normA = 0;
-    double normB = 0;
-
-    for (final w in allWords) {
-      final idf = math.log(1 + (wordFreq[w] ?? 0));
-      final wa = a.where((x) => x == w).length * idf;
-      final wb = b.where((x) => x == w).length * idf;
-      dot += wa * wb;
-      normA += wa * wa;
-      normB += wb * wb;
-    }
-
-    if (normA == 0 || normB == 0) return 0;
-    return dot / (math.sqrt(normA) * math.sqrt(normB));
-  }
-
-  static List<MapEntry<String, int>> _topWords(String text, int count) {
-    final tokens = _tokenize(text);
-    final freq = <String, int>{};
-    for (final t in tokens) {
-      freq[t] = (freq[t] ?? 0) + 1;
-    }
-    final sorted = freq.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    return sorted.take(count).toList();
   }
 }

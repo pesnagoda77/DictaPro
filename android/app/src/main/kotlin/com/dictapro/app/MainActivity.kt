@@ -128,7 +128,8 @@ class MainActivity : FlutterActivity() {
         }
 
         val bufferInfo = MediaCodec.BufferInfo()
-        val outputStream = java.io.ByteArrayOutputStream()
+        val tempPcmFile = File("${outputPath}.tmp.pcm")
+        val pcmFos = FileOutputStream(tempPcmFile)
         var isEOS = false
         var hasOutput = false
 
@@ -164,7 +165,7 @@ class MainActivity : FlutterActivity() {
                     val chunk = ByteArray(bufferInfo.size)
                     outputBuffer.position(bufferInfo.offset)
                     outputBuffer.get(chunk)
-                    outputStream.write(chunk)
+                    pcmFos.write(chunk)
                     codec.releaseOutputBuffer(outputBufferId, false)
                     outputBufferId = codec.dequeueOutputBuffer(bufferInfo, 10000)
                 }
@@ -173,16 +174,19 @@ class MainActivity : FlutterActivity() {
             Log.e(TAG, "Decode loop error", e)
             throw Exception("Decoding failed: ${e.message}")
         } finally {
+            try { pcmFos.close() } catch (_: Exception) {}
             try { codec.stop() } catch (_: Exception) {}
             try { codec.release() } catch (_: Exception) {}
             try { extractor.release() } catch (_: Exception) {}
         }
 
         if (!hasOutput) {
+            tempPcmFile.delete()
             throw Exception("No audio data decoded — file may be corrupted or in unsupported format")
         }
 
-        val pcmData = outputStream.toByteArray()
+        val pcmData = tempPcmFile.readBytes()
+        tempPcmFile.delete()
         Log.d(TAG, "Decoded PCM: ${pcmData.size} bytes")
 
         if (pcmData.isEmpty()) {

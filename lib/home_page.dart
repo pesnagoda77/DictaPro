@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:share_plus/share_plus.dart';
 import 'audio_service.dart';
 import 'transcription_service.dart';
 import 'dialogue_editor.dart';
@@ -16,6 +17,7 @@ import 'settings_page.dart';
 import 'summary_page.dart';
 import 'summary_service.dart';
 import 'services/enhanced_summary_service.dart';
+import 'models/recording_details_model.dart';
 
 
 class HomePage extends StatefulWidget {
@@ -102,6 +104,28 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final m = (s ~/ 60).toString().padLeft(2, '0');
     final sec = (s % 60).toString().padLeft(2, '0');
     return '$m:$sec';
+  }
+
+  Future<void> _shareLogs() async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final logFile = File('${dir.path}/vosk_debug.txt');
+      if (await logFile.exists()) {
+        await Share.shareXFiles([XFile(logFile.path)], text: 'VOSK debug logs');
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Логи ещё не созданы. Запишите аудио для генерации логов.')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _showSleepTimerDialog() async {
@@ -263,12 +287,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     try {
       final result = await TranscriptionService().transcribeFile(rec.filePath);
-
-      rec.transcription = result.fullText;
+      
+      // Apply punctuation to transcription
+      final punctuatedText = _addPunctuationToText(result.fullText);
+      
+      rec.transcription = punctuatedText;
       rec.segments = result.segments.map((s) => s.toMap()).toList();
-      rec.tags = TagService.extractTags(result.fullText);
-      rec.summary = EnhancedSummaryService.generateSummary(result.fullText).formatted;
-      rec.decisions = SummaryService.getDecisions(result.fullText);
+      rec.tags = TagService.extractTags(punctuatedText);
+      rec.summary = EnhancedSummaryService.generateSummary(punctuatedText).formatted;
+      rec.decisions = SummaryService.getDecisions(punctuatedText);
       rec.speakerStats = SummaryService.getSpeakerStats(result.segments.map((s) => s.toMap()).toList());
       await AudioService().updateRecording(rec);
 
@@ -295,6 +322,57 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ),
       );
     }
+  }
+
+  String _addPunctuationToText(String text) {
+    if (text.isEmpty) return '';
+    final words = text.trim().split(RegExp(r'\s+'));
+    if (words.isEmpty) return '';
+
+    final sentences = <String>[];
+    final currentSentence = <String>[];
+    const int maxWords = 12;
+    const int minWords = 5;
+    const Set<String> noBreak = {
+      'и','или','но','а','да','либо','тоже','также','зато','когда','пока','если','хотя','так','чтобы','что','потому','поэтому','тем','ибо','лишь','только','как','после','перед','для','с','со','от','до','по','под','при','в','во','на','за','к','ко','о','об','про','через','из','между','над','пред','ради','вроде','вопреки','посредством','кроме','без','безо','вместо','вследствие','ввиду','вслед','согласно','помимо','несмотря','внутри','вне','благодаря','спустя','среди','близ','мимо','около','сквозь','возле','вокруг','впереди','вовне','внутрь','у','не','ни','обо','ото','передо','подо','сверх','снизу','вперед','например','однако','следовательно','во-первых','во-вторых','в-третьих','вообще','вероятно','видимо','очевидно','кстати','собственно','действительно','возможно','по-видимому','пожалуй','может','можно','нужно','будем','будет','будут','быть','есть','является','являются','означает','означают','представляет','представляют','обозначает','обозначают','состоит','состоят','включает','включают','содержит','содержат','следует','следуют','оказывается','оказываются','получается','получаются','говорится','говорят','думается','думают','считается','считаются','полагается','полагают','предполагается','предполагаются','предположим','допустим','пусть','даже','всё','все',
+    };
+
+    for (int i = 0; i < words.length; i++) {
+      final word = words[i];
+      final nextWord = (i + 1 < words.length) ? words[i + 1].toLowerCase() : '';
+
+      if (currentSentence.isNotEmpty) {
+        final lastWord = currentSentence.last.toLowerCase();
+        final bool lastIsConnector = noBreak.contains(lastWord);
+        final bool nextIsConnector = noBreak.contains(nextWord);
+        final bool tooLong = currentSentence.length >= maxWords;
+        final bool tooShort = currentSentence.length < minWords;
+        final bool hardLimit = currentSentence.length >= 18;
+
+        if (hardLimit) {
+          sentences.add(_finishSentence(currentSentence));
+          currentSentence.clear();
+        } else if (tooLong && !lastIsConnector && !nextIsConnector && !tooShort) {
+          sentences.add(_finishSentence(currentSentence));
+          currentSentence.clear();
+        }
+      }
+      currentSentence.add(word);
+    }
+    if (currentSentence.isNotEmpty) {
+      sentences.add(_finishSentence(currentSentence));
+    }
+    return sentences.join(' ');
+  }
+
+  String _finishSentence(List<String> words) {
+    String text = words.join(' ');
+    if (text.isEmpty) return '';
+    text = text[0].toUpperCase() + text.substring(1);
+    if (!text.endsWith('.') && !text.endsWith('?') && !text.endsWith('!')) {
+      text += '.';
+    }
+    return text;
   }
 
   void _openDialogueEditor(rec) {
@@ -525,7 +603,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => SummaryPage(recording: rec),
+        builder: (context) => SummaryPage(
+          recording: RecordingDetailsModel.fromRecording(rec.toMap()),
+        ),
       ),
     );
   }
@@ -713,6 +793,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             IconButton(
               icon: const Icon(Icons.search),
               onPressed: () => setState(() => _isSearching = true),
+            ),
+            IconButton(
+              icon: const Icon(Icons.share),
+              tooltip: 'Поделиться логами',
+              onPressed: _shareLogs,
             ),
           ],
         ],
@@ -1111,7 +1196,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                                 ? _openDialogueEditor(rec)
                                                 : _transcribeRecording(rec),
                                           ),
-                                          if (hasTranscription)
+                                          if (hasTranscription &&
+                                              (rec.transcription?.split(' ').length ?? 0) >= 100)
                                             _ActionButton(
                                               icon: Icons.auto_awesome,
                                               color: Colors.cyan,
