@@ -7,6 +7,7 @@ import 'package:vosk_flutter/vosk_flutter.dart';
 
 import 'services/vosk_custom_words_extended.dart';
 import 'services/vosk_auto_correction_extended.dart';
+import 'services/punctuation_service.dart';
 import 'services/speaker_diarization.dart' as diarization;
 
 class DialogueSegment {
@@ -88,33 +89,45 @@ class TranscriptionService {
       // Конвертируем любой WAV в 16kHz mono 16-bit PCM
       audioBytes = _convertWavToPcm16_16k_mono(wavBytes);
     } else {
-      // Проверяем ID3-теги в MP3 — они крашат MediaExtractor на native уровне
+      String convertPath = audioPath;
+
+      // Очищаем ID3-теги из MP3 перед конвертацией
       if (ext == 'mp3') {
         final fileBytes = await File(audioPath).readAsBytes();
+        int startOffset = 0;
+        int endOffset = fileBytes.length;
+
         if (fileBytes.length >= 3) {
           final header = String.fromCharCodes(fileBytes.sublist(0, 3));
-          // ID3v2 в начале файла
+          // ID3v2 в начале файла — пропускаем тег
           if (header == 'ID3') {
-            throw Exception(
-              'MP3 содержит ID3v2-теги (обложка/метаданные). Извлеките "чистое" аудио и повторите.',
-            );
+            if (fileBytes.length >= 10) {
+              final b6 = fileBytes[6];
+              final b7 = fileBytes[7];
+              final b8 = fileBytes[8];
+              final b9 = fileBytes[9];
+              final tagSize = ((b6 & 0x7F) << 21) | ((b7 & 0x7F) << 14) | ((b8 & 0x7F) << 7) | (b9 & 0x7F);
+              startOffset = 10 + tagSize;
+            }
           }
-          // ID3v1 в конце файла (последние 128 байт начинаются с "TAG")
+          // ID3v1 в конце файла — отрезаем последние 128 байт
           if (fileBytes.length >= 128) {
             final tail = String.fromCharCodes(fileBytes.sublist(fileBytes.length - 128, fileBytes.length - 125));
             if (tail == 'TAG') {
-              throw Exception(
-                'MP3 содержит ID3v1-теги (метаданные). Извлеките "чистое" аудио и повторите.',
-              );
+              endOffset = fileBytes.length - 128;
             }
           }
-          // Проверяем, что файл вообще похож на MP3 (начинается с sync word 0xFFF или ID3)
-          final firstByte = fileBytes[0];
-          final secondByte = fileBytes[1];
-          if ((firstByte & 0xFF) != 0xFF || ((secondByte & 0xE0) != 0xE0)) {
-            // Не похоже на MP3 — всё равно попробуем, но предупредим
-            // Не бросаем исключение, т.к. это может быть валидный MP3 с другой структурой
+        }
+
+        // Если есть теги — создаём чистый временный MP3
+        if (startOffset > 0 || endOffset < fileBytes.length) {
+          if (endOffset <= startOffset) {
+            throw Exception('MP3 contains only metadata, no audio data found');
           }
+          final tempDir = await getTemporaryDirectory();
+          final cleanMp3 = '${tempDir.path}/temp_clean_${DateTime.now().millisecondsSinceEpoch}.mp3';
+          await File(cleanMp3).writeAsBytes(fileBytes.sublist(startOffset, endOffset));
+          convertPath = cleanMp3;
         }
       }
 
@@ -123,7 +136,7 @@ class TranscriptionService {
 
       final result = await _platform.invokeMethod<Map<dynamic, dynamic>>(
         'convertToWav',
-        {'inputPath': audioPath, 'outputPath': tempWav},
+        {'inputPath': convertPath, 'outputPath': tempWav},
       );
 
       if (result == null || result['success'] != true) {
@@ -133,6 +146,11 @@ class TranscriptionService {
       final wavBytes = await File(tempWav).readAsBytes();
       audioBytes = _convertWavToPcm16_16k_mono(wavBytes);
       await File(tempWav).delete();
+
+      // Удаляем временный очищенный MP3, если создавали
+      if (convertPath != audioPath) {
+        await File(convertPath).delete();
+      }
     }
 
     final rawResults = await _processAudioRaw(audioBytes);
@@ -145,9 +163,14 @@ class TranscriptionService {
       }
     }
     fullText = fullText.trim();
+    fullText = 'PUNCT_TEST ' + fullText;
 
     // Apply auto-correction for common recognition mistakes
     fullText = VoskAutoCorrectionExtended.correctText(fullText);
+    print('DEBUG: Before punctuation: ${fullText.length} chars');
+    // Add punctuation to transcription
+    fullText = PunctuationService.addPunctuationToText(fullText);
+    print('DEBUG: After punctuation: ${fullText.length} chars');
 
     // Speaker diarization: build chunks from VOSK results with timestamps
     final chunks = _buildChunksFromResults(rawResults);
@@ -163,30 +186,39 @@ class TranscriptionService {
   Future<List<Map<String, dynamic>>> _processAudioRaw(
       Uint8List audioBytes) async {
     final List<Map<String, dynamic>> results = [];
-    int chunkSize = 8192;
+    int chunkSize = 262144; // 8 seconds 16kHz mono 16-bit = 256KB
     int pos = 0;
+    int chunkCount = 0;
 
     while (pos + chunkSize < audioBytes.length) {
-      final chunk = Uint8List.fromList(
-        audioBytes.getRange(pos, pos + chunkSize).toList(),
-      );
-      final resultReady = await _recognizer!.acceptWaveformBytes(chunk);
-      pos += chunkSize;
+      final chunk = Uint8List.sublistView(audioBytes, pos, pos + chunkSize);
+      chunkCount++;
 
-      if (resultReady) {
-        final resultJson = await _recognizer!.getResult();
-        final result = jsonDecode(resultJson);
-        results.add(result);
+      try {
+        final resultReady = await _recognizer!.acceptWaveformBytes(chunk);
+        pos += chunkSize;
+
+        if (resultReady) {
+          final resultJson = await _recognizer!.getResult();
+          results.add(jsonDecode(resultJson));
+        }
+      } catch (e) {
+        print('VOSK chunk $chunkCount error: $e');
+        pos += chunkSize;
       }
+
+      // Small delay to let VOSK native process and reduce crash risk
+      await Future.delayed(Duration(milliseconds: 10));
     }
 
-    final lastChunk = Uint8List.fromList(
-      audioBytes.getRange(pos, audioBytes.length).toList(),
-    );
-    await _recognizer!.acceptWaveformBytes(lastChunk);
-    final finalJson = await _recognizer!.getFinalResult();
-    final finalResult = jsonDecode(finalJson);
-    results.add(finalResult);
+    final lastChunk = Uint8List.sublistView(audioBytes, pos, audioBytes.length);
+    try {
+      await _recognizer!.acceptWaveformBytes(lastChunk);
+      final finalJson = await _recognizer!.getFinalResult();
+      results.add(jsonDecode(finalJson));
+    } catch (e) {
+      print('VOSK final error: $e');
+    }
 
     return results;
   }
