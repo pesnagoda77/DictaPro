@@ -288,8 +288,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     try {
       final result = await TranscriptionService().transcribeFile(rec.filePath);
       
-      // Apply punctuation to transcription
-      final punctuatedText = _addPunctuationToText(result.fullText);
+      // Text already punctuated by TranscriptionService
+      final punctuatedText = result.fullText;
       
       rec.transcription = punctuatedText;
       rec.segments = result.segments.map((s) => s.toMap()).toList();
@@ -324,56 +324,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
-  String _addPunctuationToText(String text) {
-    if (text.isEmpty) return '';
-    final words = text.trim().split(RegExp(r'\s+'));
-    if (words.isEmpty) return '';
 
-    final sentences = <String>[];
-    final currentSentence = <String>[];
-    const int maxWords = 12;
-    const int minWords = 5;
-    const Set<String> noBreak = {
-      'и','или','но','а','да','либо','тоже','также','зато','когда','пока','если','хотя','так','чтобы','что','потому','поэтому','тем','ибо','лишь','только','как','после','перед','для','с','со','от','до','по','под','при','в','во','на','за','к','ко','о','об','про','через','из','между','над','пред','ради','вроде','вопреки','посредством','кроме','без','безо','вместо','вследствие','ввиду','вслед','согласно','помимо','несмотря','внутри','вне','благодаря','спустя','среди','близ','мимо','около','сквозь','возле','вокруг','впереди','вовне','внутрь','у','не','ни','обо','ото','передо','подо','сверх','снизу','вперед','например','однако','следовательно','во-первых','во-вторых','в-третьих','вообще','вероятно','видимо','очевидно','кстати','собственно','действительно','возможно','по-видимому','пожалуй','может','можно','нужно','будем','будет','будут','быть','есть','является','являются','означает','означают','представляет','представляют','обозначает','обозначают','состоит','состоят','включает','включают','содержит','содержат','следует','следуют','оказывается','оказываются','получается','получаются','говорится','говорят','думается','думают','считается','считаются','полагается','полагают','предполагается','предполагаются','предположим','допустим','пусть','даже','всё','все',
-    };
-
-    for (int i = 0; i < words.length; i++) {
-      final word = words[i];
-      final nextWord = (i + 1 < words.length) ? words[i + 1].toLowerCase() : '';
-
-      if (currentSentence.isNotEmpty) {
-        final lastWord = currentSentence.last.toLowerCase();
-        final bool lastIsConnector = noBreak.contains(lastWord);
-        final bool nextIsConnector = noBreak.contains(nextWord);
-        final bool tooLong = currentSentence.length >= maxWords;
-        final bool tooShort = currentSentence.length < minWords;
-        final bool hardLimit = currentSentence.length >= 18;
-
-        if (hardLimit) {
-          sentences.add(_finishSentence(currentSentence));
-          currentSentence.clear();
-        } else if (tooLong && !lastIsConnector && !nextIsConnector && !tooShort) {
-          sentences.add(_finishSentence(currentSentence));
-          currentSentence.clear();
-        }
-      }
-      currentSentence.add(word);
-    }
-    if (currentSentence.isNotEmpty) {
-      sentences.add(_finishSentence(currentSentence));
-    }
-    return sentences.join(' ');
-  }
-
-  String _finishSentence(List<String> words) {
-    String text = words.join(' ');
-    if (text.isEmpty) return '';
-    text = text[0].toUpperCase() + text.substring(1);
-    if (!text.endsWith('.') && !text.endsWith('?') && !text.endsWith('!')) {
-      text += '.';
-    }
-    return text;
-  }
 
   void _openDialogueEditor(rec) {
     Navigator.push(

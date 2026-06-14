@@ -163,23 +163,28 @@ class TranscriptionService {
       }
     }
     fullText = fullText.trim();
-    fullText = 'PUNCT_TEST ' + fullText;
 
     // Apply auto-correction for common recognition mistakes
     fullText = VoskAutoCorrectionExtended.correctText(fullText);
-    print('DEBUG: Before punctuation: ${fullText.length} chars');
     // Add punctuation to transcription
     fullText = PunctuationService.addPunctuationToText(fullText);
-    print('DEBUG: After punctuation: ${fullText.length} chars');
 
     // Speaker diarization: build chunks from VOSK results with timestamps
     final chunks = _buildChunksFromResults(rawResults);
     final diarizationSegments = diarization.SpeakerDiarizationService.segmentSpeakers(chunks);
     final segments = _convertDiarizationSegments(diarizationSegments);
 
+    // Apply punctuation to each segment's text
+    final punctuatedSegments = segments.map((seg) => DialogueSegment(
+      speaker: seg.speaker,
+      text: PunctuationService.addPunctuationToText(seg.text),
+      startTime: seg.startTime,
+      endTime: seg.endTime,
+    )).toList();
+
     return TranscriptionResult(
       fullText: fullText,
-      segments: segments,
+      segments: punctuatedSegments,
     );
   }
 
