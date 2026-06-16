@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:hive/hive.dart';
 import 'audio_service.dart';
 import 'transcription_service.dart';
 import 'dialogue_editor.dart';
@@ -20,6 +21,31 @@ import 'services/enhanced_summary_service.dart';
 import 'models/recording_details_model.dart';
 
 
+enum SortOption {
+  dateNewest,
+  dateOldest,
+  nameAsc,
+  durationLongest,
+  durationShortest,
+}
+
+extension SortOptionExtension on SortOption {
+  String get label {
+    switch (this) {
+      case SortOption.dateNewest:
+        return 'Дата (новые)';
+      case SortOption.dateOldest:
+        return 'Дата (старые)';
+      case SortOption.nameAsc:
+        return 'Имя (А-Я)';
+      case SortOption.durationLongest:
+        return 'Длительность (длинные)';
+      case SortOption.durationShortest:
+        return 'Длительность (короткие)';
+    }
+  }
+}
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -29,7 +55,8 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool _isRecording = false;
-  var _recordings = [];
+  List<Recording> _recordings = [];
+  SortOption _sortOption = SortOption.dateNewest;
   int _recordSeconds = 0;
   double _amplitude = 0.0;
   String _searchQuery = '';
@@ -47,27 +74,78 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 800),
     )..repeat(reverse: true);
     _loadRecordings();
+    _loadSortPreference();
+  }
+
+  Future<void> _loadSortPreference() async {
+    try {
+      final box = await Hive.openBox<dynamic>('settings');
+      final raw = box.get('sortOption');
+      if (raw != null) {
+        final option = SortOption.values.firstWhere(
+          (e) => e.name == raw,
+          orElse: () => SortOption.dateNewest,
+        );
+        if (mounted) {
+          setState(() => _sortOption = option);
+        }
+      }
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  Future<void> _saveSortPreference(SortOption option) async {
+    try {
+      final box = await Hive.openBox<dynamic>('settings');
+      await box.put('sortOption', option.name);
+    } catch (_) {
+      // ignore
+    }
   }
 
   void _loadRecordings() {
     setState(() => _recordings = AudioService().getAllRecordings());
   }
 
-  List<dynamic> get _filteredRecordings {
-    var list = _recordings;
+  List<Recording> get _filteredRecordings {
+    var list = List<Recording>.from(_recordings);
     if (_showFavoritesOnly) {
-      list = list.where((rec) => rec.isFavorite == true).toList();
+      list = list.where((rec) => rec.isFavorite).toList();
     }
-    if (_searchQuery.isEmpty) return list;
-    return list.where((rec) {
-      final text = rec.transcription?.toLowerCase() ?? '';
-      final title = (rec.title ?? '').toLowerCase();
-      final name = 'Запись ${DateFormat('dd.MM HH:mm').format(rec.createdAt)}'
-          .toLowerCase();
-      return text.contains(_searchQuery.toLowerCase()) ||
-          title.contains(_searchQuery.toLowerCase()) ||
-          name.contains(_searchQuery.toLowerCase());
-    }).toList();
+    if (_searchQuery.isNotEmpty) {
+      list = list.where((rec) {
+        final text = rec.transcription?.toLowerCase() ?? '';
+        final title = (rec.title ?? '').toLowerCase();
+        final name = 'Запись ${DateFormat('dd.MM HH:mm').format(rec.createdAt)}'
+            .toLowerCase();
+        return text.contains(_searchQuery.toLowerCase()) ||
+            title.contains(_searchQuery.toLowerCase()) ||
+            name.contains(_searchQuery.toLowerCase());
+      }).toList();
+    }
+    switch (_sortOption) {
+      case SortOption.dateNewest:
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
+      case SortOption.dateOldest:
+        list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        break;
+      case SortOption.nameAsc:
+        list.sort((a, b) {
+          final aName = (a.title ?? '').toLowerCase();
+          final bName = (b.title ?? '').toLowerCase();
+          return aName.compareTo(bName);
+        });
+        break;
+      case SortOption.durationLongest:
+        list.sort((a, b) => b.durationMs.compareTo(a.durationMs));
+        break;
+      case SortOption.durationShortest:
+        list.sort((a, b) => a.durationMs.compareTo(b.durationMs));
+        break;
+    }
+    return list;
   }
 
   void _startTimer() {
@@ -957,6 +1035,30 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             color: Colors.white70,
                           ),
                         ),
+                        const Spacer(),
+                        PopupMenuButton<SortOption>(
+                          icon: const Icon(Icons.sort, color: Colors.white54, size: 20),
+                          tooltip: 'Сортировка',
+                          onSelected: (option) {
+                            setState(() => _sortOption = option);
+                            _saveSortPreference(option);
+                          },
+                          itemBuilder: (context) => SortOption.values.map((option) {
+                            return PopupMenuItem(
+                              value: option,
+                              child: Row(
+                                children: [
+                                  if (_sortOption == option)
+                                    const Icon(Icons.check, size: 16, color: Colors.green)
+                                  else
+                                    const SizedBox(width: 16),
+                                  const SizedBox(width: 8),
+                                  Text(option.label),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
                       ],
                     ),
                   ),
@@ -971,8 +1073,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             ),
                           )
                         : ListView.builder(
-                            padding: const EdgeInsets.only(
-                                left: 16, right: 16, top: 8, bottom: 80),
+                            padding: EdgeInsets.only(
+                                left: 16, right: 16, top: 8, bottom: MediaQuery.of(context).padding.bottom + 16),
                             itemCount: filtered.length,
                             itemBuilder: (context, index) {
                               final rec = filtered[index];

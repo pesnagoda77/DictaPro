@@ -321,7 +321,7 @@ class AudioService {
     await _box!.put(recording.id, recording.toMap());
   }
 
-  List<dynamic> getAllRecordings() {
+  List<Recording> getAllRecordings() {
     final maps = _box!.values.toList();
     maps.sort(
         (a, b) => (b['createdAt'] as int).compareTo(a['createdAt'] as int));
