@@ -1,8 +1,8 @@
-// NameDictionary v2 — fuzzy matching для VOSK-вариантов
+// NameDictionary v2-fix — fuzzy matching для VOSK-вариантов
 // Проблема v34: VOSK выдаёт "феодор" вместо "Фёдор", "генри" вместо "Генри"
 
 class NameDictionary {
-  static final Map<String, List<String>> _dictionary = {
+  static final Map<String, List<String>> dictionary = {
     // О. Генри — персонажи
     'феодор': ['Фёдор', 'Федор'],
     'федор': ['Фёдор', 'Федор'],
@@ -13,8 +13,8 @@ class NameDictionary {
     'кристи': ['Кристи'],
     'капитан': ['Капитан'],
     'бун': ['Бун'],
-    'ван': ['Ван'],
-    'она': ['Она'],
+    // 'ван': ['Ван'],   // УБРАНО: ложное срабатывание на слове "ван"
+    // 'она': ['Она'],   // УБРАНО: ложное срабатывание на слове "она"
     'кентукки': ['Кентукки'],
     'уреки': ['У реки'],
     'такер': ['Такер', 'Тэккер', 'Трекер'],
@@ -37,7 +37,7 @@ class NameDictionary {
     'новый': ['Новый'],
     'орлеан': ['Орлеан'],
     'сандакан': ['Сандакан'],
-    
+
     // Общие имена
     'александр': ['Александр'],
     'алексей': ['Алексей'],
@@ -53,59 +53,73 @@ class NameDictionary {
     'сергей': ['Сергей'],
     'юрий': ['Юрий'],
   };
-  
+
   /// Проверяет, является ли слово именем собственным (fuzzy matching)
   static bool isProperNoun(String word) {
     final lower = word.toLowerCase().replaceAll('ё', 'е');
-    
+
     // Прямое совпадение
-    if (_dictionary.containsKey(lower)) return true;
-    
+    if (dictionary.containsKey(lower)) return true;
+
+    // Для коротких слов (≤3 букв) — только точное совпадение (уже проверено выше)
+    if (lower.length <= 3) return false;
+
     // Проверка по вариантам (на случай если VOSK выдал "феодор" а у нас "федор")
-    for (var entry in _dictionary.entries) {
+    for (var entry in dictionary.entries) {
       final key = entry.key;
+      // Для коротких ключей тоже пропускаем fuzzy
+      if (key.length <= 3) continue;
       // Расстояние Левенштейна ≤ 2 или вхождение
       if (_levenshtein(lower, key) <= 2) return true;
       if (lower.contains(key) || key.contains(lower)) return true;
     }
-    
+
     return false;
   }
-  
+
   /// Возвращает правильное написание имени
   static String capitalize(String word) {
     final lower = word.toLowerCase().replaceAll('ё', 'е');
-    
-    if (_dictionary.containsKey(lower)) {
-      return _dictionary[lower]!.first;
+
+    if (dictionary.containsKey(lower)) {
+      return dictionary[lower]!.first;
     }
-    
+
+    // Для коротких слов — только точное совпадение (уже проверено выше)
+    if (lower.length <= 3) {
+      // Fallback: просто заглавная первая буква
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1);
+    }
+
     // Fuzzy поиск
-    for (var entry in _dictionary.entries) {
-      if (_levenshtein(lower, entry.key) <= 2 || 
-          lower.contains(entry.key) || 
-          entry.key.contains(lower)) {
+    for (var entry in dictionary.entries) {
+      final key = entry.key;
+      if (key.length <= 3) continue;
+      if (_levenshtein(lower, key) <= 2 ||
+          lower.contains(key) ||
+          key.contains(lower)) {
         return entry.value.first;
       }
     }
-    
+
     // Fallback: просто заглавная первая буква
     if (word.isEmpty) return word;
     return word[0].toUpperCase() + word.substring(1);
   }
-  
+
   /// Расстояние Левенштейна (для fuzzy matching)
   static int _levenshtein(String a, String b) {
     if (a.isEmpty) return b.length;
     if (b.isEmpty) return a.length;
-    
+
     final rows = a.length + 1;
     final cols = b.length + 1;
     final matrix = List.generate(rows, (_) => List.filled(cols, 0));
-    
-    for (int i = 0; i < rows; i++) matrix[i][0] = i;
-    for (int j = 0; j < cols; j++) matrix[0][j] = j;
-    
+
+    for (int i = 0; i < rows; i++) { matrix[i][0] = i; }
+    for (int j = 0; j < cols; j++) { matrix[0][j] = j; }
+
     for (int i = 1; i < rows; i++) {
       for (int j = 1; j < cols; j++) {
         final cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
@@ -116,21 +130,21 @@ class NameDictionary {
         ].reduce((min, val) => val < min ? val : min);
       }
     }
-    
+
     return matrix[a.length][b.length];
   }
-  
+
   /// Добавить новое имя в словарь
   static void addName(String voskVariant, String correctForm) {
     final key = voskVariant.toLowerCase().replaceAll('ё', 'е');
-    if (_dictionary.containsKey(key)) {
-      _dictionary[key]!.add(correctForm);
+    if (dictionary.containsKey(key)) {
+      dictionary[key]!.add(correctForm);
     } else {
-      _dictionary[key] = [correctForm];
+      dictionary[key] = [correctForm];
     }
   }
-  
+
   /// Получить все имена (для отладки)
-  static Map<String, List<String>> get dictionary => 
-      Map.unmodifiable(_dictionary);
+  static Map<String, List<String>> get allNames =>
+      Map.unmodifiable(dictionary);
 }
