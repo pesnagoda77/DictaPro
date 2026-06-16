@@ -1,14 +1,15 @@
-import 'dart:developer' as developer;
 import 'NameDictionary.dart';
 
-/// PunctuationService v35 — фикс для NameDictionary, вопросов, восклицаний
-/// Проблемы v34: имена строчные, вопросы без ?, восклицания без !
+/// PunctuationService v35-fix — восстановлена логика v34 для разбиения на предложения,
+/// сохранены NameDictionary, вопросы/восклицания, корректная обработка предлогов.
 class PunctuationService {
-  static const double PAUSE_THRESHOLD = 0.4;
-  static const int MIN_WORDS_PER_SENTENCE = 4;
-  
-  // Слова, после которых НЕ ставим точку
-  static final Set<String> _tailWords = {
+  static const double pauseThreshold = 0.4;
+  static const int minWordsPerSentence = 5;
+  static const int maxWordsPerSentence = 12;
+  static const int hardLimit = 18;
+
+  // Слова, после которых НЕ ставим точку и НЕ разрываем предложение
+  static final Set<String> tailWords = {
     'и', 'или', 'но', 'а', 'что', 'когда', 'если', 'потому', 'поэтому',
     'как', 'так', 'чтобы', 'хотя', 'пока', 'после', 'перед', 'будто',
     'например', 'однако', 'также', 'следовательно', 'во-первых', 'во-вторых',
@@ -17,155 +18,189 @@ class PunctuationService {
     'пожалуй', 'конечно', 'безусловно', 'несомненно', 'возможно',
     'можно', 'нужно', 'нельзя', 'будем', 'будет', 'может', 'должны',
     'следует', 'стоит', 'пора', 'пришлось', 'придется',
+    'да', 'либо', 'нибудь', 'тоже', 'зато',
+    'тем', 'ибо', 'лишь', 'только',
+    'со', 'про', 'изо', 'пред', 'ради', 'вроде', 'вопреки', 'посредством',
+    'вместо', 'вследствие', 'ввиду', 'вслед', 'согласно',
+    'помимо', 'несмотря', 'внутри', 'вне', 'благодаря', 'спустя', 'среди',
+    'близ', 'мимо', 'поперёк', 'сквозь', 'вглубь', 'вдоль',
+    'вокруг', 'впереди', 'вовне', 'внутрь', 'не', 'ни', 'обо', 'ото',
+    'передо', 'подо', 'поперек', 'сверх', 'снизу', 'вперед',
+    'собственно', 'по-видимому',
+    'быть', 'есть', 'является', 'являются', 'означает', 'означают',
+    'представляет', 'представляют', 'обозначает', 'обозначают',
+    'состоит', 'состоят', 'включает', 'включают', 'содержит', 'содержат',
+    'оказывается', 'оказываются', 'получается', 'получаются',
+    'говорится', 'говорят', 'думается', 'думают', 'считается', 'считаются',
+    'полагается', 'полагают', 'предполагается', 'предполагаются',
+    'предположим', 'допустим', 'пусть', 'даже', 'всё', 'все',
   };
-  
-  // Предлоги — склеиваем с предыдущим
-  static final Set<String> _prepositions = {
+
+  // Предлоги — не разрываем предложение после/перед ними
+  static final Set<String> prepositions = {
     'в', 'на', 'с', 'по', 'к', 'у', 'о', 'об', 'от', 'для',
     'за', 'под', 'над', 'при', 'перед', 'через', 'между',
     'из', 'до', 'после', 'без', 'около', 'возле', 'против',
+    'со', 'про', 'изо', 'пред', 'ради', 'вопреки', 'посредством',
+    'вместо', 'вследствие', 'ввиду', 'вслед', 'согласно',
+    'помимо', 'несмотря', 'внутри', 'вне', 'благодаря', 'спустя', 'среди',
+    'близ', 'мимо', 'поперёк', 'сквозь', 'вглубь', 'вдоль',
+    'вокруг', 'впереди', 'вовне', 'внутрь', 'обо', 'ото',
+    'передо', 'подо', 'поперек', 'сверх', 'снизу',
   };
-  
-  // ===== V35: QUESTION PATTERNS (fuzzy) =====
-  static final List<RegExp> _questionPatterns = [
+
+  // ===== QUESTION PATTERNS =====
+  static final List<RegExp> questionPatterns = [
     RegExp(r'\b(сколько|что|как|почему|зачем|кто|где|когда|куда|откуда|какой|чей)\b', caseSensitive: false),
     RegExp(r'\b(вы\s+примете|вы\s+похожи|вы\s+знаете|вы\s+понимаете|вы\s+согласны)\b', caseSensitive: false),
     RegExp(r'\b(спросил|спросила|задал\s+вопрос|вопрос|интересно)\b', caseSensitive: false),
   ];
-  
-  // ===== V35: EXCLAMATION PATTERNS =====
-  static final List<RegExp> _exclamationPatterns = [
+
+  // ===== EXCLAMATION PATTERNS =====
+  static final List<RegExp> exclamationPatterns = [
     RegExp(r'\b(сын\s+мой|дочь\s+моя|мать\s+моя|отец\s+мой|боже|господи|чёрт|черт|ура|ой|ах|ох)\b', caseSensitive: false),
     RegExp(r'\b(прижала|обняла|поцеловала|воскликнул|воскликнула|крикнул|крикнула|закричал|закричала)\b', caseSensitive: false),
   ];
-  
-  static bool _isTailWord(String word) {
-    return _tailWords.contains(word.toLowerCase());
+
+  static bool isTailWord(String word) {
+    return tailWords.contains(word.toLowerCase());
   }
-  
-  static bool _isPreposition(String word) {
-    return _prepositions.contains(word.toLowerCase());
+
+  static bool isPreposition(String word) {
+    return prepositions.contains(word.toLowerCase());
   }
-  
-  // ===== V35: QUESTION CHECK =====
-  static bool _isQuestion(String text) {
-    for (var pattern in _questionPatterns) {
+
+  static bool isQuestion(String text) {
+    for (var pattern in questionPatterns) {
       if (pattern.hasMatch(text)) return true;
     }
     return false;
   }
-  
-  // ===== V35: EXCLAMATION CHECK =====
-  static bool _isExclamation(String text) {
-    for (var pattern in _exclamationPatterns) {
+
+  static bool isExclamation(String text) {
+    for (var pattern in exclamationPatterns) {
       if (pattern.hasMatch(text)) return true;
     }
     return false;
   }
-  
-  /// Wrapper для совместимости с v34 — конвертирует String в List<WordTiming>
+
+  /// Wrapper для совместимости с v34 — конвертирует String в размеченный текст.
+  /// НЕ использует фиксированные тайминги: разбиение происходит по длине предложения
+  /// и логике союзов/предлогов.
   static String addPunctuationToText(String text) {
     if (text == 'PUNCT_TEST') return 'PUNCT_TEST_v35';
     if (text.isEmpty) return text;
-    
-    List<String> wordStrings = text.split(' ');
-    List<WordTiming> words = [];
-    double time = 0.0;
-    for (String word in wordStrings) {
-      if (word.isEmpty) continue;
-      words.add(WordTiming(word, time, time + 0.3));
-      time += 0.8; // 0.3s word + 0.5s pause (>= PAUSE_THRESHOLD)
+
+    final words = text.trim().split(RegExp(r'\s+'));
+    if (words.isEmpty) return '';
+
+    final sentences = <String>[];
+    final currentSentence = <String>[];
+
+    for (int i = 0; i < words.length; i++) {
+      final word = words[i];
+      final nextWord = (i + 1 < words.length) ? words[i + 1].toLowerCase() : '';
+
+      if (currentSentence.isNotEmpty) {
+        final lastWord = currentSentence.last.toLowerCase();
+        final lastWordIsConnector = isTailWord(lastWord) || isPreposition(lastWord);
+        final nextWordIsConnector = isTailWord(nextWord) || isPreposition(nextWord);
+        final sentenceTooLong = currentSentence.length >= maxWordsPerSentence;
+        final tooShort = currentSentence.length < minWordsPerSentence;
+        final hardLimitHit = currentSentence.length >= hardLimit;
+
+        if (hardLimitHit) {
+          sentences.add(finishSentence(currentSentence));
+          currentSentence.clear();
+        } else if (sentenceTooLong && !lastWordIsConnector && !nextWordIsConnector && !tooShort) {
+          sentences.add(finishSentence(currentSentence));
+          currentSentence.clear();
+        }
+      }
+
+      // Применяем NameDictionary
+      final displayWord = NameDictionary.isProperNoun(word) ? NameDictionary.capitalize(word) : word;
+      currentSentence.add(displayWord);
     }
-    return addPunctuation(words);
+
+    if (currentSentence.isNotEmpty) {
+      sentences.add(finishSentence(currentSentence));
+    }
+
+    return sentences.join(' ');
   }
-  
+
+  /// Разметка с использованием реальных таймингов из VOSK (динамический threshold)
   static String addPunctuation(List<WordTiming> words) {
     if (words.isEmpty) return '';
-    
-    final buffer = StringBuffer();
-    int wordCount = 0;
-    bool sentenceStarted = false;
-    bool lastWasPreposition = false;
-    
-    for (int i = 0; i < words.length; i++) {
-      final current = words[i];
-      final word = current.word;
-      final nextWord = i < words.length - 1 ? words[i + 1].word : null;
-      final pause = i < words.length - 1 ? words[i + 1].start - current.end : 0.0;
-      
-      // Проверка: это имя собственное? (через NameDictionary v2)
-      final isName = NameDictionary.isProperNoun(word);
-      final displayWord = isName ? NameDictionary.capitalize(word) : word;
-      
-      // Заглавная в начале предложения
-      if (!sentenceStarted || wordCount == 0) {
-        if (displayWord.isNotEmpty) {
-          buffer.write(displayWord[0].toUpperCase());
-          if (displayWord.length > 1) {
-            buffer.write(displayWord.substring(1));
-          }
-        }
-        sentenceStarted = true;
-      } else {
-        // Проверка: предыдущее слово было предлогом?
-        if (lastWasPreposition) {
-          buffer.write(displayWord); // склеиваем с предлогом
-        } else {
-          buffer.write(' ');
-          buffer.write(displayWord);
+    final threshold = calculateDynamicThreshold(words);
+
+    final sentences = <String>[];
+    final currentSentence = <String>[];
+    double lastEndTime = 0;
+
+    for (var wordTiming in words) {
+      final word = wordTiming.word;
+      final pauseDetected = lastEndTime > 0 && (wordTiming.start - lastEndTime) > threshold;
+      final sentenceTooLong = currentSentence.length >= maxWordsPerSentence;
+
+      final lastWord = currentSentence.isNotEmpty ? currentSentence.last.toLowerCase() : '';
+      final lastWordIsConnector = isTailWord(lastWord) || isPreposition(lastWord);
+      final nextWord = word.toLowerCase();
+      final nextWordIsConnector = isTailWord(nextWord) || isPreposition(nextWord);
+      final tooShort = currentSentence.length < minWordsPerSentence;
+
+      if ((pauseDetected || sentenceTooLong) && !lastWordIsConnector && !nextWordIsConnector && !tooShort) {
+        if (currentSentence.isNotEmpty) {
+          sentences.add(finishSentence(currentSentence));
+          currentSentence.clear();
         }
       }
-      
-      wordCount++;
-      lastWasPreposition = _isPreposition(word);
-      
-      // Проверка конца предложения
-      if (i < words.length - 1 && pause >= PAUSE_THRESHOLD && wordCount >= MIN_WORDS_PER_SENTENCE) {
-        // Не разрываем после хвостовых слов
-        if (_isTailWord(word)) {
-          continue;
-        }
-        
-        // Не разрываем если следующее слово — предлог (склеиваем)
-        if (nextWord != null && _isPreposition(nextWord)) {
-          lastWasPreposition = true;
-          continue;
-        }
-        
-        // Собираем текст текущего предложения для проверки вопроса/восклицания
-        final sentenceText = buffer.toString().split(RegExp(r'[.!?]\s+')).last + ' ' + (nextWord ?? '');
-        
-        // Определяем тип конца предложения
-        if (_isExclamation(sentenceText)) {
-          buffer.write('!');
-        } else if (_isQuestion(sentenceText)) {
-          buffer.write('?');
-        } else {
-          buffer.write('.');
-        }
-        
-        wordCount = 0;
-        sentenceStarted = false;
-        lastWasPreposition = false;
-      }
+
+      // NameDictionary
+      final displayWord = NameDictionary.isProperNoun(word) ? NameDictionary.capitalize(word) : word;
+      currentSentence.add(displayWord);
+
+      lastEndTime = wordTiming.end;
     }
-    
-    // Финальная пунктуация
-    final text = buffer.toString().trim();
+
+    if (currentSentence.isNotEmpty) {
+      sentences.add(finishSentence(currentSentence));
+    }
+
+    return sentences.join(' ');
+  }
+
+  static double calculateDynamicThreshold(List<WordTiming> words) {
+    if (words.length < 3) return 0.4;
+    final pauses = <double>[];
+    for (int i = 1; i < words.length; i++) {
+      final pause = words[i].start - words[i - 1].end;
+      if (pause > 0.01) pauses.add(pause);
+    }
+    if (pauses.isEmpty) return 0.4;
+    pauses.sort();
+    final median = pauses[pauses.length ~/ 2];
+    return (median * 2).clamp(0.3, 1.5);
+  }
+
+  static String finishSentence(List<String> words) {
+    String text = words.join(' ');
     if (text.isEmpty) return '';
-    
-    final lastChar = text[text.length - 1];
-    if (!RegExp(r'[.!?]').hasMatch(lastChar)) {
-      // Проверяем весь текст на вопрос/восклицание
-      if (_isExclamation(text)) {
-        return text + '!';
-      } else if (_isQuestion(text)) {
-        return text + '?';
-      } else {
-        return text + '.';
+
+    // Заглавная первая буква
+    text = text[0].toUpperCase() + text.substring(1);
+
+    // Определяем пунктуацию
+    if (isExclamation(text)) {
+      if (!text.endsWith('!')) text += '!';
+    } else if (isQuestion(text)) {
+      if (!text.endsWith('?')) text += '?';
+    } else {
+      if (!text.endsWith('.') && !text.endsWith('?') && !text.endsWith('!')) {
+        text += '.';
       }
     }
-    
     return text;
   }
 }
@@ -174,6 +209,6 @@ class WordTiming {
   final String word;
   final double start;
   final double end;
-  
+
   WordTiming(this.word, this.start, this.end);
 }
