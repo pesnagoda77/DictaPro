@@ -261,6 +261,18 @@ class AudioService {
 
   int? get sleepDurationMinutes => _sleepDurationMinutes;
 
+  String _generateDefaultTitle(DateTime dt) {
+    final day = dt.day;
+    const monthNames = [
+      'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+      'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+    ];
+    final month = monthNames[dt.month - 1];
+    final hour = dt.hour.toString().padLeft(2, '0');
+    final minute = dt.minute.toString().padLeft(2, '0');
+    return 'Запись $day $month, $hour:$minute';
+  }
+
   Future<dynamic> stopRecording() async {
     final path = await _recorder.stop();
 
@@ -279,6 +291,7 @@ class AudioService {
       createdAt: now,
       durationMs: duration.inMilliseconds,
       fileSize: size,
+      title: _generateDefaultTitle(now),
     );
 
     await _box!.put(recording.id, recording.toMap());
