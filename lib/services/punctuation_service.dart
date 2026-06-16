@@ -1,10 +1,10 @@
 import 'NameDictionary.dart';
 
-/// PunctuationService v35-fix — восстановлена логика v34 для разбиения на предложения,
-/// сохранены NameDictionary, вопросы/восклицания, корректная обработка предлогов.
+/// PunctuationService v38 — гибкое разбиение предложений, починка look-ahead,
+/// speech verb context, minWordsPerSentence = 3.
 class PunctuationService {
   static const double pauseThreshold = 0.4;
-  static const int minWordsPerSentence = 5;
+  static const int minWordsPerSentence = 3;
   static const int maxWordsPerSentence = 12;
   static const int hardLimit = 18;
 
@@ -74,6 +74,18 @@ class PunctuationService {
     return prepositions.contains(word.toLowerCase());
   }
 
+  // Speech verbs — после которых не разрываем короткие предложения
+  static final Set<String> speechVerbs = {
+    'спросил', 'спросила', 'сказал', 'сказала', 'ответил', 'ответила',
+    'воскликнул', 'воскликнула', 'крикнул', 'крикнула', 'закричал', 'закричала',
+    'задал', 'задала', 'продолжил', 'продолжила', 'добавил', 'добавила',
+    'перебил', 'перебила', 'шепнул', 'шепнула',
+  };
+
+  static bool isSpeechVerb(String word) {
+    return speechVerbs.contains(word.toLowerCase());
+  }
+
   static bool isQuestion(String text) {
     for (var pattern in questionPatterns) {
       if (pattern.hasMatch(text)) return true;
@@ -92,7 +104,7 @@ class PunctuationService {
   /// НЕ использует фиксированные тайминги: разбиение происходит по длине предложения
   /// и логике союзов/предлогов.
   static String addPunctuationToText(String text) {
-    if (text == 'PUNCT_TEST') return 'PUNCT_TEST_v35';
+    if (text == 'PUNCT_TEST') return 'PUNCT_TEST_v38';
     if (text.isEmpty) return text;
 
     final words = text.trim().split(RegExp(r'\s+'));
@@ -113,10 +125,19 @@ class PunctuationService {
         final tooShort = currentSentence.length < minWordsPerSentence;
         final hardLimitHit = currentSentence.length >= hardLimit;
 
+        final lastWordIsSpeechVerb = isSpeechVerb(lastWord);
+        final speechVerbShortContext = lastWordIsSpeechVerb && currentSentence.length <= 3;
+        final speechVerbAndContext = lastWordIsSpeechVerb && nextWord == 'и';
+
         if (hardLimitHit) {
           sentences.add(finishSentence(currentSentence));
           currentSentence.clear();
-        } else if (sentenceTooLong && !lastWordIsConnector && !nextWordIsConnector && !tooShort) {
+        } else if (sentenceTooLong &&
+            !lastWordIsConnector &&
+            !nextWordIsConnector &&
+            !tooShort &&
+            !speechVerbShortContext &&
+            !speechVerbAndContext) {
           sentences.add(finishSentence(currentSentence));
           currentSentence.clear();
         }
@@ -143,18 +164,28 @@ class PunctuationService {
     final currentSentence = <String>[];
     double lastEndTime = 0;
 
-    for (var wordTiming in words) {
+    for (int i = 0; i < words.length; i++) {
+      final wordTiming = words[i];
       final word = wordTiming.word;
+      final nextWord = (i + 1 < words.length) ? words[i + 1].word.toLowerCase() : '';
       final pauseDetected = lastEndTime > 0 && (wordTiming.start - lastEndTime) > threshold;
       final sentenceTooLong = currentSentence.length >= maxWordsPerSentence;
 
       final lastWord = currentSentence.isNotEmpty ? currentSentence.last.toLowerCase() : '';
       final lastWordIsConnector = isTailWord(lastWord) || isPreposition(lastWord);
-      final nextWord = word.toLowerCase();
       final nextWordIsConnector = isTailWord(nextWord) || isPreposition(nextWord);
       final tooShort = currentSentence.length < minWordsPerSentence;
 
-      if ((pauseDetected || sentenceTooLong) && !lastWordIsConnector && !nextWordIsConnector && !tooShort) {
+      final lastWordIsSpeechVerb = currentSentence.isNotEmpty && isSpeechVerb(lastWord);
+      final speechVerbShortContext = lastWordIsSpeechVerb && currentSentence.length <= 3;
+      final speechVerbAndContext = lastWordIsSpeechVerb && nextWord == 'и';
+
+      if ((pauseDetected || sentenceTooLong) &&
+          !lastWordIsConnector &&
+          !nextWordIsConnector &&
+          !tooShort &&
+          !speechVerbShortContext &&
+          !speechVerbAndContext) {
         if (currentSentence.isNotEmpty) {
           sentences.add(finishSentence(currentSentence));
           currentSentence.clear();
