@@ -41,3 +41,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Keystore
+android/app/key.properties
+android/app/release-key.jks
+android/app/smart_recorder.keystore
+

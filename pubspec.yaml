@@ -33,3 +33,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/models/vosk-model-small-ru-0.22.zip
+    - assets/fonts/Roboto-Regular.ttf
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf

@@ -120,6 +120,9 @@ class ExportService {
   }
 
   static Future<String> exportAsPdf(Recording rec) async {
+    final fontData = await rootBundle.load('assets/fonts/Roboto-Regular.ttf');
+    final ttf = pw.Font.ttf(fontData);
+
     final pdf = pw.Document();
     pdf.addPage(
       pw.Page(
@@ -130,11 +133,11 @@ class ExportService {
             children: [
               pw.Text(
                 'ДиктаПро — Транскрипция',
-                style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, font: ttf),
               ),
               pw.SizedBox(height: 8),
-              pw.Text('Дата: ${rec.createdAt}', style: pw.TextStyle(fontSize: 12)),
-              pw.Text('Длительность: ${rec.durationMs ~/ 1000} сек', style: pw.TextStyle(fontSize: 12)),
+              pw.Text('Дата: ${rec.createdAt}', style: pw.TextStyle(fontSize: 12, font: ttf)),
+              pw.Text('Длительность: ${rec.durationMs ~/ 1000} сек', style: pw.TextStyle(fontSize: 12, font: ttf)),
               pw.Divider(),
               pw.SizedBox(height: 8),
               if (rec.segments != null && rec.segments!.isNotEmpty)
@@ -142,13 +145,13 @@ class ExportService {
                       padding: const pw.EdgeInsets.symmetric(vertical: 4),
                       child: pw.Text(
                         '[${seg['speaker']}] ${seg['text']}',
-                        style: pw.TextStyle(fontSize: 14),
+                        style: pw.TextStyle(fontSize: 14, font: ttf),
                       ),
                     ))
               else
                 pw.Text(
                   rec.transcription ?? 'Нет текста',
-                  style: pw.TextStyle(fontSize: 14),
+                  style: pw.TextStyle(fontSize: 14, font: ttf),
                 ),
             ],
           );
