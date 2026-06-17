@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'audio_service.dart';
 
 class ExportService {
@@ -115,5 +117,50 @@ class ExportService {
 
     buffer.writeln('</body></html>');
     return buffer.toString();
+  }
+
+  static Future<String> exportAsPdf(Recording rec) async {
+    final pdf = pw.Document();
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                'ДиктаПро — Транскрипция',
+                style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+              ),
+              pw.SizedBox(height: 8),
+              pw.Text('Дата: ${rec.createdAt}', style: pw.TextStyle(fontSize: 12)),
+              pw.Text('Длительность: ${rec.durationMs ~/ 1000} сек', style: pw.TextStyle(fontSize: 12)),
+              pw.Divider(),
+              pw.SizedBox(height: 8),
+              if (rec.segments != null && rec.segments!.isNotEmpty)
+                ...rec.segments!.map((seg) => pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                      child: pw.Text(
+                        '[${seg['speaker']}] ${seg['text']}',
+                        style: pw.TextStyle(fontSize: 14),
+                      ),
+                    ))
+              else
+                pw.Text(
+                  rec.transcription ?? 'Нет текста',
+                  style: pw.TextStyle(fontSize: 14),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+
+    final dir = await getTemporaryDirectory();
+    final safeTitle = (rec.title ?? 'transcript').replaceAll(RegExp(r'[^\w\s\-]'), '_');
+    final path = '${dir.path}/${safeTitle}.pdf';
+    final file = File(path);
+    await file.writeAsBytes(await pdf.save());
+    return path;
   }
 }

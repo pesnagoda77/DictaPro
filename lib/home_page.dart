@@ -282,6 +282,32 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
+  bool _isExporting = false;
+
+  void _showExportingDialog() {
+    _isExporting = true;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text('Создание PDF...'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _hideExportingDialog() {
+    if (_isExporting && mounted) {
+      _isExporting = false;
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+  }
+
   Future<void> _toggleRecord() async {
     if (_isRecording) {
       AudioService().stopLiveTranscription();
@@ -523,6 +549,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               title: const Text('Скопировать текст'),
               onTap: () => Navigator.pop(ctx, 'copy'),
             ),
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+              title: const Text('PDF — документ'),
+              onTap: () => Navigator.pop(ctx, 'pdf'),
+            ),
           ],
         ),
       ),
@@ -537,6 +568,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         case 'html':
           final text = ExportService.formatTranscriptHtml(rec);
           ExportService.shareFile(text, '${rec.title ?? "transcript"}.html');
+          break;
+        case 'pdf':
+          _showExportingDialog();
+          ExportService.exportAsPdf(rec).then((path) {
+            _hideExportingDialog();
+            Share.shareXFiles([XFile(path)], text: 'Транскрипция записи в PDF');
+          }).catchError((e) {
+            _hideExportingDialog();
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Ошибка PDF: $e')),
+              );
+            }
+          });
           break;
         case 'copy':
           ExportService.copyToClipboard(rec.transcription ?? '');
@@ -598,6 +643,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 title: const Text('Скопировать текст'),
                 onTap: () => Navigator.pop(ctx, 'copy'),
               ),
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                title: const Text('PDF — документ'),
+                onTap: () => Navigator.pop(ctx, 'pdf'),
+              ),
             ],
           ),
         ),
@@ -613,6 +663,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         case 'html':
           final text = ExportService.formatTranscriptHtml(rec);
           ExportService.shareFile(text, '${rec.title ?? "transcript"}.html');
+          break;
+        case 'pdf':
+          _showExportingDialog();
+          ExportService.exportAsPdf(rec).then((path) {
+            _hideExportingDialog();
+            Share.shareXFiles([XFile(path)], text: 'Транскрипция записи в PDF');
+          }).catchError((e) {
+            _hideExportingDialog();
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Ошибка PDF: $e')),
+              );
+            }
+          });
           break;
         case 'copy':
           ExportService.copyToClipboard(rec.transcription ?? '');
