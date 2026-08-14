@@ -1,7 +1,7 @@
 name: dictapro
 description: DictaPro - voice recorder with AI transcription
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+42
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
