@@ -15,7 +15,7 @@ dependencies:
   hive_flutter: 1.1.0
   path_provider: 2.1.5
   permission_handler: 10.4.5
-  intl: 0.20.2
+  intl: any
   vosk_flutter: 0.3.48
   share_plus: 10.0.0
   file_picker: 6.2.1
