@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'services/ai_summary_service.dart';
 import 'services/stt_provider.dart';
+import 'services/gigaam_service.dart';
 import 'services/local_text_cleanup.dart';
 
 class RecorderSettings {
@@ -51,8 +52,12 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   bool _sttEnabled = false;
-  bool _cloudSummary = false;
   bool _cleanupEnabled = true;
+  String _engine = 'vosk';
+  bool _gigaamReady = false;
+  bool _downloading = false;
+  int _dlReceived = 0;
+  int _dlTotal = 1;
   String _sttProviderTitle = 'Groq (whisper-large-v3-turbo)';
 
   Future<void> _pickSttProvider() async {
@@ -139,18 +144,6 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const Divider(),
           SwitchListTile(
-            secondary: const Icon(Icons.summarize_outlined),
-            title: const Text('Облачное саммари (Z.ai)'),
-            subtitle: const Text(
-                'ВЫКЛ = саммари делается локально на устройстве. ВКЛ = текст записи отправляется в Z.ai'),
-            value: _cloudSummary,
-            onChanged: (v) async {
-              await AiSummaryService.setCloudEnabled(v);
-              if (mounted) setState(() => _cloudSummary = v);
-            },
-          ),
-          const Divider(),
-          SwitchListTile(
             secondary: const Icon(Icons.cloud_upload_outlined),
             title: const Text('Онлайн-транскрипция'),
             subtitle: const Text(
@@ -219,8 +212,6 @@ class _SettingsPageState extends State<SettingsPage> {
           : RecorderSettings();
       _loaded = true;
     });
-    final cloudSummary = await AiSummaryService.cloudEnabled();
-    if (mounted) setState(() => _cloudSummary = cloudSummary);
     final sttEnabled = await SttSettings.isEnabled();
     final prov = SttProvider.byId(await SttSettings.providerId());
     final cleanupEnabled = await LocalTextCleanupSettings.isEnabled();
@@ -312,6 +303,75 @@ class _SettingsPageState extends State<SettingsPage> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
+          RadioListTile<String>(
+            secondary: const Icon(Icons.graphic_eq),
+            title: const Text('VOSK (текущий)'),
+            subtitle: const Text('Быстрый, лёгкий. Движок по умолчанию.'),
+            value: 'vosk',
+            groupValue: _engine,
+            onChanged: (v) async {
+              await GigaamService.setEngine(v!);
+              if (mounted) setState(() => _engine = v);
+            },
+          ),
+          RadioListTile<String>(
+            secondary: const Icon(Icons.auto_awesome),
+            title: const Text('GigaAM (эксперимент)'),
+            subtitle: Text(_gigaamReady
+                ? 'Модель скачана. Русский ~в 6 раз точнее VOSK, пунктуация из коробки.'
+                : 'Модель ~230 МБ — скачать по Wi-Fi'),
+            value: 'gigaam',
+            groupValue: _engine,
+            onChanged: (v) async {
+              await GigaamService.setEngine(v!);
+              if (mounted) setState(() => _engine = v);
+            },
+          ),
+          if (_engine == 'gigaam' && !_gigaamReady) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _downloading
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        LinearProgressIndicator(
+                          value: _dlReceived / _dlTotal.clamp(1, _dlTotal),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${(_dlReceived / 1048576).toStringAsFixed(0)} из ~233 МБ',
+                          style: const TextStyle(fontSize: 12, color: Colors.white54),
+                        ),
+                      ],
+                    )
+                  : ElevatedButton.icon(
+                      onPressed: () async {
+                        setState(() {
+                          _downloading = true;
+                          _dlReceived = 0;
+                          _dlTotal = 233 * 1048576;
+                        });
+                        final ok = await GigaamService.downloadModel((r, t, f) {
+                          if (mounted) setState(() { _dlReceived = r; _dlTotal = t; });
+                        });
+                        if (mounted) {
+                          setState(() {
+                            _downloading = false;
+                            _gigaamReady = ok;
+                          });
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(ok
+                                ? 'Модель GigaAM готова'
+                                : 'Ошибка скачивания — проверь сеть'),
+                          ));
+                        }
+                      },
+                      icon: const Icon(Icons.download),
+                      label: const Text('Скачать модель GigaAM (~230 МБ)'),
+                    ),
+            ),
+            const SizedBox(height: 8),
+          ],
           SwitchListTile(
             secondary: const Icon(Icons.tune),
             title: const Text('Локальная чистка текста'),
