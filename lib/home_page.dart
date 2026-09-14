@@ -12,6 +12,7 @@ import 'audio_service.dart';
 import 'transcription_service.dart';
 import 'services/ai_summary_service.dart';
 import 'services/stt_provider.dart';
+import 'services/local_text_cleanup.dart';
 import 'services/online_transcribe_service.dart';
 import 'dialogue_editor.dart';
 import 'tag_service.dart';
@@ -68,6 +69,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Timer? _timer;
   late AnimationController _pulseController;
   final _searchController = TextEditingController();
+  final _hotwordsController = TextEditingController();
+  List<String> _recentHotwords = [];
 
   @override
   void initState() {
@@ -78,6 +81,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     )..repeat(reverse: true);
     _loadRecordings();
     _loadSortPreference();
+    _loadRecentHotwords();
+  }
+
+  Future<void> _loadRecentHotwords() async {
+    final words = await HotwordsStorage.recent();
+    if (mounted && words.isNotEmpty) {
+      setState(() => _recentHotwords = words);
+    }
   }
 
   Future<void> _loadSortPreference() async {
@@ -411,6 +422,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         _hideTranscribingDialog();
       }
     } else {
+      // «Термины этой записи» → VOSK AddWord (task 016 v3)
+      final hotwords = HotwordsStorage.parse(_hotwordsController.text);
+      if (hotwords.isNotEmpty) {
+        await TranscriptionService().applyHotwords(hotwords);
+        await HotwordsStorage.remember(hotwords);
+        _recentHotwords = await HotwordsStorage.recent();
+      }
       await AudioService().startRecording();
       AudioService().startLiveTranscription();
       _startTimer();
@@ -887,6 +905,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _timer?.cancel();
     _pulseController.dispose();
     _searchController.dispose();
+    _hotwordsController.dispose();
     AudioService().dispose();
     super.dispose();
   }
@@ -1089,6 +1108,64 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     },
                   ),
                 
+                if (!_isRecording) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _hotwordsController,
+                    decoration: InputDecoration(
+                      hintText:
+                          'Термины этой записи (имена, аббревиатуры — через запятую)',
+                      hintStyle:
+                          const TextStyle(fontSize: 12, color: Colors.white38),
+                      isDense: true,
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.05),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                      prefixIcon: const Icon(Icons.spellcheck,
+                          size: 18, color: Colors.white38),
+                    ),
+                    style: const TextStyle(fontSize: 13, color: Colors.white70),
+                  ),
+                  if (_recentHotwords.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (final w in _recentHotwords)
+                            GestureDetector(
+                              onTap: () {
+                                final cur = _hotwordsController.text;
+                                if (!cur
+                                    .toLowerCase()
+                                    .contains(w.toLowerCase())) {
+                                  _hotwordsController.text =
+                                      cur.trim().isEmpty ? w : '$cur, $w';
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Text(w,
+                                    style: const TextStyle(
+                                        fontSize: 12, color: Colors.white54)),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+                const SizedBox(height: 12),
                 GestureDetector(
                   onTap: _toggleRecord,
                   child: AnimatedContainer(
