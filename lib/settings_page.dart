@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'services/ai_summary_service.dart';
+import 'services/stt_provider.dart';
 
 class RecorderSettings {
   static const String boxName = 'settings';
@@ -48,6 +49,73 @@ class _SettingsPageState extends State<SettingsPage> {
     _loadSettings();
   }
 
+  bool _sttEnabled = false;
+  String _sttProviderTitle = 'Groq (whisper-large-v3-turbo)';
+
+  Future<void> _pickSttProvider() async {
+    final id = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Провайдер онлайн-транскрипции'),
+        children: [
+          for (final pr in SttProvider.all)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, pr.id),
+              child: Text(pr.title),
+            ),
+        ],
+      ),
+    );
+    if (id != null) {
+      await SttSettings.setProviderId(id);
+      if (mounted) {
+        setState(() => _sttProviderTitle = SttProvider.byId(id).title);
+      }
+    }
+  }
+
+  Future<void> _editSttKey(SttProvider provider) async {
+    final current = await SttSettings.apiKey(provider.keyPrefsName);
+    final ctrl = TextEditingController(text: current ?? '');
+    if (!mounted) return;
+    final res = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Ключ ${provider.title}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+                'Ключ хранится только на устройстве. Без ключа онлайн-режим '
+                'выключен (работает офлайн VOSK).',
+                style: TextStyle(fontSize: 12, color: Colors.white70)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Вставь API-ключ'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+    if (res != null) {
+      await SttSettings.setApiKey(provider.keyPrefsName, res);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(res.isEmpty ? 'Ключ удалён' : 'Ключ сохранён')));
+      }
+    }
+  }
+
   Future<void> _editZaiKey() async {
     final current = await AiSummaryService.getApiKey();
     final ctrl = TextEditingController(text: current ?? '');
@@ -66,6 +134,33 @@ class _SettingsPageState extends State<SettingsPage> {
             trailing: const Icon(Icons.chevron_right),
             onTap: _editZaiKey,
           ),
+          const Divider(),
+          SwitchListTile(
+            secondary: const Icon(Icons.cloud_upload_outlined),
+            title: const Text('Онлайн-транскрипция'),
+            subtitle: const Text(
+                'Точнее VOSK. Звук уходит на сервер провайдера (мягкое предупреждение перед первым разом)'),
+            value: _sttEnabled,
+            onChanged: (v) async {
+              await SttSettings.setEnabled(v);
+              if (mounted) setState(() => _sttEnabled = v);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.dns_outlined),
+            title: const Text('Провайдер'),
+            subtitle: Text(_sttProviderTitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _pickSttProvider,
+          ),
+          for (final pr in SttProvider.all)
+            ListTile(
+              leading: const Icon(Icons.vpn_key_outlined),
+              title: Text('Ключ ${pr.title}'),
+              subtitle: const Text('Хранится только на устройстве'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _editSttKey(pr),
+            ),
 
             const Text(
                 'Для ИИ-саммари записей. Ключ хранится только на устройстве. '
@@ -109,6 +204,14 @@ class _SettingsPageState extends State<SettingsPage> {
           : RecorderSettings();
       _loaded = true;
     });
+    final sttEnabled = await SttSettings.isEnabled();
+    final prov = SttProvider.byId(await SttSettings.providerId());
+    if (mounted) {
+      setState(() {
+        _sttEnabled = sttEnabled;
+        _sttProviderTitle = prov.title;
+      });
+    }
   }
 
   Future<void> _saveSettings() async {

@@ -11,6 +11,8 @@ import 'package:hive/hive.dart';
 import 'audio_service.dart';
 import 'transcription_service.dart';
 import 'services/ai_summary_service.dart';
+import 'services/stt_provider.dart';
+import 'services/online_transcribe_service.dart';
 import 'dialogue_editor.dart';
 import 'tag_service.dart';
 import 'export_service.dart';
@@ -309,6 +311,58 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
+  /// Онлайн-транскрипт (если включён и есть ключ). null -> использовать офлайн.
+  Future<String?> _onlineTranscript(String path) async {
+    try {
+      if (!await SttSettings.isEnabled()) return null;
+      final provider = SttProvider.byId(await SttSettings.providerId());
+      final key = await SttSettings.apiKey(provider.keyPrefsName);
+      if (key == null) return null;
+      if (!await SttSettings.hasConsent()) {
+        if (!mounted) return null;
+        final ok = await _showOfflineWarning(provider.title);
+        if (ok != true) return null;
+        await SttSettings.setConsent();
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Онлайн-распознавание…'), duration: Duration(seconds: 2)));
+      }
+      return await OnlineTranscribeService.transcribe(path,
+          provider: provider, apiKey: key);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Онлайн не удался, остаёмся офлайн: $e'),
+            duration: const Duration(seconds: 4)));
+      }
+      return null;
+    }
+  }
+
+  /// Мягкое предупреждение о выходе из офлайн-режима.
+  Future<bool?> _showOfflineWarning(String providerTitle) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Вы выходите из офлайн-режима'),
+        content: Text(
+            'Обычно все записи остаются только на этом устройстве. '
+            'Для точного распознавания звук этой записи будет отправлен '
+            'на сервер ($providerTitle). Больше ничего не передаётся.',
+            style: const TextStyle(fontSize: 14, height: 1.4)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Остаться офлайн')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Распознать онлайн')),
+        ],
+      ),
+    );
+  }
+
   Future<void> _toggleRecord() async {
     if (_isRecording) {
       AudioService().stopLiveTranscription();
@@ -324,11 +378,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         final recordings = AudioService().getAllRecordings();
         if (recordings.isNotEmpty) {
           final latest = recordings.first;
-          final result = await TranscriptionService().transcribeFile(latest.filePath);
-          final fullText = result.fullText;
-          
+          final onlineText = await _onlineTranscript(latest.filePath);
+          final result = onlineText == null
+              ? await TranscriptionService().transcribeFile(latest.filePath)
+              : null;
+          final fullText = onlineText ?? result!.fullText;
+
           latest.transcription = fullText;
-          latest.segments = result.segments.map((s) => s.toMap()).toList();
+          latest.segments = result != null
+              ? result.segments.map((s) => s.toMap()).toList()
+              : null;
           latest.tags = TagService.extractTags(fullText);
           latest.summary = (await AiSummaryService.generate(fullText)) ??
               EnhancedSummaryService.generateSummary(fullText).formatted;
@@ -392,18 +451,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
 
     try {
-      final result = await TranscriptionService().transcribeFile(rec.filePath);
-      
-      // Text already punctuated by TranscriptionService
-      final punctuatedText = result.fullText;
-      
+      final onlineText = await _onlineTranscript(rec.filePath);
+      final result = onlineText == null
+          ? await TranscriptionService().transcribeFile(rec.filePath)
+          : null;
+
+      final punctuatedText = onlineText ?? result!.fullText;
+
       rec.transcription = punctuatedText;
-      rec.segments = result.segments.map((s) => s.toMap()).toList();
+      rec.segments = result != null
+          ? result.segments.map((s) => s.toMap()).toList()
+          : null;
       rec.tags = TagService.extractTags(punctuatedText);
       rec.summary = (await AiSummaryService.generate(punctuatedText)) ??
           EnhancedSummaryService.generateSummary(punctuatedText).formatted;
       rec.decisions = SummaryService.getDecisions(punctuatedText);
-      rec.speakerStats = SummaryService.getSpeakerStats(result.segments.map((s) => s.toMap()).toList());
+      rec.speakerStats = result != null
+          ? SummaryService.getSpeakerStats(result.segments.map((s) => s.toMap()).toList())
+          : null;
       await AudioService().updateRecording(rec);
 
       Navigator.pop(context);
