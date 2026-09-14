@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:vosk_flutter/vosk_flutter.dart';
 
-import 'services/vosk_custom_words_extended.dart';
+import 'services/local_text_cleanup.dart';
 import 'services/vosk_auto_correction_extended.dart';
 import 'services/punctuation_service.dart';
 import 'services/speaker_diarization.dart' as diarization;
@@ -91,10 +91,28 @@ class TranscriptionService {
       sampleRate: 16000,
     );
 
-    // Add custom words to improve recognition quality
-    VoskCustomWordsExtended.initWords(_recognizer!);
+    // Статический словарь терминов убран (task 016 v3): только хотворды
+    // пользователя через applyHotwords() — см. home_page.
 
     _isModelLoaded = true;
+  }
+
+  /// Добавляет слова пользователя («Термины этой записи») в распознаватель.
+  /// Вызывать ПЕРЕД стартом записи/транскрибации. Дубли и ошибки игнорируем.
+  /// dynamic — как в VoskCustomWordsExtended: addWord есть на плагине,
+  /// но не объявлен в публичном типе Recognizer.
+  Future<void> applyHotwords(List<String> words) async {
+    if (!_isModelLoaded) await initModel();
+    final dynamic recognizer = _recognizer!;
+    for (final w in words) {
+      final word = w.trim();
+      if (word.isEmpty) continue;
+      try {
+        recognizer.addWord(word);
+      } catch (_) {
+        // слово не приняло — не критично
+      }
+    }
   }
 
   /// Потоковая транскрибация (память НЕ растёт с длиной записи).
@@ -161,6 +179,12 @@ class TranscriptionService {
       // Add punctuation to transcription
       fullText = PunctuationService.addPunctuationToText(fullText);
 
+      // Локальная чистка (task 016): числительные → цифры, пробелы.
+      // Только офлайн-путь, только на устройстве, без сети.
+      if (await LocalTextCleanupSettings.isEnabled()) {
+        fullText = LocalTextCleanup.cleanup(fullText);
+      }
+
       // Speaker diarization: build chunks from VOSK results with timestamps
       final chunks = _buildChunksFromResults(rawResults);
       final diarizationSegments =
@@ -168,10 +192,14 @@ class TranscriptionService {
       final segments = _convertDiarizationSegments(diarizationSegments);
 
       // Apply punctuation to each segment's text
+      final cleanupOn = await LocalTextCleanupSettings.isEnabled();
       final punctuatedSegments = segments
           .map((seg) => DialogueSegment(
                 speaker: seg.speaker,
-                text: PunctuationService.addPunctuationToText(seg.text),
+                text: cleanupOn
+                    ? LocalTextCleanup.cleanup(
+                        PunctuationService.addPunctuationToText(seg.text))
+                    : PunctuationService.addPunctuationToText(seg.text),
                 startTime: seg.startTime,
                 endTime: seg.endTime,
               ))
