@@ -224,8 +224,19 @@ class _DialogueEditorState extends State<DialogueEditor> {
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: _segments.length,
+        itemCount: _segments.length + 1,
         itemBuilder: (context, index) {
+          if (index == _segments.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: Text(
+                  'Обработка полностью на устройстве',
+                  style: TextStyle(fontSize: 11, color: Colors.white38),
+                ),
+              ),
+            );
+          }
           final segment = _segments[index];
           final isA = segment.speaker == 'A';
 
