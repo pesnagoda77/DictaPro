@@ -52,6 +52,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   bool _sttEnabled = false;
+  bool _cloudSummary = false;
   bool _cleanupEnabled = true;
   String _engine = 'vosk';
   bool _gigaamReady = false;
@@ -144,6 +145,18 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const Divider(),
           SwitchListTile(
+            secondary: const Icon(Icons.summarize_outlined),
+            title: const Text('Облачное саммари (Z.ai)'),
+            subtitle: const Text(
+                'ВЫКЛ = саммари делается локально на устройстве. ВКЛ = текст записи отправляется в Z.ai'),
+            value: _cloudSummary,
+            onChanged: (v) async {
+              await AiSummaryService.setCloudEnabled(v);
+              if (mounted) setState(() => _cloudSummary = v);
+            },
+          ),
+          const Divider(),
+          SwitchListTile(
             secondary: const Icon(Icons.cloud_upload_outlined),
             title: const Text('Онлайн-транскрипция'),
             subtitle: const Text(
@@ -212,6 +225,8 @@ class _SettingsPageState extends State<SettingsPage> {
           : RecorderSettings();
       _loaded = true;
     });
+    final cloudSummary = await AiSummaryService.cloudEnabled();
+    if (mounted) setState(() => _cloudSummary = cloudSummary);
     final sttEnabled = await SttSettings.isEnabled();
     final prov = SttProvider.byId(await SttSettings.providerId());
     final cleanupEnabled = await LocalTextCleanupSettings.isEnabled();
@@ -351,9 +366,19 @@ class _SettingsPageState extends State<SettingsPage> {
                           _dlReceived = 0;
                           _dlTotal = 233 * 1048576;
                         });
-                        final ok = await GigaamService.downloadModel((r, t, f) {
-                          if (mounted) setState(() { _dlReceived = r; _dlTotal = t; });
-                        });
+                        bool ok = false;
+                        try {
+                          ok = await GigaamService.downloadModel((r, t, f) {
+                            if (mounted) {
+                              setState(() {
+                                _dlReceived = r;
+                                _dlTotal = t;
+                              });
+                            }
+                          });
+                        } catch (e) {
+                          debugPrint('[gigaam] download error: $e');
+                        }
                         if (mounted) {
                           setState(() {
                             _downloading = false;

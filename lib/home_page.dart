@@ -8,10 +8,11 @@ import 'package:path_provider/path_provider.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:hive/hive.dart';
-import 'audio_service.dart';
+import 'audio_service.dart' hide DialogueSegment;
 import 'transcription_service.dart';
 import 'services/ai_summary_service.dart';
 import 'services/stt_provider.dart';
+import 'services/gigaam_service.dart';
 import 'services/local_text_cleanup.dart';
 import 'services/online_transcribe_service.dart';
 import 'dialogue_editor.dart';
@@ -464,7 +465,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ? result.segments.map((s) => s.toMap()).toList()
               : null;
           latest.tags = TagService.extractTags(fullText);
-          latest.summary = (await AiSummaryService.generate(fullText)) ??
+          final useCloudSummary = await AiSummaryService.cloudEnabled();
+          final cloudSummary =
+              useCloudSummary ? await AiSummaryService.generate(fullText) : null;
+          latest.summary = cloudSummary ??
               EnhancedSummaryService.generateSummary(fullText).formatted;
           latest.decisions = SummaryService.getDecisions(fullText);
           await AudioService().updateRecording(latest);
@@ -545,7 +549,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ? result.segments.map((s) => s.toMap()).toList()
           : null;
       rec.tags = TagService.extractTags(punctuatedText);
-      rec.summary = (await AiSummaryService.generate(punctuatedText)) ??
+      final useCloudSummary2 = await AiSummaryService.cloudEnabled();
+      final cloudSummary2 =
+          useCloudSummary2 ? await AiSummaryService.generate(punctuatedText) : null;
+      rec.summary = cloudSummary2 ??
           EnhancedSummaryService.generateSummary(punctuatedText).formatted;
       rec.decisions = SummaryService.getDecisions(punctuatedText);
       rec.speakerStats = result != null

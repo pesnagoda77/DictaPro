@@ -5,7 +5,6 @@
 // Всё локально: сеть только для скачивания модели по явному действию пользователя.
 
 import 'dart:async';
-import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -94,26 +93,39 @@ class GigaamService {
       var start = 0;
       if (file.existsSync()) start = file.lengthSync();
 
-      final request = await HttpClient().getUrl(Uri.parse(url));
-      if (start > 0) request.headers.add('Range', 'bytes=$start-');
-      final response = await request.close();
+      final client = HttpClient();
+      try {
+        final request = await client.getUrl(Uri.parse(url));
+        if (start > 0) request.headers.add('Range', 'bytes=$start-');
+        final response = await request.close();
 
-      if (response.statusCode == 200 && start > 0) {
-        // сервер не поддержал Range — качаем заново
-        await file.delete();
-        start = 0;
-      } else if (response.statusCode != 200 && response.statusCode != 206) {
-        debugPrint('[gigaam] download $name failed: ${response.statusCode}');
-        return false;
-      }
+        if (response.statusCode == 200 && start > 0) {
+          // сервер не поддержал Range — качаем заново
+          await file.delete();
+          start = 0;
+        } else if (response.statusCode != 200 && response.statusCode != 206) {
+          debugPrint('[gigaam] download $name failed: ${response.statusCode}');
+          return false;
+        }
 
-      final sink = file.openWrite(mode: start > 0 ? FileMode.append : FileMode.write);
-      await for (final chunk in response) {
-        sink.add(chunk);
-        received += chunk.length;
+        final sink = file.openWrite(
+            mode: start > 0 ? FileMode.append : FileMode.write);
+        var lastPing = DateTime.now();
+        await for (final chunk in response) {
+          sink.add(chunk);
+          received += chunk.length;
+          // прогресс не чаще ~5 раз/сек, чтобы не устраивать шторм setState
+          final now = DateTime.now();
+          if (now.difference(lastPing).inMilliseconds >= 200) {
+            lastPing = now;
+            onProgress(received, totalBytes, name);
+          }
+        }
+        await sink.close();
         onProgress(received, totalBytes, name);
+      } finally {
+        client.close();
       }
-      await sink.close();
     }
     return isModelDownloaded();
   }
@@ -245,6 +257,9 @@ void _gigaamIsolateEntry(_GigaamJob job) {
     // --- Распознаватель GigaAM v3 (nemo_transducer) ---
     final recognizer = sherpa.OfflineRecognizer(
       sherpa.OfflineRecognizerConfig(
+        // GigaAM использует 64-мерные log-mel признаки. Дефолт sherpa_onnx — 80,
+        // с ним модель выдаёт мусор (см. issue k2-fsa/sherpa-onnx#3619).
+        feat: const sherpa.FeatureConfig(sampleRate: 16000, featureDim: 64),
         model: sherpa.OfflineModelConfig(
           transducer: sherpa.OfflineTransducerModelConfig(
             encoder: '${job.modelDir}/encoder.int8.onnx',
