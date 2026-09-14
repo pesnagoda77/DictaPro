@@ -91,8 +91,8 @@ Got dependencies!
 Try `flutter pub outdated` for more information.
 flutter : Package path_provider:linux references path_provider_linux:linux as the default plugin, but the package does 
 not exist, or is not a plugin package.
-строка:1 знак:148
-+ ... Projects\Mobile\dictapro_v6; flutter build apk --release 2>&1 | Out-F ...
+строка:13 знак:183
++ ... OCAL + cloud toggle; v1.46"; flutter build apk --release 2>&1 | Out-F ...
 +                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : NotSpecified: (Package path_pr...plugin package.:String) [], RemoteException
     + FullyQualifiedErrorId : NativeCommandError
@@ -216,6 +216,3 @@ ers#report-incompatible-kotlin-gradle-plugin-usage-to-plugin-authors
 
 If you are a plugin author, please migrate your plugin to Built-in Kotlin using this guide: https://docs.flutter.dev/re
 lease/breaking-changes/migrate-to-built-in-kotlin/for-plugin-authors
-Font asset "MaterialIcons-Regular.otf" was tree-shaken, reducing it from 1645184 to 7364 bytes (99.6% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
-Running Gradle task 'assembleRelease'...                          176,9s
-тИЪ Built build\app\outputs\flutter-apk\app-release.apk (127.1MB)
