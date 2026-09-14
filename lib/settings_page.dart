@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'services/ai_summary_service.dart';
 import 'services/stt_provider.dart';
+import 'services/local_text_cleanup.dart';
 
 class RecorderSettings {
   static const String boxName = 'settings';
@@ -50,6 +51,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   bool _sttEnabled = false;
+  bool _cleanupEnabled = true;
   String _sttProviderTitle = 'Groq (whisper-large-v3-turbo)';
 
   Future<void> _pickSttProvider() async {
@@ -206,10 +208,12 @@ class _SettingsPageState extends State<SettingsPage> {
     });
     final sttEnabled = await SttSettings.isEnabled();
     final prov = SttProvider.byId(await SttSettings.providerId());
+    final cleanupEnabled = await LocalTextCleanupSettings.isEnabled();
     if (mounted) {
       setState(() {
         _sttEnabled = sttEnabled;
         _sttProviderTitle = prov.title;
+        _cleanupEnabled = cleanupEnabled;
       });
     }
   }
@@ -286,6 +290,24 @@ class _SettingsPageState extends State<SettingsPage> {
               'Для транскрибации достаточно 16kHz моно.',
               style: TextStyle(fontSize: 12, color: Colors.amber),
             ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Транскрипция',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            secondary: const Icon(Icons.tune),
+            title: const Text('Локальная чистка текста'),
+            subtitle: const Text(
+                'Числа цифрами, пробелы и пунктуация после офлайн-распознавания. '
+                'Полностью на устройстве, без сети.'),
+            value: _cleanupEnabled,
+            onChanged: (v) async {
+              await LocalTextCleanupSettings.setEnabled(v);
+              if (mounted) setState(() => _cleanupEnabled = v);
+            },
           ),
         ],
       ),
