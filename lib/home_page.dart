@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:hive/hive.dart';
 import 'audio_service.dart';
 import 'transcription_service.dart';
+import 'services/ai_summary_service.dart';
 import 'dialogue_editor.dart';
 import 'tag_service.dart';
 import 'export_service.dart';
@@ -329,7 +330,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           latest.transcription = fullText;
           latest.segments = result.segments.map((s) => s.toMap()).toList();
           latest.tags = TagService.extractTags(fullText);
-          latest.summary = EnhancedSummaryService.generateSummary(fullText).formatted;
+          latest.summary = (await AiSummaryService.generate(fullText)) ??
+              EnhancedSummaryService.generateSummary(fullText).formatted;
           latest.decisions = SummaryService.getDecisions(fullText);
           await AudioService().updateRecording(latest);
           _loadRecordings();
@@ -398,7 +400,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       rec.transcription = punctuatedText;
       rec.segments = result.segments.map((s) => s.toMap()).toList();
       rec.tags = TagService.extractTags(punctuatedText);
-      rec.summary = EnhancedSummaryService.generateSummary(punctuatedText).formatted;
+      rec.summary = (await AiSummaryService.generate(punctuatedText)) ??
+          EnhancedSummaryService.generateSummary(punctuatedText).formatted;
       rec.decisions = SummaryService.getDecisions(punctuatedText);
       rec.speakerStats = SummaryService.getSpeakerStats(result.segments.map((s) => s.toMap()).toList());
       await AudioService().updateRecording(rec);

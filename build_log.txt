@@ -1,0 +1,130 @@
+﻿flutter : Package path_provider:linux references path_provider_linux:linux as the default plugin, but the package does 
+not exist, or is not a plugin package.
+строка:1 знак:154
++ ... Projects\Mobile\dictapro_v6; flutter build apk --release 2>&1 | Out-F ...
++                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Package path_pr...plugin package.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Ask the maintainers of path_provider to either avoid referencing a default implementation via `platforms: linux: defaul
+t_package: path_provider_linux` or create a plugin named path_provider_linux.
+
+Package shared_preferences:linux references shared_preferences_linux:linux as the default plugin, but the package does 
+not exist, or is not a plugin package.
+Ask the maintainers of shared_preferences to either avoid referencing a default implementation via `platforms: linux: d
+efault_package: shared_preferences_linux` or create a plugin named shared_preferences_linux.
+
+Package record:windows references record_windows:windows as the default plugin, but the package does not exist, or is n
+ot a plugin package.
+Ask the maintainers of record to either avoid referencing a default implementation via `platforms: windows: default_pac
+kage: record_windows` or create a plugin named record_windows.
+
+Package path_provider:linux references path_provider_linux:linux as the default plugin, but the package does not exist,
+ or is not a plugin package.
+Ask the maintainers of path_provider to either avoid referencing a default implementation via `platforms: linux: defaul
+t_package: path_provider_linux` or create a plugin named path_provider_linux.
+
+Package shared_preferences:linux references shared_preferences_linux:linux as the default plugin, but the package does 
+not exist, or is not a plugin package.
+Ask the maintainers of shared_preferences to either avoid referencing a default implementation via `platforms: linux: d
+efault_package: shared_preferences_linux` or create a plugin named shared_preferences_linux.
+
+Package record:windows references record_windows:windows as the default plugin, but the package does not exist, or is n
+ot a plugin package.
+Ask the maintainers of record to either avoid referencing a default implementation via `platforms: windows: default_pac
+kage: record_windows` or create a plugin named record_windows.
+
+Package path_provider:linux references path_provider_linux:linux as the default plugin, but the package does not exist,
+ or is not a plugin package.
+Ask the maintainers of path_provider to either avoid referencing a default implementation via `platforms: linux: defaul
+t_package: path_provider_linux` or create a plugin named path_provider_linux.
+
+Package shared_preferences:linux references shared_preferences_linux:linux as the default plugin, but the package does 
+not exist, or is not a plugin package.
+Ask the maintainers of shared_preferences to either avoid referencing a default implementation via `platforms: linux: d
+efault_package: shared_preferences_linux` or create a plugin named shared_preferences_linux.
+
+Package record:windows references record_windows:windows as the default plugin, but the package does not exist, or is n
+ot a plugin package.
+Ask the maintainers of record to either avoid referencing a default implementation via `platforms: windows: default_pac
+kage: record_windows` or create a plugin named record_windows.
+
+Package path_provider:linux references path_provider_linux:linux as the default plugin, but the package does not exist,
+ or is not a plugin package.
+Ask the maintainers of path_provider to either avoid referencing a default implementation via `platforms: linux: defaul
+t_package: path_provider_linux` or create a plugin named path_provider_linux.
+
+Package shared_preferences:linux references shared_preferences_linux:linux as the default plugin, but the package does 
+not exist, or is not a plugin package.
+Ask the maintainers of shared_preferences to either avoid referencing a default implementation via `platforms: linux: d
+efault_package: shared_preferences_linux` or create a plugin named shared_preferences_linux.
+
+Package record:windows references record_windows:windows as the default plugin, but the package does not exist, or is n
+ot a plugin package.
+Ask the maintainers of record to either avoid referencing a default implementation via `platforms: windows: default_pac
+kage: record_windows` or create a plugin named record_windows.
+
+Running Gradle task 'assembleRelease'...                        
+Warning: Flutter support for your project's Gradle version (8.7.0) will soon be dropped. Please upgrade your Gradle ver
+sion to a version of at least 8.14.0 soon.
+Alternatively, use the flag "--android-skip-build-dependency-validation" to bypass this check.
+
+Potential fix: Your project's gradle version is typically defined in the gradle wrapper file. By default, this can be f
+ound at D:\Projects\Mobile\dictapro_v6\android/gradle/wrapper/gradle-wrapper.properties. 
+For more information, see https://docs.gradle.org/current/userguide/gradle_wrapper.html.
+
+Warning: Flutter support for your project's Android Gradle Plugin version (Android Gradle Plugin version 8.6.0) will so
+on be dropped. Please upgrade your Android Gradle Plugin version to a version of at least Android Gradle Plugin version
+ 8.11.1 soon.
+Alternatively, use the flag "--android-skip-build-dependency-validation" to bypass this check.
+
+Potential fix: Your project's AGP version is typically defined in the plugins block of the `settings.gradle` file (D:\P
+rojects\Mobile\dictapro_v6\android/settings.gradle), by a plugin with the id of com.android.application. 
+If you don't see a plugins block, your project was likely created with an older template version. In this case it is mo
+st likely defined in the top-level build.gradle file (D:\Projects\Mobile\dictapro_v6\android/build.gradle) by the follo
+wing line in the dependencies block of the buildscript: "classpath 'com.android.tools.build:gradle:<version>'".
+
+Warning: Flutter support for your project's Kotlin version (2.0.21) will soon be dropped. Please upgrade your Kotlin ve
+rsion to a version of at least 2.2.20 soon.
+Alternatively, use the flag "--android-skip-build-dependency-validation" to bypass this check.
+
+Potential fix: Your project's KGP version is typically defined in the plugins block of the `settings.gradle` file (D:\P
+rojects\Mobile\dictapro_v6\android/settings.gradle), by a plugin with the id of org.jetbrains.kotlin.android. 
+If you don't see a plugins block, your project was likely created with an older template version, in which case it is m
+ost likely defined in the top-level build.gradle file (D:\Projects\Mobile\dictapro_v6\android/build.gradle) by the ext.
+kotlin_version property.
+
+Warning: The plugin record_android requires Android SDK version 36 or higher.
+For more information about build configuration, see https://flutter.dev/to/review-gradle-config.
+Warning: The plugin shared_preferences_android requires Android SDK version 36 or higher.
+For more information about build configuration, see https://flutter.dev/to/review-gradle-config.
+Your project is configured to compile against Android SDK 35, but the following plugin(s) require to be compiled agains
+t a higher Android SDK version:
+- record_android compiles against Android SDK 36
+- shared_preferences_android compiles against Android SDK 36
+Fix this issue by compiling against the highest Android SDK version (they are backward compatible).
+Add the following to D:\Projects\Mobile\dictapro_v6\android\app\build.gradle:
+
+    android {
+        compileSdk = 36
+        ...
+    }
+WARNING: Your Android app project: app located at: D:\Projects\Mobile\dictapro_v6\android\app\build.gradle
+applies the Kotlin Gradle Plugin, which will cause build failures in future versions of Flutter. 
+Please migrate your app to Built-in Kotlin using this guide: https://docs.flutter.dev/release/breaking-changes/migrate-
+to-built-in-kotlin/for-app-developers
+
+WARNING: Your app uses the following plugins that apply Kotlin Gradle Plugin (KGP): flutter_foreground_task, record_and
+roid, share_plus
+Future versions of Flutter will fail to build if your app uses plugins that apply KGP.
+
+Please check the changelogs of these plugins and upgrade to a version that supports Built-in Kotlin.
+If no such version exists, report the issue to the plugin. If necessary, here is a guide on filing 
+an issue against a plugin: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-app-develop
+ers#report-incompatible-kotlin-gradle-plugin-usage-to-plugin-authors
+
+If you are a plugin author, please migrate your plugin to Built-in Kotlin using this guide: https://docs.flutter.dev/re
+lease/breaking-changes/migrate-to-built-in-kotlin/for-plugin-authors
+Font asset "MaterialIcons-Regular.otf" was tree-shaken, reducing it from 1645184 to 7364 bytes (99.6% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+Running Gradle task 'assembleRelease'...                          109,0s
+тИЪ Built build\app\outputs\flutter-apk\app-release.apk (127.0MB)

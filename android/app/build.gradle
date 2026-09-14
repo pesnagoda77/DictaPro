@@ -16,12 +16,12 @@ android {
     ndkVersion flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
 
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = '11'
     }
 
     sourceSets {
@@ -30,10 +30,10 @@ android {
 
     defaultConfig {
         applicationId "com.dictapro.app"
-        minSdk 21
+        minSdkVersion flutter.minSdkVersion
         targetSdk 35
-        versionCode 1
-        versionName "1.0"
+        versionCode 43
+        versionName "1.43"
     }
 
     signingConfigs {

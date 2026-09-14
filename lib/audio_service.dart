@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:record/record.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -178,6 +179,8 @@ class AudioService {
       path: path,
     );
 
+    await _startKeepAliveService();
+
     return path;
   }
 
@@ -273,7 +276,32 @@ class AudioService {
     return 'Запись $day $month, $hour:$minute';
   }
 
+  Future<void> _startKeepAliveService() async {
+    try {
+      if (await FlutterForegroundTask.isRunningService) return;
+      final perm = await FlutterForegroundTask.checkNotificationPermission();
+      if (perm != NotificationPermission.granted) {
+        await FlutterForegroundTask.requestNotificationPermission();
+      }
+      await FlutterForegroundTask.startService(
+        notificationTitle: 'DictaPro — идёт запись',
+        notificationText: 'Запись продолжается при выключенном экране',
+      );
+    } catch (_) {
+      // не критично: запись продолжается, пока приложение активно
+    }
+  }
+
+  Future<void> _stopKeepAliveService() async {
+    try {
+      if (await FlutterForegroundTask.isRunningService) {
+        await FlutterForegroundTask.stopService();
+      }
+    } catch (_) {}
+  }
+
   Future<dynamic> stopRecording() async {
+    await _stopKeepAliveService();
     final path = await _recorder.stop();
 
     final duration = _startTime != null

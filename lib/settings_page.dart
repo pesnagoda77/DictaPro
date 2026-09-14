@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
+import 'services/ai_summary_service.dart';
 
 class RecorderSettings {
   static const String boxName = 'settings';
@@ -45,6 +46,58 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _loadSettings();
+  }
+
+  Future<void> _editZaiKey() async {
+    final current = await AiSummaryService.getApiKey();
+    final ctrl = TextEditingController(text: current ?? '');
+    if (!mounted) return;
+    final res = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ключ Z.ai (ИИ-саммари)'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+          ListTile(
+            leading: const Icon(Icons.auto_awesome),
+            title: const Text('ИИ-саммари (Z.ai)'),
+            subtitle: const Text('Ключ для умных саммари; без ключа — офлайн'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _editZaiKey,
+          ),
+
+            const Text(
+                'Для ИИ-саммари записей. Ключ хранится только на устройстве. '
+                'Без ключа используется офлайн-саммари.',
+                style: TextStyle(fontSize: 12, color: Colors.white70)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Вставь ключ Z.ai'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+    if (res != null) {
+      await AiSummaryService.setApiKey(res);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(res.isEmpty
+                ? 'Ключ удалён — офлайн-саммари'
+                : 'Ключ сохранён — ИИ-саммари включено')));
+      }
+    }
   }
 
   Future<void> _loadSettings() async {
