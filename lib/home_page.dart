@@ -71,6 +71,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   final _searchController = TextEditingController();
   final _hotwordsController = TextEditingController();
   List<String> _recentHotwords = [];
+  String _engineLabel = 'VOSK (на устройстве)';
 
   @override
   void initState() {
@@ -82,6 +83,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _loadRecordings();
     _loadSortPreference();
     _loadRecentHotwords();
+    _loadEngineLabel();
+  }
+
+  Future<void> _loadEngineLabel() async {
+    final engine = await GigaamService.getEngine();
+    if (mounted) {
+      setState(() {
+        _engineLabel = engine == 'gigaam'
+            ? 'Распознавание: GigaAM (на устройстве)'
+            : 'Распознавание: VOSK (на устройстве)';
+      });
+    }
   }
 
   Future<void> _loadRecentHotwords() async {
@@ -374,6 +387,57 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  /// Офлайн-транскрибация выбранным движком. GigaAM — если выбран, модель
+  /// скачана и отработала; иначе фолбэк на VOSK с понятным снэком.
+  Future<TranscriptionResult> _transcribeByEngineResult(String filePath) async {
+    final engine = await GigaamService.getEngine();
+    if (engine == 'gigaam') {
+      if (await GigaamService.isModelDownloaded()) {
+        final text = await GigaamService.transcribeWithCleanup(filePath);
+        if (text != null && text.trim().isNotEmpty) return _gigaamResult(text);
+        _engineSnack('GigaAM не справился — пробую VOSK');
+      } else {
+        _engineSnack('Модель GigaAM не скачана — использую VOSK');
+      }
+    }
+    return await TranscriptionService().transcribeFile(filePath);
+  }
+
+  /// GigaAM выдаёт один текст — режем на сегменты по предложениям,
+  /// чтобы редактор и статистика спикеров работали как с VOSK.
+  TranscriptionResult _gigaamResult(String text) {
+    final sentences = text
+        .split(RegExp(r'(?<=[.!?])\s+'))
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    final segs = <DialogueSegment>[];
+    for (final s in sentences) {
+      segs.add(DialogueSegment(
+        speaker: 'Speaker 1',
+        text: s,
+        startTime: 0,
+        endTime: 0,
+      ));
+    }
+    if (segs.isEmpty) {
+      segs.add(DialogueSegment(
+        speaker: 'Speaker 1',
+        text: text,
+        startTime: 0,
+        endTime: 0,
+      ));
+    }
+    return TranscriptionResult(fullText: text, segments: segs);
+  }
+
+  void _engineSnack(String msg) {
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(msg)));
+    }
+  }
+
   Future<void> _toggleRecord() async {
     if (_isRecording) {
       AudioService().stopLiveTranscription();
@@ -391,7 +455,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           final latest = recordings.first;
           final onlineText = await _onlineTranscript(latest.filePath);
           final result = onlineText == null
-              ? await TranscriptionService().transcribeFile(latest.filePath)
+              ? await _transcribeByEngineResult(latest.filePath)
               : null;
           final fullText = onlineText ?? result!.fullText;
 
@@ -400,12 +464,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ? result.segments.map((s) => s.toMap()).toList()
               : null;
           latest.tags = TagService.extractTags(fullText);
-          final useCloudSummary = await AiSummaryService.cloudEnabled();
-          final cloudSummary =
-              useCloudSummary ? await AiSummaryService.generate(fullText) : null;
-          latest.summary = cloudSummary ??
+          latest.summary = (await AiSummaryService.generate(fullText)) ??
               EnhancedSummaryService.generateSummary(fullText).formatted;
-
           latest.decisions = SummaryService.getDecisions(fullText);
           await AudioService().updateRecording(latest);
           _loadRecordings();
@@ -475,7 +535,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     try {
       final onlineText = await _onlineTranscript(rec.filePath);
       final result = onlineText == null
-          ? await TranscriptionService().transcribeFile(rec.filePath)
+          ? await _transcribeByEngineResult(rec.filePath)
           : null;
 
       final punctuatedText = onlineText ?? result!.fullText;
@@ -485,12 +545,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ? result.segments.map((s) => s.toMap()).toList()
           : null;
       rec.tags = TagService.extractTags(punctuatedText);
-      final useCloudSummary2 = await AiSummaryService.cloudEnabled();
-      final cloudSummary2 =
-          useCloudSummary2 ? await AiSummaryService.generate(punctuatedText) : null;
-      rec.summary = cloudSummary2 ??
+      rec.summary = (await AiSummaryService.generate(punctuatedText)) ??
           EnhancedSummaryService.generateSummary(punctuatedText).formatted;
-
       rec.decisions = SummaryService.getDecisions(punctuatedText);
       rec.speakerStats = result != null
           ? SummaryService.getSpeakerStats(result.segments.map((s) => s.toMap()).toList())
@@ -1004,6 +1060,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     fontWeight:
                         _isRecording ? FontWeight.bold : FontWeight.normal,
                   ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _engineLabel,
+                  style: const TextStyle(fontSize: 11, color: Colors.white38),
                 ),
                 const SizedBox(height: 12),
                 if (_isRecording) ...[
