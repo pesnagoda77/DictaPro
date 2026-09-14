@@ -17,6 +17,7 @@ dependencies:
   permission_handler: 10.4.5
   flutter_foreground_task: ^8.15.0
   intl: any
+  sherpa_onnx: ^1.13.0
   vosk_flutter: 0.3.48
   share_plus: ^10.1.4
   file_picker: ^8.3.7
