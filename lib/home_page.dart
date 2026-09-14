@@ -400,8 +400,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ? result.segments.map((s) => s.toMap()).toList()
               : null;
           latest.tags = TagService.extractTags(fullText);
-          latest.summary = (await AiSummaryService.generate(fullText)) ??
+          final useCloudSummary = await AiSummaryService.cloudEnabled();
+          final cloudSummary =
+              useCloudSummary ? await AiSummaryService.generate(fullText) : null;
+          latest.summary = cloudSummary ??
               EnhancedSummaryService.generateSummary(fullText).formatted;
+
           latest.decisions = SummaryService.getDecisions(fullText);
           await AudioService().updateRecording(latest);
           _loadRecordings();
@@ -481,8 +485,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ? result.segments.map((s) => s.toMap()).toList()
           : null;
       rec.tags = TagService.extractTags(punctuatedText);
-      rec.summary = (await AiSummaryService.generate(punctuatedText)) ??
+      final useCloudSummary2 = await AiSummaryService.cloudEnabled();
+      final cloudSummary2 =
+          useCloudSummary2 ? await AiSummaryService.generate(punctuatedText) : null;
+      rec.summary = cloudSummary2 ??
           EnhancedSummaryService.generateSummary(punctuatedText).formatted;
+
       rec.decisions = SummaryService.getDecisions(punctuatedText);
       rec.speakerStats = result != null
           ? SummaryService.getSpeakerStats(result.segments.map((s) => s.toMap()).toList())

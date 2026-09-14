@@ -16,6 +16,21 @@ class AiSummaryService {
   static const String _model = 'glm-4.5-flash';
   static const String _keyName = 'zai_api_key';
 
+
+  static const String cloudEnabledKey = 'summary_cloud_enabled';
+
+  /// Облачное саммари по умолчанию ВЫКЛЮЧЕНО (принцип: офлайн по умолчанию,
+  /// облако — только осознанный выбор пользователя).
+  static Future<bool> cloudEnabled() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getBool(cloudEnabledKey) ?? false;
+  }
+
+  static Future<void> setCloudEnabled(bool v) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(cloudEnabledKey, v);
+  }
+
   static Future<String?> getApiKey() async {
     final prefs = await SharedPreferences.getInstance();
     final k = prefs.getString(_keyName);

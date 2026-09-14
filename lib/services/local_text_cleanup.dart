@@ -266,23 +266,26 @@ class LocalTextCleanup {
   /// Пытается превратить фразу числительных в цифры.
   /// Возвращает (замена, индекс следующего токена) или null — не трогаем.
   static (String, int)? _convert(List<String> p, List<String> tokens, int j) {
-    final hasThousand = p.any(_thousand.contains);
-    final percentIdx = p.indexWhere(_percent.contains);
-    final wholeIdx = p.indexWhere(_whole.contains);
-    final scaleIdx = p.indexWhere(_scale.containsKey);
-    final commaIdx = p.indexWhere(_comma.contains);
-    final unitIdx = p.indexWhere(_unitShort.containsKey);
-    final firstOrdinal = p.indexWhere(
-        (c) => _ordinalUnit.containsKey(c) || _ordinalTens.containsKey(c));
+    // ВАЖНО: все проверки — по нормализованной форме (ё→е), иначе слова
+    // вроде «четвёртый» не находятся в словарях (баг: год 2024 -> 2020).
+    final hasThousand = p.any((c) => _thousand.contains(_norm(c)));
+    final percentIdx = p.indexWhere((c) => _percent.contains(_norm(c)));
+    final wholeIdx = p.indexWhere((c) => _whole.contains(_norm(c)));
+    final scaleIdx = p.indexWhere((c) => _scale.containsKey(_norm(c)));
+    final commaIdx = p.indexWhere((c) => _comma.contains(_norm(c)));
+    final unitIdx = p.indexWhere((c) => _unitShort.containsKey(_norm(c)));
+    final firstOrdinal = p.indexWhere((c) =>
+        _ordinalUnit.containsKey(_norm(c)) || _ordinalTens.containsKey(_norm(c)));
     final lastIsOrdinal = p.isNotEmpty &&
-        (_ordinalUnit.containsKey(p.last) || _ordinalTens.containsKey(p.last));
+        (_ordinalUnit.containsKey(_norm(p.last)) ||
+            _ordinalTens.containsKey(_norm(p.last)));
 
     final trail = _trailing(tokens[j - 1]);
 
     // «запятая шестьдесят четыре сотых» → «,64»
     if (commaIdx >= 0 && commaIdx == 0 && scaleIdx > 0) {
       final frac = _evalCardinal(p.sublist(1, scaleIdx));
-      final scale = _scale[p[scaleIdx]]!;
+      final scale = _scale[_norm(p[scaleIdx])]!;
       return (',${frac.toString().padLeft(scale, '0')}$trail', j);
     }
 
@@ -290,10 +293,10 @@ class LocalTextCleanup {
     if (wholeIdx > 0 && scaleIdx > wholeIdx) {
       final intPart = _evalCardinal(p.sublist(0, wholeIdx));
       final frac = _evalCardinal(p.sublist(wholeIdx + 1, scaleIdx));
-      final scale = _scale[p[scaleIdx]]!;
+      final scale = _scale[_norm(p[scaleIdx])]!;
       var res = '$intPart,${frac.toString().padLeft(scale, '0')}';
       if (percentIdx > scaleIdx) res += '%';
-      if (unitIdx > scaleIdx) res += ' ${_unitShort[p[unitIdx]]}';
+      if (unitIdx > scaleIdx) res += ' ${_unitShort[_norm(p[unitIdx])]}';
       return ('$res$trail', j);
     }
 
@@ -302,7 +305,7 @@ class LocalTextCleanup {
       final intPart = _evalCardinal(p.sublist(0, commaIdx));
       final rest = <String>[];
       for (var k = commaIdx + 1; k < p.length; k++) {
-        if (_percent.contains(p[k]) || _unitShort.containsKey(p[k])) {
+        if (_percent.contains(_norm(p[k])) || _unitShort.containsKey(_norm(p[k]))) {
           continue;
         }
         rest.add(p[k]);
@@ -310,7 +313,7 @@ class LocalTextCleanup {
       final frac = _evalCardinal(rest);
       var res = '$intPart,$frac';
       if (percentIdx > commaIdx) res += '%';
-      if (unitIdx > commaIdx) res += ' ${_unitShort[p[unitIdx]]}';
+      if (unitIdx > commaIdx) res += ' ${_unitShort[_norm(p[unitIdx])]}';
       return ('$res$trail', j);
     }
 
@@ -338,7 +341,7 @@ class LocalTextCleanup {
     if (unitIdx == p.length - 1 && unitIdx > 0) {
       final value = _evalCardinal(p.sublist(0, unitIdx));
       if (value >= 10 || hasThousand) {
-        return ('$value ${_unitShort[p[unitIdx]]}$trail', j);
+        return ('$value ${_unitShort[_norm(p[unitIdx])]}$trail', j);
       }
       return null;
     }
