@@ -260,10 +260,58 @@ void _gigaamIsolateEntry(_GigaamJob job) {
     final parts = <String>[];
     var idx = 0;
 
-    // GigaAM (int8) падает в нативном ORT, если кусок длиннее возможностей
-    // модели (Mul в self_attn: broadcast-несовместимость, 5000 by 16626).
-    // Режем САМИ, не надеясь на лимит VAD: максимум 10 с на один проход декодера.
-    const maxSegSamples = 160000; // 10 с * 16 кГц
+    // GigaAM (int8) падает в нативном ORT на слишком длинном куске
+    // (Mul в self_attn: broadcast-несовместимость). Режем сами, но АККУРАТНО:
+    // ищем паузу рядом с границей, а если её нет — режем с перехлёстом и
+    // склеиваем совпавшие слова, чтобы не терять слова на швах.
+    const maxSegSamples = 160000; // 10 с
+    const minSegSamples = 80000; // не режем раньше 5 с
+    const overlapSamples = 8000; // 0.5 с перехлёста
+    const searchSamples = 24000; // 1.5 с — окно поиска паузы
+
+    String normForStitch(String s) =>
+        s.toLowerCase().replaceAll(RegExp(r'[^а-яa-z0-9 ]'), '').trim();
+
+    void addText(String text) {
+      if (text.isEmpty) return;
+      if (parts.isEmpty) {
+        parts.add(text);
+        return;
+      }
+      final prev = parts.last.split(' ');
+      final cur = text.split(' ');
+      var best = 0;
+      final maxK = prev.length < cur.length ? prev.length : cur.length;
+      final lim = maxK > 12 ? 12 : maxK;
+      for (var k = lim; k > 0; k--) {
+        if (normForStitch(prev.sublist(prev.length - k).join(' ')) ==
+            normForStitch(cur.sublist(0, k).join(' '))) {
+          best = k;
+          break;
+        }
+      }
+      parts.add(best > 0 ? cur.sublist(best).join(' ') : text);
+    }
+
+    // Самая тихая точка в окне [from, to) — там резать безопаснее всего.
+    int findQuiet(Float32List a, int from, int to) {
+      var f = from < 0 ? 0 : from;
+      var t = to > a.length ? a.length : to;
+      const step = 160; // 10 мс
+      var bestIdx = t;
+      var bestE = double.infinity;
+      for (var s = f; s + step <= t; s += step) {
+        var acc = 0.0;
+        for (var k = s; k < s + step; k++) {
+          acc += a[k].abs();
+        }
+        if (acc < bestE) {
+          bestE = acc;
+          bestIdx = s;
+        }
+      }
+      return bestIdx;
+    }
 
     void decodeOne(Float32List raw) {
       // Пустые/микроскопические куски в декодер не отдаём (роняют нативный ORT).
@@ -279,8 +327,7 @@ void _gigaamIsolateEntry(_GigaamJob job) {
           sampleRate: 16000,
         );
         recognizer.decode(stream);
-        final text = recognizer.getResult(stream).text.trim();
-        if (text.isNotEmpty) parts.add(text);
+        addText(recognizer.getResult(stream).text.trim());
       } finally {
         stream.free();
       }
@@ -291,10 +338,21 @@ void _gigaamIsolateEntry(_GigaamJob job) {
         decodeOne(raw);
         return;
       }
-      for (var s = 0; s < raw.length; s += maxSegSamples) {
-        final e =
-            (s + maxSegSamples > raw.length) ? raw.length : s + maxSegSamples;
-        decodeOne(Float32List.sublistView(raw, s, e));
+      var start = 0;
+      while (start < raw.length) {
+        var end = start + maxSegSamples;
+        if (end >= raw.length) {
+          decodeOne(Float32List.sublistView(raw, start, raw.length));
+          break;
+        }
+        final winFrom = (end - searchSamples) > (start + minSegSamples)
+            ? (end - searchSamples)
+            : (start + minSegSamples);
+        final q = findQuiet(raw, winFrom, end);
+        if (q > start + minSegSamples && q < end) end = q;
+        decodeOne(Float32List.sublistView(raw, start, end));
+        final next = end - overlapSamples;
+        start = next > start ? next : end;
       }
     }
 

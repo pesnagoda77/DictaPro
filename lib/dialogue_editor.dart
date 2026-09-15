@@ -137,7 +137,7 @@ class _DialogueEditorState extends State<DialogueEditor> {
       _segments[i].text = _textControllers[i].text;
     }
 
-    final fullText = _segments.map((s) => '${s.speaker}: ${s.text}').join('\n');
+    final fullText = _segments.map((s) => _segments.map((x) => x.speaker).toSet().length > 1 ? '${s.speaker}: ${s.text}' : s.text).join('\n');
     widget.recording.transcription = fullText;
     widget.recording.segments = _segments.map((s) => s.toMap()).toList();
 
@@ -149,7 +149,7 @@ class _DialogueEditorState extends State<DialogueEditor> {
   }
 
   void _copyToClipboard() {
-    final text = _segments.map((s) => '${s.speaker}: ${s.text}').join('\n');
+    final text = _segments.map((s) => _segments.map((x) => x.speaker).toSet().length > 1 ? '${s.speaker}: ${s.text}' : s.text).join('\n');
     ExportService.copyToClipboard(text);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Скопировано в буфер обмена')),
@@ -157,7 +157,7 @@ class _DialogueEditorState extends State<DialogueEditor> {
   }
 
   void _shareText() {
-    final text = _segments.map((s) => '${s.speaker}: ${s.text}').join('\n');
+    final text = _segments.map((s) => _segments.map((x) => x.speaker).toSet().length > 1 ? '${s.speaker}: ${s.text}' : s.text).join('\n');
     ExportService.shareText(text);
   }
 
