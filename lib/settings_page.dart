@@ -136,53 +136,6 @@ class _SettingsPageState extends State<SettingsPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-          ListTile(
-            leading: const Icon(Icons.auto_awesome),
-            title: const Text('ИИ-саммари (Z.ai)'),
-            subtitle: const Text('Ключ для умных саммари; без ключа — офлайн'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _editZaiKey,
-          ),
-          const Divider(),
-          SwitchListTile(
-            secondary: const Icon(Icons.summarize_outlined),
-            title: const Text('Облачное саммари (Z.ai)'),
-            subtitle: const Text(
-                'ВЫКЛ = саммари делается локально на устройстве. ВКЛ = текст записи отправляется в Z.ai'),
-            value: _cloudSummary,
-            onChanged: (v) async {
-              await AiSummaryService.setCloudEnabled(v);
-              if (mounted) setState(() => _cloudSummary = v);
-            },
-          ),
-          const Divider(),
-          SwitchListTile(
-            secondary: const Icon(Icons.cloud_upload_outlined),
-            title: const Text('Онлайн-транскрипция'),
-            subtitle: const Text(
-                'Точнее VOSK. Звук уходит на сервер провайдера (мягкое предупреждение перед первым разом)'),
-            value: _sttEnabled,
-            onChanged: (v) async {
-              await SttSettings.setEnabled(v);
-              if (mounted) setState(() => _sttEnabled = v);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.dns_outlined),
-            title: const Text('Провайдер'),
-            subtitle: Text(_sttProviderTitle),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _pickSttProvider,
-          ),
-          for (final pr in SttProvider.all)
-            ListTile(
-              leading: const Icon(Icons.vpn_key_outlined),
-              title: Text('Ключ ${pr.title}'),
-              subtitle: const Text('Хранится только на устройстве'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _editSttKey(pr),
-            ),
-
             const Text(
                 'Для ИИ-саммари записей. Ключ хранится только на устройстве. '
                 'Без ключа используется офлайн-саммари.',
@@ -419,6 +372,58 @@ class _SettingsPageState extends State<SettingsPage> {
               if (mounted) setState(() => _cleanupEnabled = v);
             },
           ),
+          const SizedBox(height: 24),
+          const Text(
+            'Саммари и онлайн',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            leading: const Icon(Icons.auto_awesome),
+            title: const Text('ИИ-саммари (Z.ai)'),
+            subtitle: const Text('Ключ для умных саммари; без ключа — офлайн'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _editZaiKey,
+          ),
+          const Divider(),
+          SwitchListTile(
+            secondary: const Icon(Icons.summarize_outlined),
+            title: const Text('Облачное саммари (Z.ai)'),
+            subtitle: const Text(
+                'ВЫКЛ = саммари делается локально на устройстве. ВКЛ = текст записи отправляется в Z.ai'),
+            value: _cloudSummary,
+            onChanged: (v) async {
+              await AiSummaryService.setCloudEnabled(v);
+              if (mounted) setState(() => _cloudSummary = v);
+            },
+          ),
+          const Divider(),
+          SwitchListTile(
+            secondary: const Icon(Icons.cloud_upload_outlined),
+            title: const Text('Онлайн-транскрипция'),
+            subtitle: const Text(
+                'Точнее VOSK. Звук уходит на сервер провайдера (мягкое предупреждение перед первым разом)'),
+            value: _sttEnabled,
+            onChanged: (v) async {
+              await SttSettings.setEnabled(v);
+              if (mounted) setState(() => _sttEnabled = v);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.dns_outlined),
+            title: const Text('Провайдер'),
+            subtitle: Text(_sttProviderTitle),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _pickSttProvider,
+          ),
+          for (final pr in SttProvider.all)
+            ListTile(
+              leading: const Icon(Icons.vpn_key_outlined),
+              title: Text('Ключ ${pr.title}'),
+              subtitle: const Text('Хранится только на устройстве'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _editSttKey(pr),
+            ),
         ],
       ),
     );

@@ -1,21 +1,17 @@
-import 'package:flutter/material.dart';
 import 'vosk_custom_words_extended.dart';
 import 'vosk_auto_correction_extended.dart';
 
 class TranscriptionService {
   dynamic _recognizer;
-  bool _isInitialized = false;
 
   /// Инициализация модели VOSK
   /// Вызывается один раз при старте приложения
   Future<void> initModel() async {
     // ... существующая инициализация VOSK ...
-    
+
     // Добавляем custom words в словарь модели
     // Важно: вызывать ПОСЛЕ загрузки модели, но ДО начала распознавания
     VoskCustomWordsExtended.initWords(_recognizer);
-    
-    _isInitialized = true;
   }
 
   /// Обработка результата транскрипции

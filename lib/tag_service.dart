@@ -1,5 +1,3 @@
-import 'package:collection/collection.dart';
-
 class TagService {
   static const List<String> _stopWords = [
     'и', 'в', 'во', 'не', 'что', 'он', 'на', 'я', 'с', 'со',

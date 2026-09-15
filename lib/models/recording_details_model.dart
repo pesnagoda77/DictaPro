@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 /// Wrapper model for recording details passed to SummaryPage.
 /// Bridges between the old Recording model and the new SummaryPage API.
 class RecordingDetailsModel {
