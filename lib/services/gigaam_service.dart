@@ -247,8 +247,8 @@ void _gigaamIsolateEntry(_GigaamJob job) {
           model: '${job.modelDir}/silero_vad.onnx',
           threshold: 0.5,
           minSpeechDuration: 0.25,
-          minSilenceDuration: 0.5,
-          maxSpeechDuration: 15.0,
+          minSilenceDuration: 0.8,
+          maxSpeechDuration: 20.0,
           windowSize: 512,
         ),
         sampleRate: 16000,
@@ -260,38 +260,13 @@ void _gigaamIsolateEntry(_GigaamJob job) {
     final parts = <String>[];
     var idx = 0;
 
-    // GigaAM (int8) падает в нативном ORT на слишком длинном куске
-    // (Mul в self_attn: broadcast-несовместимость). Режем сами, но АККУРАТНО:
-    // ищем паузу рядом с границей, а если её нет — режем с перехлёстом и
-    // склеиваем совпавшие слова, чтобы не терять слова на швах.
-    const maxSegSamples = 160000; // 10 с
-    const minSegSamples = 80000; // не режем раньше 5 с
-    const overlapSamples = 8000; // 0.5 с перехлёста
+    // Замерено на реальной записи (локальный прогон): лучшая конфигурация —
+    // паузы ≥0.8 с и кусок до 20 с (WER 18.9%). Модель держит и 60 с без вылета,
+    // 20 с — безопасный запас. Перехлёст со склейкой ПРОВЕРЕН и ОТКЛЮЧЁН
+    // (добавлял лишние слова). Режем только через поиск паузы.
+    const maxSegSamples = 320000; // 20 с
+    const minSegSamples = 160000; // не режем раньше 10 с
     const searchSamples = 24000; // 1.5 с — окно поиска паузы
-
-    String normForStitch(String s) =>
-        s.toLowerCase().replaceAll(RegExp(r'[^а-яa-z0-9 ]'), '').trim();
-
-    void addText(String text) {
-      if (text.isEmpty) return;
-      if (parts.isEmpty) {
-        parts.add(text);
-        return;
-      }
-      final prev = parts.last.split(' ');
-      final cur = text.split(' ');
-      var best = 0;
-      final maxK = prev.length < cur.length ? prev.length : cur.length;
-      final lim = maxK > 12 ? 12 : maxK;
-      for (var k = lim; k > 0; k--) {
-        if (normForStitch(prev.sublist(prev.length - k).join(' ')) ==
-            normForStitch(cur.sublist(0, k).join(' '))) {
-          best = k;
-          break;
-        }
-      }
-      parts.add(best > 0 ? cur.sublist(best).join(' ') : text);
-    }
 
     // Самая тихая точка в окне [from, to) — там резать безопаснее всего.
     int findQuiet(Float32List a, int from, int to) {
@@ -327,7 +302,8 @@ void _gigaamIsolateEntry(_GigaamJob job) {
           sampleRate: 16000,
         );
         recognizer.decode(stream);
-        addText(recognizer.getResult(stream).text.trim());
+        final text = recognizer.getResult(stream).text.trim();
+        if (text.isNotEmpty) parts.add(text);
       } finally {
         stream.free();
       }
@@ -351,8 +327,7 @@ void _gigaamIsolateEntry(_GigaamJob job) {
         final q = findQuiet(raw, winFrom, end);
         if (q > start + minSegSamples && q < end) end = q;
         decodeOne(Float32List.sublistView(raw, start, end));
-        final next = end - overlapSamples;
-        start = next > start ? next : end;
+        start = end;
       }
     }
 
