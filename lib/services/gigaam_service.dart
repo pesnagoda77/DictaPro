@@ -260,7 +260,12 @@ void _gigaamIsolateEntry(_GigaamJob job) {
     final parts = <String>[];
     var idx = 0;
 
-    void decodeSegment(Float32List raw) {
+    // GigaAM (int8) падает в нативном ORT, если кусок длиннее возможностей
+    // модели (Mul в self_attn: broadcast-несовместимость, 5000 by 16626).
+    // Режем САМИ, не надеясь на лимит VAD: максимум 10 с на один проход декодера.
+    const maxSegSamples = 160000; // 10 с * 16 кГц
+
+    void decodeOne(Float32List raw) {
       // Пустые/микроскопические куски в декодер не отдаём (роняют нативный ORT).
       if (raw.length < 1600) return; // < 0.1 с
       idx++;
@@ -278,6 +283,18 @@ void _gigaamIsolateEntry(_GigaamJob job) {
         if (text.isNotEmpty) parts.add(text);
       } finally {
         stream.free();
+      }
+    }
+
+    void decodeSegment(Float32List raw) {
+      if (raw.length <= maxSegSamples) {
+        decodeOne(raw);
+        return;
+      }
+      for (var s = 0; s < raw.length; s += maxSegSamples) {
+        final e =
+            (s + maxSegSamples > raw.length) ? raw.length : s + maxSegSamples;
+        decodeOne(Float32List.sublistView(raw, s, e));
       }
     }
 
