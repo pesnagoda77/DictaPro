@@ -171,6 +171,8 @@ class GigaamService {
         switch (message[0] as String) {
           case 'progress':
             onProgress?.call(message[1] as int, message[2] as int);
+          case 'log':
+            debugPrint('[gigaam] ${message[1]}');
           case 'done':
             completer.complete(message[1] as String?);
             receivePort.close();
@@ -254,11 +256,13 @@ void _gigaamIsolateEntry(_GigaamJob job) {
         sampleRate: 16000,
         numThreads: 1,
       ),
-      bufferSizeInSeconds: 30,
+      bufferSizeInSeconds: 60,
     );
 
     final parts = <String>[];
     var idx = 0;
+    var vadSegs = 0;
+    final segLens = <int>[];
 
     // Замерено на реальной записи (локальный прогон): лучшая конфигурация —
     // паузы ≥0.8 с и кусок до 20 с (WER 18.9%). Модель держит и 60 с без вылета,
@@ -334,23 +338,39 @@ void _gigaamIsolateEntry(_GigaamJob job) {
     final wave = sherpa.readWave(job.wavPath);
     final samples = wave.samples;
     final total = samples.length;
+    job.progressPort.send([
+      'log',
+      'start: rate=${wave.sampleRate} samples=$total (${(total / 16000).toStringAsFixed(1)} c) '
+          'silence>=0.8 c, max=20 c'
+    ]);
 
-    const chunk = 51200; // ~3.2 с за раз
+    // Как на эталонном прогоне: кормим по 512 сэмплов (32 мс), буфер 60 с.
+    const chunk = 512;
     var offset = 0;
     while (offset < total) {
       final end = (offset + chunk > total) ? total : offset + chunk;
       vad.acceptWaveform(Float32List.sublistView(samples, offset, end));
       offset = end;
       while (!vad.isEmpty()) {
+        vadSegs++;
+        segLens.add(vad.front().samples.length);
         decodeSegment(vad.front().samples);
         vad.pop();
       }
     }
     vad.flush();
     while (!vad.isEmpty()) {
+      vadSegs++;
+      segLens.add(vad.front().samples.length);
       decodeSegment(vad.front().samples);
       vad.pop();
     }
+
+    job.progressPort.send([
+      'log',
+      'vad segments=$vadSegs decoded=$idx parts=${parts.length} '
+          'lens=${segLens.take(40).join(',')}'
+    ]);
 
     job.progressPort.send(['done', parts.join(' ')]);
   } catch (e) {
