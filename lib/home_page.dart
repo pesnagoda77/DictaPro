@@ -1021,11 +1021,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             IconButton(
               icon: const Icon(Icons.settings, color: Colors.white),
               tooltip: 'Настройки',
-              onPressed: () {
-                Navigator.push(
+              onPressed: () async {
+                await Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const SettingsPage()),
                 );
+                // Вернулись из настроек — перечитываем выбранный движок,
+                // иначе метка сверху остаётся старой (VOSK).
+                await _loadEngineLabel();
               },
             ),
             IconButton(

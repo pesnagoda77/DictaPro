@@ -99,6 +99,13 @@ class GigaamService {
         if (start > 0) request.headers.add('Range', 'bytes=$start-');
         final response = await request.close();
 
+        if (response.statusCode == 416) {
+          // Файл уже скачан полностью (Range за концом файла) — пропускаем,
+          // а не показываем «ошибку сети».
+          await response.drain();
+          onProgress(received, totalBytes, name);
+          continue;
+        }
         if (response.statusCode == 200 && start > 0) {
           // сервер не поддержал Range — качаем заново
           await file.delete();
