@@ -227,6 +227,10 @@ class _SettingsPageState extends State<SettingsPage> {
     });
     final cloudSummary = await AiSummaryService.cloudEnabled();
     if (mounted) setState(() => _cloudSummary = cloudSummary);
+    // Реальное состояние модели (не только текущая сессия):
+    // иначе после перезапуска снова показываем «Скачать модель», вводя в заблуждение.
+    final gigaamReady = await GigaamService.isModelDownloaded();
+    if (mounted) setState(() => _gigaamReady = gigaamReady);
     final sttEnabled = await SttSettings.isEnabled();
     final prov = SttProvider.byId(await SttSettings.providerId());
     final cleanupEnabled = await LocalTextCleanupSettings.isEnabled();
