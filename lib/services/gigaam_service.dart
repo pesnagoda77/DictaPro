@@ -215,54 +215,13 @@ class _GigaamJob {
 /// между изолятами не передаются). initBindings — синхронно, .so уже
 /// в нативной директории приложения.
 void _gigaamIsolateEntry(_GigaamJob job) {
+  sherpa.OfflineRecognizer? recognizer;
+  sherpa.VoiceActivityDetector? vad;
   try {
     sherpa.initBindings();
 
-    // --- VAD: нарезка по паузам ---
-    final vadConfig = sherpa.VadModelConfig(
-      sileroVad: sherpa.SileroVadModelConfig(
-        model: '${job.modelDir}/silero_vad.onnx',
-        threshold: 0.5,
-        minSpeechDuration: 0.25,
-        minSilenceDuration: 0.5,
-        maxSpeechDuration: 15.0,
-        windowSize: 512,
-      ),
-      sampleRate: 16000,
-      numThreads: 1,
-    );
-    final vad = sherpa.VoiceActivityDetector(
-      config: vadConfig,
-      bufferSizeInSeconds: 60,
-    );
-
-    final wave = sherpa.readWave(job.wavPath);
-    final samples = wave.samples;
-    final total = samples.length;
-
-    const chunk = 51200; // ~3.2 с за раз
-    var offset = 0;
-    while (offset < total) {
-      final end = (offset + chunk > total) ? total : offset + chunk;
-      vad.acceptWaveform(Float32List.sublistView(samples, offset, end));
-      offset = end;
-    }
-    vad.flush();
-
-    final segments = <Float32List>[];
-    while (!vad.isEmpty()) {
-      segments.add(vad.front().samples);
-      vad.pop();
-    }
-    vad.free();
-
-    if (segments.isEmpty) {
-      job.progressPort.send(['done', '']);
-      return;
-    }
-
     // --- Распознаватель GigaAM v3 (nemo_transducer) ---
-    final recognizer = sherpa.OfflineRecognizer(
+    recognizer = sherpa.OfflineRecognizer(
       sherpa.OfflineRecognizerConfig(
         // GigaAM использует 64-мерные log-mel признаки. Дефолт sherpa_onnx — 80,
         // с ним модель выдаёт мусор (см. issue k2-fsa/sherpa-onnx#3619).
@@ -281,20 +240,77 @@ void _gigaamIsolateEntry(_GigaamJob job) {
       ),
     );
 
+    // --- VAD: режем по паузам и СРАЗУ расшифровываем (без накопления сегментов) ---
+    vad = sherpa.VoiceActivityDetector(
+      config: sherpa.VadModelConfig(
+        sileroVad: sherpa.SileroVadModelConfig(
+          model: '${job.modelDir}/silero_vad.onnx',
+          threshold: 0.5,
+          minSpeechDuration: 0.25,
+          minSilenceDuration: 0.5,
+          maxSpeechDuration: 15.0,
+          windowSize: 512,
+        ),
+        sampleRate: 16000,
+        numThreads: 1,
+      ),
+      bufferSizeInSeconds: 30,
+    );
+
     final parts = <String>[];
-    for (var i = 0; i < segments.length; i++) {
-      job.progressPort.send(['progress', i + 1, segments.length]);
-      final stream = recognizer.createStream();
-      stream.acceptWaveform(samples: segments[i], sampleRate: 16000);
-      recognizer.decode(stream);
-      final text = recognizer.getResult(stream).text.trim();
-      if (text.isNotEmpty) parts.add(text);
-      stream.free();
+    var idx = 0;
+
+    void decodeSegment(Float32List raw) {
+      // Пустые/микроскопические куски в декодер не отдаём (роняют нативный ORT).
+      if (raw.length < 1600) return; // < 0.1 с
+      idx++;
+      job.progressPort.send(['progress', idx, 0]);
+      final stream = recognizer!.createStream();
+      try {
+        // Копия в обычный буфер: оригинал может быть вью на внутренний
+        // буфер VAD и стать невалидным после pop().
+        stream.acceptWaveform(
+          samples: Float32List.fromList(raw),
+          sampleRate: 16000,
+        );
+        recognizer.decode(stream);
+        final text = recognizer.getResult(stream).text.trim();
+        if (text.isNotEmpty) parts.add(text);
+      } finally {
+        stream.free();
+      }
     }
-    recognizer.free();
+
+    final wave = sherpa.readWave(job.wavPath);
+    final samples = wave.samples;
+    final total = samples.length;
+
+    const chunk = 51200; // ~3.2 с за раз
+    var offset = 0;
+    while (offset < total) {
+      final end = (offset + chunk > total) ? total : offset + chunk;
+      vad.acceptWaveform(Float32List.sublistView(samples, offset, end));
+      offset = end;
+      while (!vad.isEmpty()) {
+        decodeSegment(vad.front().samples);
+        vad.pop();
+      }
+    }
+    vad.flush();
+    while (!vad.isEmpty()) {
+      decodeSegment(vad.front().samples);
+      vad.pop();
+    }
 
     job.progressPort.send(['done', parts.join(' ')]);
   } catch (e) {
     job.progressPort.send(['error', e.toString()]);
+  } finally {
+    try {
+      vad?.free();
+    } catch (_) {}
+    try {
+      recognizer?.free();
+    } catch (_) {}
   }
 }
