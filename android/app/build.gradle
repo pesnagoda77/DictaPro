@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
@@ -32,8 +32,8 @@ android {
         applicationId "com.dictapro.app"
         minSdkVersion flutter.minSdkVersion
         targetSdk 35
-        versionCode 46
-        versionName "1.46"
+        versionCode 47
+        versionName "1.47"
     }
 
     signingConfigs {

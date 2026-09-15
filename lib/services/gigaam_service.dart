@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 
 import 'local_text_cleanup.dart';
+import 'glossary_service.dart';
 
 class GigaamService {
   static const _engineKey = 'asr_engine'; // vosk | gigaam
@@ -188,17 +189,24 @@ class GigaamService {
     return completer.future;
   }
 
-  /// Транскрибация с локальной чисткой 016 (по настройке).
+  /// Транскрибация с локальной чисткой 016 (по настройке) + глоссарий терминов.
   static Future<String?> transcribeWithCleanup(
     String wavPath, {
     void Function(int done, int total)? onProgress,
   }) async {
     final text = await transcribe(wavPath, onProgress: onProgress);
     if (text == null) return null;
+    var out = text;
     if (await LocalTextCleanupSettings.isEnabled()) {
-      return LocalTextCleanup.cleanup(text);
+      out = LocalTextCleanup.cleanup(out);
     }
-    return text;
+    // Глоссарий: пользовательские термины (в т.ч. латиница/аббревиатуры),
+    // которые модель не может выдать сама. Без списка текст не меняется.
+    final terms = await HotwordsStorage.recent();
+    if (terms.isNotEmpty) {
+      out = GlossaryService.apply(out, terms);
+    }
+    return out;
   }
 }
 
