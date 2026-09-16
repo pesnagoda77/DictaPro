@@ -189,7 +189,12 @@ class GigaamService {
     return completer.future;
   }
 
-  /// Транскрибация с локальной чисткой 016 (по настройке) + глоссарий терминов.
+  /// Транскрибация GigaAM + глоссарий терминов.
+  ///
+  /// Важно: текстовая чистка из задачи 016 (числительные→цифры, пунктуация)
+  /// рассчитана на VOSK, который выдаёт строчную кашу без знаков. GigaAM сам
+  /// даёт пунктуацию, регистр и числа, поэтому чистка ему не нужна: на замерах
+  /// 16.09 она добавляла 2-4 п.п. ошибок и артефакты вида «на$1..в».
   static Future<String?> transcribeWithCleanup(
     String wavPath, {
     void Function(int done, int total)? onProgress,
@@ -197,9 +202,6 @@ class GigaamService {
     final text = await transcribe(wavPath, onProgress: onProgress);
     if (text == null) return null;
     var out = text;
-    if (await LocalTextCleanupSettings.isEnabled()) {
-      out = LocalTextCleanup.cleanup(out);
-    }
     // Глоссарий: пользовательские термины (в т.ч. латиница/аббревиатуры),
     // которые модель не может выдать сама. Без списка текст не меняется.
     final terms = await HotwordsStorage.recent();

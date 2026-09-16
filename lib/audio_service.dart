@@ -175,6 +175,11 @@ class AudioService {
         encoder: AudioEncoder.wav,
         sampleRate: sampleRate,
         numChannels: numChannels,
+        // Сырой тракт без системного шумодава/AGC: VOICE_RECOGNITION по CDD
+        // обязан отключать DSP. Исследование: системная обработка ухудшает ASR.
+        androidConfig: const AndroidRecordConfig(
+          audioSource: AndroidAudioSource.voiceRecognition,
+        ),
       ),
       path: path,
     );
