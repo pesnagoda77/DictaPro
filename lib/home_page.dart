@@ -563,7 +563,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     try {
       final onlineText = await _onlineTranscript(rec.filePath);
       final result = onlineText == null
-          ? await _transcribeByEngineResult(rec.filePath)
+          ? await _transcribeOffline(rec.filePath)
           : null;
 
       final punctuatedText = onlineText ?? result!.fullText;
