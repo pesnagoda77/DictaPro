@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Микрофон используется для записи по нажатию кнопки.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Галерея нужна, чтобы добавить документ или фото.</string>
 </dict>
 </plist>
