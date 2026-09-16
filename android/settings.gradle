@@ -23,3 +23,5 @@ plugins {
 }
 
 include ":app"
+// Install-time asset pack с моделью GigaAM v3 (task 019) — для Play AAB
+include ":gigaam_pack"

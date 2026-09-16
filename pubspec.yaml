@@ -1,7 +1,7 @@
 name: dictapro
 description: DictaPro - voice recorder with AI transcription
 publish_to: 'none'
-version: 1.0.0+48
+version: 1.0.0+49
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -18,7 +18,6 @@ dependencies:
   flutter_foreground_task: ^8.15.0
   intl: any
   sherpa_onnx: ^1.13.0
-  vosk_flutter: 0.3.48
   share_plus: ^10.1.4
   file_picker: ^8.3.7
   pdf: ^3.10.7
@@ -34,7 +33,12 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/models/vosk-model-small-ru-0.22.zip
+    # Модель GigaAM v3 — для ПРЯМОЙ РАЗДАЧИ (APK).
+    # Перед APK-сборкой папку наполняет tools/prepare_apk_build.py
+    # (копирует из install-time asset pack). Файлы .onnx/tokens.txt в gitignore —
+    # в репозитории лежит только README.md, чтобы сборка не падала на пустой папке.
+    # Для Play (AAB) модель идёт через android/gigaam_pack (см. android/app/build.gradle).
+    - assets/models/gigaam_v3_punct/
     - assets/fonts/Roboto-Regular.ttf
   fonts:
     - family: Roboto

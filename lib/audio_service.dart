@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:record/record.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:just_audio/just_audio.dart';
@@ -8,28 +7,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:hive/hive.dart';
 
+import 'models/transcription.dart';
 import 'settings_page.dart';
-import 'transcription_service.dart';
 
-class DialogueSegment {
-  String speaker;
-  String text;
-
-  DialogueSegment({
-    required this.speaker,
-    required this.text,
-  });
-
-  Map<String, dynamic> toMap() => {
-        'speaker': speaker,
-        'text': text,
-      };
-
-  factory DialogueSegment.fromMap(Map<String, dynamic> map) => DialogueSegment(
-        speaker: map['speaker'] as String,
-        text: map['text'] as String,
-      );
-}
+export 'models/transcription.dart' show DialogueSegment;
 
 class Recording {
   String id;
@@ -121,16 +102,8 @@ class AudioService {
   Timer? _sleepTimer;
   int? _sleepDurationMinutes;
 
-  // Live transcription
-  final StreamController<String> _liveTextController = StreamController<String>.broadcast();
-  Stream<String> get liveTextStream => _liveTextController.stream;
-  String _lastLiveText = '';
-  String get lastLiveText => _lastLiveText;
-
-  Timer? _liveTranscriptionTimer;
-  String _liveRecordingPath = '';
-  int _liveBytesRead = 0;
-  bool _isLiveTranscribing = false;
+  // Live-превью расшифровки при записи убрано вместе с VOSK (task 019):
+  // батч-расшифровка GigaAM после остановки и так лучше по качеству.
 
   Future<void> init() async {
     if (_isInit) return;
@@ -163,12 +136,6 @@ class AudioService {
     }
 
     _startTime = DateTime.now();
-    _liveRecordingPath = path;
-    _liveBytesRead = 0;
-    _lastLiveText = '';
-
-    // Сброс VOSK перед новой записью
-    await TranscriptionService().resetRecognizer();
 
     await _recorder.start(
       RecordConfig(
@@ -187,70 +154,6 @@ class AudioService {
     await _startKeepAliveService();
 
     return path;
-  }
-
-  void startLiveTranscription() {
-    _isLiveTranscribing = true;
-    _liveBytesRead = 0;
-    _lastLiveText = '';
-    _liveTextController.add('');
-    
-    _liveTranscriptionTimer?.cancel();
-    _liveTranscriptionTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
-      _processLiveAudioChunk();
-    });
-  }
-
-  void stopLiveTranscription() {
-    _liveTranscriptionTimer?.cancel();
-    _liveTranscriptionTimer = null;
-    _isLiveTranscribing = false;
-    _liveTextController.add('');
-  }
-
-  Future<void> _processLiveAudioChunk() async {
-    if (_liveRecordingPath.isEmpty) return;
-    
-    final file = File(_liveRecordingPath);
-    if (!await file.exists()) return;
-    
-    final fileSize = await file.length();
-    if (fileSize <= 44) return; // WAV header minimum
-    
-    if (_liveBytesRead == 0) {
-      // First time - skip WAV header
-      _liveBytesRead = 44;
-    }
-    
-    if (fileSize <= _liveBytesRead) return;
-    
-    // Read new bytes
-    final raf = await file.open();
-    await raf.setPosition(_liveBytesRead);
-    final newBytes = await raf.read(fileSize - _liveBytesRead);
-    await raf.close();
-    
-    _liveBytesRead = fileSize;
-    
-    if (newBytes.isEmpty) return;
-    
-    try {
-      await TranscriptionService().acceptWaveform(newBytes);
-      final result = await TranscriptionService().getPartialResult();
-      
-      final partial = result['partial'] as String? ?? '';
-      final text = result['text'] as String? ?? '';
-      
-      // Combine final + partial
-      final combined = text.isNotEmpty
-          ? '$text ${partial.isNotEmpty ? ' $partial' : ''}'
-          : partial;
-      
-      _liveTextController.add(combined.trim());
-      _lastLiveText = combined.trim();
-    } catch (_) {
-      // Ignore errors during live transcription
-    }
   }
 
   void setSleepTimer(int minutes, Function onComplete) {
@@ -364,8 +267,6 @@ class AudioService {
   }
 
   void dispose() {
-    _liveTextController.close();
-    _liveTranscriptionTimer?.cancel();
     _sleepTimer?.cancel();
     _recorder.dispose();
     _player.dispose();

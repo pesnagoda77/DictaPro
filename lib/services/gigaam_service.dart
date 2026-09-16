@@ -1,141 +1,174 @@
-// GigaAM v3 (sherpa_onnx) — второй офлайн-движок распознавания.
-// Исследование: docs/research/Исследование_Whisper_GigaAM_2026.md (разделы 2.1, 3.4, 4).
-// Модель: GigaAM v3 RNN-T e2e с пунктуацией (csukuangfj/sherpa-onnx-nemo-transducer-punct-giga-am-v3-russian-2025-12-16)
-// + фолбэк GigaAM v2 (официальный список sherpa-onnx).
-// Всё локально: сеть только для скачивания модели по явному действию пользователя.
+// GigaAM v3 (sherpa_onnx) — единственный офлайн-движок распознавания (task 019).
+// Модель ВЛОЖЕНА в сборку: никаких сетевых загрузок и экранов докачивания.
+//   • AAB (Play): install-time asset pack "gigaam_pack" (≤1,5 ГБ, ставится
+//     одной операцией с приложением). Путь отдаёт нативная прослойка
+//     MainActivity.kt через MethodChannel 'dictapro/model'.
+//   • APK (прямая раздача): те же файлы копируются tools/prepare_apk_build.py
+//     в flutter-ассеты assets/models/gigaam_v3_punct/ и при первом запуске
+//     копируются во внутреннее хранилище (локально, без сети).
+// Перед сборкой модель скачивается tools/fetch_model.py →
+// android/gigaam_pack/src/main/assets/models/gigaam_v3_punct/.
+// Исследование: docs/research/Исследование_Whisper_GigaAM_2026.md.
+// Качество (модель/нарезка/VAD) заморожено — см. git-историю, не менять.
 
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 
-import 'local_text_cleanup.dart';
 import 'glossary_service.dart';
 
 class GigaamService {
-  static const _engineKey = 'asr_engine'; // vosk | gigaam
-
-  // GigaAM v3 e2e (с пунктуацией) — основной набор
-  static const v3Base =
-      'https://huggingface.co/csukuangfj/sherpa-onnx-nemo-transducer-punct-giga-am-v3-russian-2025-12-16/resolve/main';
-  static const v3Files = [
+  /// Файлы модели GigaAM v3 + Silero VAD.
+  static const modelFiles = [
     'encoder.int8.onnx',
     'decoder.onnx',
     'joiner.onnx',
     'tokens.txt',
+    'silero_vad.onnx',
   ];
 
-  // Silero VAD (нужен для нарезки по паузам, ~2 МБ)
-  static const vadUrl =
-      'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx';
+  static const _channel = MethodChannel('dictapro/model');
 
-  /// Директория моделей: getApplicationSupportDirectory()/models/gigaam_v3
+  /// Маркер завершённой подготовки (в пределах сессии).
+  static bool _prepared = false;
+
+  /// true — модель уже в рабочей директории (или подготовка идёт/завершена).
+  /// Используется UI, чтобы показать «Подготовка модели» только при первом
+  /// запуске, а не перед каждой транскрибацией.
+  static bool get isPrepared => _prepared;
+
+  /// Директория рабочей копии модели во внутреннем хранилище.
+  /// Файлы сюда попадают из asset pack (AAB, Play) или копируются
+  /// из flutter-ассетов (APK) — движку нужны обычные файловые пути.
   static Future<Directory> modelDir() async {
     final support = await getApplicationSupportDirectory();
-    final dir = Directory('${support.path}/models/gigaam_v3');
+    final dir = Directory('${support.path}/models/gigaam_v3_punct');
     if (!dir.existsSync()) dir.createSync(recursive: true);
     return dir;
   }
 
-  // ---------- Движок ----------
-
-  static Future<String> getEngine() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_engineKey) ?? 'vosk';
-  }
-
-  static Future<void> setEngine(String engine) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_engineKey, engine);
-  }
-
-  // ---------- Статус модели ----------
-
-  static Future<bool> isModelDownloaded() async {
+  /// Гарантирует, что все файлы модели лежат в [modelDir].
+  /// Вызывать перед каждой транскрибацией — повторный вызов бесплатен.
+  /// [onProgress] — (скопировано байт, всего байт) для экрана
+  /// «Подготовка модели» при первом запуске (копирование локальное,
+  /// без сети, отмены нет — модель обязана оказаться на месте).
+  /// Бросает исключение, если модель недоступна (не подложили в сборку).
+  static Future<void> ensureModelReady({
+    void Function(int copied, int total)? onProgress,
+  }) async {
+    if (_prepared) return;
     final dir = await modelDir();
-    for (final f in v3Files) {
-      if (!File('${dir.path}/$f').existsSync()) return false;
+    if (_allPresent(dir)) {
+      _prepared = true;
+      return;
+    }
+
+    // 1) Play install-time asset pack (AAB): обычные файлы — копируем
+    //    потоково с точным прогрессом по байтам.
+    final packDir = await _assetPackDir();
+    if (packDir != null) {
+      final src = Directory('$packDir/models/gigaam_v3_punct');
+      if (_allPresent(src)) {
+        await _copyFrom(src, dir, onProgress);
+        _prepared = true;
+        debugPrint('[gigaam] model prepared from asset pack');
+        return;
+      }
+    }
+
+    // 2) Flutter assets (APK, прямая раздача): bundle читается целиком
+    //    в память, поэтому прогресс по файлам (порция = total/5).
+    try {
+      const approxTotal = 244 * 1024 * 1024; // ~222 МБ модель + запас
+      var doneFiles = 0;
+      for (final f in modelFiles) {
+        final data = await rootBundle.load('assets/models/gigaam_v3_punct/$f');
+        final bytes = data.buffer.asUint8List();
+        final out = File('${dir.path}/$f');
+        await out.writeAsBytes(bytes, flush: true);
+        doneFiles++;
+        onProgress?.call(
+          (approxTotal * doneFiles / modelFiles.length).round(),
+          approxTotal,
+        );
+      }
+      if (_allPresent(dir)) {
+        _prepared = true;
+        debugPrint('[gigaam] model prepared from bundle assets');
+        return;
+      }
+    } catch (e) {
+      debugPrint('[gigaam] bundle assets unavailable: $e');
+    }
+
+    throw StateError(
+      'Модель распознавания не найдена в сборке. '
+      'Перед сборкой запустите tools/fetch_model.py (см. docs/СБОРКА.md).',
+    );
+  }
+
+  /// Потоковое копирование модели из [src] в [dst] с точным прогрессом.
+  static Future<void> _copyFrom(
+    Directory src,
+    Directory dst,
+    void Function(int copied, int total)? onProgress,
+  ) async {
+    var total = 0;
+    for (final f in modelFiles) {
+      total += File('${src.path}/$f').lengthSync();
+    }
+    var copied = 0;
+    for (final f in modelFiles) {
+      final s = File('${src.path}/$f');
+      final d = File('${dst.path}/$f');
+      final expected = s.lengthSync();
+      if (d.existsSync() && d.lengthSync() == expected) {
+        copied += expected;
+        onProgress?.call(copied, total);
+        continue;
+      }
+      final reader = s.openRead();
+      final writer = d.openWrite();
+      try {
+        await for (final chunk in reader) {
+          writer.add(chunk);
+          copied += chunk.length;
+          onProgress?.call(copied, total);
+        }
+      } finally {
+        await writer.close();
+      }
+      if (d.lengthSync() != expected) {
+        throw StateError('Ошибка копирования модели: $f');
+      }
+    }
+  }
+
+  static bool _allPresent(Directory d) {
+    for (final f in modelFiles) {
+      final file = File('${d.path}/$f');
+      if (!file.existsSync() || file.lengthSync() == 0) return false;
     }
     return true;
   }
 
-  static Future<int> modelSizeBytes() async {
-    final dir = await modelDir();
-    var total = 0;
-    for (final f in v3Files) {
-      final file = File('${dir.path}/$f');
-      if (file.existsSync()) total += file.lengthSync();
+  /// Путь к директории файлов asset pack из нативной прослойки.
+  /// null — пак недоступен (APK-раздача или ошибка).
+  static Future<String?> _assetPackDir() async {
+    try {
+      final path = await _channel.invokeMethod<String>('getGigaamModelPath');
+      if (path == null || path.isEmpty) return null;
+      final d = Directory(path);
+      return d.existsSync() ? path : null;
+    } catch (_) {
+      return null;
     }
-    return total;
-  }
-
-  // ---------- Скачивание ----------
-
-  /// Скачивает набор v3 + silero_vad.onnx с докачкой (HTTP Range).
-  /// [onProgress] — (скачано байт всего, всего байт, текущий файл).
-  static Future<bool> downloadModel(
-    void Function(int received, int total, String file) onProgress,
-  ) async {
-    final dir = await modelDir();
-    final totalBytes = 225 * 1024 * 1024 + 8 * 1024 * 1024; // грубая оценка v3 + vad
-    var received = 0;
-
-    final jobs = <(String, String)>[
-      for (final f in v3Files) ('$v3Base/$f', f),
-      (vadUrl, 'silero_vad.onnx'),
-    ];
-
-    for (final (url, name) in jobs) {
-      final file = File('${dir.path}/$name');
-      var start = 0;
-      if (file.existsSync()) start = file.lengthSync();
-
-      final client = HttpClient();
-      try {
-        final request = await client.getUrl(Uri.parse(url));
-        if (start > 0) request.headers.add('Range', 'bytes=$start-');
-        final response = await request.close();
-
-        if (response.statusCode == 416) {
-          // Файл уже скачан полностью (Range за концом файла) — пропускаем,
-          // а не показываем «ошибку сети».
-          await response.drain();
-          onProgress(received, totalBytes, name);
-          continue;
-        }
-        if (response.statusCode == 200 && start > 0) {
-          // сервер не поддержал Range — качаем заново
-          await file.delete();
-          start = 0;
-        } else if (response.statusCode != 200 && response.statusCode != 206) {
-          debugPrint('[gigaam] download $name failed: ${response.statusCode}');
-          return false;
-        }
-
-        final sink = file.openWrite(
-            mode: start > 0 ? FileMode.append : FileMode.write);
-        var lastPing = DateTime.now();
-        await for (final chunk in response) {
-          sink.add(chunk);
-          received += chunk.length;
-          // прогресс не чаще ~5 раз/сек, чтобы не устраивать шторм setState
-          final now = DateTime.now();
-          if (now.difference(lastPing).inMilliseconds >= 200) {
-            lastPing = now;
-            onProgress(received, totalBytes, name);
-          }
-        }
-        await sink.close();
-        onProgress(received, totalBytes, name);
-      } finally {
-        client.close();
-      }
-    }
-    return isModelDownloaded();
   }
 
   // ---------- Распознавание ----------
@@ -147,13 +180,8 @@ class GigaamService {
     String wavPath, {
     void Function(int done, int total)? onProgress,
   }) async {
+    await ensureModelReady();
     final dir = (await modelDir()).path;
-    final vadFile = '$dir/silero_vad.onnx';
-    if (!File(vadFile).existsSync()) {
-      debugPrint('[gigaam] silero_vad.onnx missing');
-      return null;
-    }
-
     final receivePort = ReceivePort();
     late Isolate isolate;
     isolate = await Isolate.spawn<_GigaamJob>(
@@ -195,15 +223,16 @@ class GigaamService {
   /// рассчитана на VOSK, который выдаёт строчную кашу без знаков. GigaAM сам
   /// даёт пунктуацию, регистр и числа, поэтому чистка ему не нужна: на замерах
   /// 16.09 она добавляла 2-4 п.п. ошибок и артефакты вида «на$1..в».
-  static Future<String?> transcribeWithCleanup(
+  /// Оставляем только глоссарий «Термины записи» (HotwordsStorage):
+  /// пользовательские термины (в т.ч. латиница/аббревиатуры), которые модель
+  /// не может выдать сама. Без списка текст не меняется.
+  static Future<String?> transcribeWithGlossary(
     String wavPath, {
     void Function(int done, int total)? onProgress,
   }) async {
     final text = await transcribe(wavPath, onProgress: onProgress);
     if (text == null) return null;
     var out = text;
-    // Глоссарий: пользовательские термины (в т.ч. латиница/аббревиатуры),
-    // которые модель не может выдать сама. Без списка текст не меняется.
     final terms = await HotwordsStorage.recent();
     if (terms.isNotEmpty) {
       out = GlossaryService.apply(out, terms);

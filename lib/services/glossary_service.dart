@@ -1,4 +1,8 @@
-// Глоссарий терминов записи.
+// Глоссарий терминов записи + хранилище «горячих слов» пользователя.
+import 'dart:convert';
+
+import 'package:shared_preferences/shared_preferences.dart';
+
 //
 // Зачем: алфавит GigaAM — кириллица, поэтому латиница и аббревиатуры
 // («in vivo», «DCAD», «NEB») физически не могут быть выданы моделью —
@@ -8,6 +12,48 @@
 //
 // Это не внутренний словарь-костыль: список задаёт сам пользователь,
 // он пустой по умолчанию, и без него текст не меняется.
+/// «Горячие слова» пользователя: последние введённые термины записи.
+/// Сохраняем, чтобы предлагать повторно (чипы на экране записи).
+/// (task 019: перенесено из удалённого local_text_cleanup.dart — сама
+/// чистка текста убрана вместе с VOSK, термины нужны глоссарию GigaAM.)
+class HotwordsStorage {
+  static const _key = 'last_hotwords';
+  static const _max = 12;
+
+  /// Разбор поля «Термины этой записи» (через запятую).
+  static List<String> parse(String raw) => raw
+      .split(',')
+      .map((e) => e.trim())
+      .where((e) => e.isNotEmpty)
+      .toSet()
+      .toList();
+
+  static Future<List<String>> recent() async {
+    final prefs = await SharedPreferences.getInstance();
+    final s = prefs.getString(_key);
+    if (s == null || s.isEmpty) return [];
+    try {
+      return (jsonDecode(s) as List).map((e) => e.toString()).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Новые термины — в начало списка, дедупликация без учёта регистра.
+  static Future<void> remember(List<String> words) async {
+    if (words.isEmpty) return;
+    final prev = await recent();
+    final merged = <String>[];
+    for (final w in [...words.reversed, ...prev]) {
+      final lw = w.toLowerCase();
+      if (!merged.any((e) => e.toLowerCase() == lw)) merged.add(w);
+      if (merged.length >= _max) break;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_key, jsonEncode(merged));
+  }
+}
+
 class GlossaryService {
   static const _latin = {
     'a': 'а', 'b': 'б', 'c': 'ц', 'd': 'д', 'e': 'е', 'f': 'ф', 'g': 'г',

@@ -9,11 +9,12 @@ import 'package:just_audio/just_audio.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:hive/hive.dart';
 import 'audio_service.dart' hide DialogueSegment;
-import 'transcription_service.dart';
+import 'models/transcription.dart';
 import 'services/ai_summary_service.dart';
 import 'services/stt_provider.dart';
 import 'services/gigaam_service.dart';
-import 'services/local_text_cleanup.dart';
+import 'services/audio_convert.dart';
+import 'services/glossary_service.dart';
 import 'services/online_transcribe_service.dart';
 import 'dialogue_editor.dart';
 import 'tag_service.dart';
@@ -72,7 +73,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   final _searchController = TextEditingController();
   final _hotwordsController = TextEditingController();
   List<String> _recentHotwords = [];
-  String _engineLabel = 'VOSK (на устройстве)';
+  // Одна строка состояния распознавания (task 019, дизайн V3):
+  // движок один — GigaAM v3, модель вложена в сборку.
+  final String _engineLabel = 'Распознавание: на устройстве · модель внутри';
 
   @override
   void initState() {
@@ -84,18 +87,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _loadRecordings();
     _loadSortPreference();
     _loadRecentHotwords();
-    _loadEngineLabel();
-  }
-
-  Future<void> _loadEngineLabel() async {
-    final engine = await GigaamService.getEngine();
-    if (mounted) {
-      setState(() {
-        _engineLabel = engine == 'gigaam'
-            ? 'Распознавание: GigaAM (на устройстве)'
-            : 'Распознавание: VOSK (на устройстве)';
-      });
-    }
   }
 
   Future<void> _loadRecentHotwords() async {
@@ -210,28 +201,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final m = (s ~/ 60).toString().padLeft(2, '0');
     final sec = (s % 60).toString().padLeft(2, '0');
     return '$m:$sec';
-  }
-
-  Future<void> _shareLogs() async {
-    try {
-      final dir = await getApplicationDocumentsDirectory();
-      final logFile = File('${dir.path}/vosk_debug.txt');
-      if (await logFile.exists()) {
-        await Share.shareXFiles([XFile(logFile.path)], text: 'VOSK debug logs');
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Логи ещё не созданы. Запишите аудио для генерации логов.')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка: $e')),
-        );
-      }
-    }
   }
 
   Future<void> _showSleepTimerDialog() async {
@@ -388,24 +357,88 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  /// Офлайн-транскрибация выбранным движком. GigaAM — если выбран, модель
-  /// скачана и отработала; иначе фолбэк на VOSK с понятным снэком.
-  Future<TranscriptionResult> _transcribeByEngineResult(String filePath) async {
-    final engine = await GigaamService.getEngine();
-    if (engine == 'gigaam') {
-      if (await GigaamService.isModelDownloaded()) {
-        final text = await GigaamService.transcribeWithCleanup(filePath);
-        if (text != null && text.trim().isNotEmpty) return _gigaamResult(text);
-        _engineSnack('GigaAM не справился — пробую VOSK');
-      } else {
-        _engineSnack('Модель GigaAM не скачана — использую VOSK');
+  /// Офлайн-транскрибация (task 019): движок один — GigaAM v3, модель
+  /// вложена в сборку. Не-WAV и не 16 кГц конвертируем нативным каналом,
+  /// дальше стандартный путь (VAD + изолят) без изменений.
+  /// При первом запуске показываем прогресс локального копирования модели
+  /// («Подготовка модели: X%») — без сети, без возможности отменить.
+  Future<TranscriptionResult> _transcribeOffline(String filePath) async {
+    if (!GigaamService.isPrepared) {
+      await _showModelPreparingDialog();
+    }
+    final wav16k = await AudioConvert.toWav16k(filePath);
+    String? text;
+    try {
+      text = await GigaamService.transcribeWithGlossary(wav16k);
+    } finally {
+      if (wav16k != filePath) {
+        try {
+          File(wav16k).deleteSync();
+        } catch (_) {}
       }
     }
-    return await TranscriptionService().transcribeFile(filePath);
+    if (text == null || text.trim().isEmpty) {
+      throw StateError('GigaAM не справился с записью');
+    }
+    return _gigaamResult(text);
+  }
+
+  /// Модальный прогресс копирования модели из сборки во внутреннее
+  /// хранилище при первом запуске. Отмены нет — без модели расшифровки нет.
+  Future<void> _showModelPreparingDialog() async {
+    final completer = Completer<void>();
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        var copied = 0;
+        var total = 1;
+        StateSetter? setDialogState;
+        Timer.periodic(const Duration(milliseconds: 200), (timer) {
+          if (!ctx.mounted || completer.isCompleted) {
+            timer.cancel();
+            return;
+          }
+          setDialogState?.call(() {});
+        });
+        GigaamService.ensureModelReady(onProgress: (c, t) {
+          copied = c;
+          total = t;
+        }).then((_) {
+          if (!completer.isCompleted) completer.complete();
+          if (ctx.mounted) Navigator.of(ctx).pop();
+        }).catchError((Object e) {
+          if (!completer.isCompleted) completer.completeError(e);
+          if (ctx.mounted) Navigator.of(ctx).pop();
+        });
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            setDialogState = setState;
+            final pct = total > 0 ? (copied / total).clamp(0.0, 1.0) : 0.0;
+            return AlertDialog(
+              title: const Text('Подготовка модели'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  LinearProgressIndicator(value: pct),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${(copied / 1048576).round()} из ${(total / 1048576).round()} МБ · ${(pct * 100).round()}%',
+                    style: const TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+    await completer.future;
   }
 
   /// GigaAM выдаёт один текст — режем на сегменты по предложениям,
-  /// чтобы редактор и статистика спикеров работали как с VOSK.
+  /// чтобы редактор и статистика спикеров работали унифицированно.
   TranscriptionResult _gigaamResult(String text) {
     final sentences = text
         .split(RegExp(r'(?<=[.!?])\s+'))
@@ -432,7 +465,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return TranscriptionResult(fullText: text, segments: segs);
   }
 
-  void _engineSnack(String msg) {
+  void _showSnack(String msg) {
     if (mounted) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(msg)));
@@ -441,14 +474,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Future<void> _toggleRecord() async {
     if (_isRecording) {
-      AudioService().stopLiveTranscription();
-      final liveText = AudioService().lastLiveText;
       await AudioService().stopRecording();
       _stopTimer();
       setState(() => _isRecording = false);
       _loadRecordings();
-      
-      // Full batch transcription — much better quality than live preview
+
+      // Full batch transcription после остановки записи
       _showTranscribingDialog();
       try {
         final recordings = AudioService().getAllRecordings();
@@ -456,7 +487,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           final latest = recordings.first;
           final onlineText = await _onlineTranscript(latest.filePath);
           final result = onlineText == null
-              ? await _transcribeByEngineResult(latest.filePath)
+              ? await _transcribeOffline(latest.filePath)
               : null;
           final fullText = onlineText ?? result!.fullText;
 
@@ -475,30 +506,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           _loadRecordings();
         }
       } catch (e) {
-        // Fallback to live text if batch fails
-        final recordings = AudioService().getAllRecordings();
-        if (recordings.isNotEmpty) {
-          final latest = recordings.first;
-          latest.transcription = liveText;
-          latest.tags = TagService.extractTags(liveText);
-          latest.summary = EnhancedSummaryService.generateSummary(liveText).formatted;
-          latest.decisions = SummaryService.getDecisions(liveText);
-          await AudioService().updateRecording(latest);
-          _loadRecordings();
+        // Батч не удался — запись остаётся без транскрипции, сообщаем честно
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Расшифровка не удалась: $e')),
+          );
         }
       } finally {
         _hideTranscribingDialog();
       }
     } else {
-      // «Термины этой записи» → VOSK AddWord (task 016 v3)
+      // «Термины этой записи» → глоссарий GigaAM (task 019; раньше — VOSK AddWord)
       final hotwords = HotwordsStorage.parse(_hotwordsController.text);
       if (hotwords.isNotEmpty) {
-        await TranscriptionService().applyHotwords(hotwords);
         await HotwordsStorage.remember(hotwords);
         _recentHotwords = await HotwordsStorage.recent();
       }
       await AudioService().startRecording();
-      AudioService().startLiveTranscription();
       _startTimer();
       setState(() => _isRecording = true);
     }
@@ -1026,9 +1050,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   context,
                   MaterialPageRoute(builder: (_) => const SettingsPage()),
                 );
-                // Вернулись из настроек — перечитываем выбранный движок,
-                // иначе метка сверху остаётся старой (VOSK).
-                await _loadEngineLabel();
               },
             ),
             IconButton(
@@ -1047,11 +1068,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             IconButton(
               icon: const Icon(Icons.search),
               onPressed: () => setState(() => _isSearching = true),
-            ),
-            IconButton(
-              icon: const Icon(Icons.share),
-              tooltip: 'Поделиться логами',
-              onPressed: _shareLogs,
             ),
           ],
         ],
@@ -1155,38 +1171,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                 if (AudioService().sleepDurationMinutes != null)
                   const SizedBox(height: 4),
-                
-                // Live transcription text
-                if (_isRecording)
-                  StreamBuilder<String>(
-                    stream: AudioService().liveTextStream,
-                    builder: (context, snapshot) {
-                      final text = snapshot.data ?? '';
-                      if (text.isEmpty) {
-                        return const SizedBox.shrink();
-                      }
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withOpacity(0.1)),
-                        ),
-                        child: Text(
-                          text,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                            height: 1.4,
-                          ),
-                          maxLines: 4,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    },
-                  ),
-                
+
                 if (!_isRecording) ...[
                   const SizedBox(height: 12),
                   TextField(

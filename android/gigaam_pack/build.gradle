@@ -1,0 +1,13 @@
+// Install-time asset pack с моделью GigaAM v3 (task 019).
+// Для Play (AAB): модель (~222 МБ) не влезает в базовую часть (лимит 200 МБ),
+// поэтому идёт установочным пакетом ресурсов — ставится одной операцией
+// с приложением, никаких докачиваний в рантайме.
+// Файлы наполняются tools/fetch_model.py перед сборкой (в gitignore).
+apply plugin: 'com.android.asset-pack'
+
+assetPack {
+    packName = "gigaam_pack"
+    dynamicDelivery {
+        deliveryType = "install-time"
+    }
+}

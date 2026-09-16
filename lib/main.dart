@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'audio_service.dart';
-import 'transcription_service.dart';
 import 'home_page.dart';
 import 'splash_screen.dart';
 
@@ -24,7 +23,8 @@ void main() async {
   );
   await Hive.initFlutter();
   await AudioService().init();
-  await TranscriptionService().initModel();
+  // Модель GigaAM готовится лениво при первой расшифровке
+  // (GigaamService.ensureModelReady) — старт приложения не блокируем.
   runApp(const DictaProApp());
 }
 

@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'services/ai_summary_service.dart';
 import 'services/stt_provider.dart';
-import 'services/gigaam_service.dart';
-import 'services/local_text_cleanup.dart';
 
 class RecorderSettings {
   static const String boxName = 'settings';
@@ -53,12 +51,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   bool _sttEnabled = false;
   bool _cloudSummary = false;
-  bool _cleanupEnabled = true;
-  String _engine = 'vosk';
-  bool _gigaamReady = false;
-  bool _downloading = false;
-  int _dlReceived = 0;
-  int _dlTotal = 1;
   String _sttProviderTitle = 'Groq (whisper-large-v3-turbo)';
 
   Future<void> _pickSttProvider() async {
@@ -96,7 +88,7 @@ class _SettingsPageState extends State<SettingsPage> {
           children: [
             Text(
                 'Ключ хранится только на устройстве. Без ключа онлайн-режим '
-                'выключен (работает офлайн VOSK).',
+                'выключен — расшифровка идёт офлайн, на устройстве.',
                 style: TextStyle(fontSize: 12, color: Colors.white70)),
             const SizedBox(height: 12),
             TextField(
@@ -180,24 +172,12 @@ class _SettingsPageState extends State<SettingsPage> {
     });
     final cloudSummary = await AiSummaryService.cloudEnabled();
     if (mounted) setState(() => _cloudSummary = cloudSummary);
-    // Реальное состояние модели (не только текущая сессия):
-    // иначе после перезапуска снова показываем «Скачать модель», вводя в заблуждение.
-    final savedEngine = await GigaamService.getEngine();
-    final gigaamReady = await GigaamService.isModelDownloaded();
-    if (mounted) {
-      setState(() {
-        _engine = savedEngine;
-        _gigaamReady = gigaamReady;
-      });
-    }
     final sttEnabled = await SttSettings.isEnabled();
     final prov = SttProvider.byId(await SttSettings.providerId());
-    final cleanupEnabled = await LocalTextCleanupSettings.isEnabled();
     if (mounted) {
       setState(() {
         _sttEnabled = sttEnabled;
         _sttProviderTitle = prov.title;
-        _cleanupEnabled = cleanupEnabled;
       });
     }
   }
@@ -281,96 +261,15 @@ class _SettingsPageState extends State<SettingsPage> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          RadioListTile<String>(
-            secondary: const Icon(Icons.graphic_eq),
-            title: const Text('VOSK (текущий)'),
-            subtitle: const Text('Быстрый, лёгкий. Движок по умолчанию.'),
-            value: 'vosk',
-            groupValue: _engine,
-            onChanged: (v) async {
-              await GigaamService.setEngine(v!);
-              if (mounted) setState(() => _engine = v);
-            },
-          ),
-          RadioListTile<String>(
-            secondary: const Icon(Icons.auto_awesome),
-            title: const Text('GigaAM (эксперимент)'),
-            subtitle: Text(_gigaamReady
-                ? 'Модель скачана. Русский ~в 6 раз точнее VOSK, пунктуация из коробки.'
-                : 'Модель ~230 МБ — скачать по Wi-Fi'),
-            value: 'gigaam',
-            groupValue: _engine,
-            onChanged: (v) async {
-              await GigaamService.setEngine(v!);
-              if (mounted) setState(() => _engine = v);
-            },
-          ),
-          if (_engine == 'gigaam' && !_gigaamReady) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _downloading
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        LinearProgressIndicator(
-                          value: _dlReceived / _dlTotal.clamp(1, _dlTotal),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${(_dlReceived / 1048576).toStringAsFixed(0)} из ~233 МБ',
-                          style: const TextStyle(fontSize: 12, color: Colors.white54),
-                        ),
-                      ],
-                    )
-                  : ElevatedButton.icon(
-                      onPressed: () async {
-                        setState(() {
-                          _downloading = true;
-                          _dlReceived = 0;
-                          _dlTotal = 233 * 1048576;
-                        });
-                        bool ok = false;
-                        try {
-                          ok = await GigaamService.downloadModel((r, t, f) {
-                            if (mounted) {
-                              setState(() {
-                                _dlReceived = r;
-                                _dlTotal = t;
-                              });
-                            }
-                          });
-                        } catch (e) {
-                          debugPrint('[gigaam] download error: $e');
-                        }
-                        if (mounted) {
-                          setState(() {
-                            _downloading = false;
-                            _gigaamReady = ok;
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(ok
-                                ? 'Модель GigaAM готова'
-                                : 'Ошибка скачивания — проверь сеть'),
-                          ));
-                        }
-                      },
-                      icon: const Icon(Icons.download),
-                      label: const Text('Скачать модель GigaAM (~230 МБ)'),
-                    ),
-            ),
-            const SizedBox(height: 8),
-          ],
-          SwitchListTile(
-            secondary: const Icon(Icons.tune),
-            title: const Text('Локальная чистка текста'),
-            subtitle: const Text(
-                'Числа цифрами, пробелы и пунктуация после офлайн-распознавания. '
-                'Полностью на устройстве, без сети.'),
-            value: _cleanupEnabled,
-            onChanged: (v) async {
-              await LocalTextCleanupSettings.setEnabled(v);
-              if (mounted) setState(() => _cleanupEnabled = v);
-            },
+          // Одна строка состояния вместо раздела «Точность расшифровки»
+          // (task 019, дизайн V3): движок один, модель вложена в сборку,
+          // интернет не нужен. Выбора движка и докачивания больше нет.
+          const ListTile(
+            leading: Icon(Icons.auto_awesome),
+            title: Text('Распознавание: на устройстве · модель внутри'),
+            subtitle: Text(
+                'Точная модель GigaAM работает локально. Интернет не нужен, '
+                'файлы не покидают телефон.'),
           ),
           const SizedBox(height: 24),
           const Text(
@@ -402,7 +301,7 @@ class _SettingsPageState extends State<SettingsPage> {
             secondary: const Icon(Icons.cloud_upload_outlined),
             title: const Text('Онлайн-транскрипция'),
             subtitle: const Text(
-                'Точнее VOSK. Звук уходит на сервер провайдера (мягкое предупреждение перед первым разом)'),
+                'Точнее локальной модели. Звук уходит на сервер провайдера (мягкое предупреждение перед первым разом)'),
             value: _sttEnabled,
             onChanged: (v) async {
               await SttSettings.setEnabled(v);

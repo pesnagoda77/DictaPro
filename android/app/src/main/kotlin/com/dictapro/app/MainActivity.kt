@@ -6,6 +6,10 @@ import android.media.MediaFormat
 import android.net.Uri
 import android.os.Build
 import android.util.Log
+import com.google.android.play.core.assetpacks.AssetPackLocation
+import com.google.android.play.core.assetpacks.AssetPackManager
+import com.google.android.play.core.assetpacks.AssetPackManagerFactory
+import com.google.android.play.core.assetpacks.model.AssetPackStatus
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -16,7 +20,9 @@ import java.nio.ByteOrder
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "dictapro/convert"
+    private val MODEL_CHANNEL = "dictapro/model"
     private val TAG = "DictaPro"
+    private val PACK_NAME = "gigaam_pack"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -38,6 +44,27 @@ class MainActivity : FlutterActivity() {
                     } catch (e: Exception) {
                         Log.e(TAG, "Conversion FAILED", e)
                         result.success(mapOf("success" to false, "error" to e.message))
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Прослойка к install-time asset pack с моделью GigaAM (task 019).
+        // Возвращает путь к файлам пакета; null — пак недоступен
+        // (APK-раздача: модель тогда копируется из flutter-ассетов на Dart-стороне).
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MODEL_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getGigaamModelPath" -> {
+                    try {
+                        val pm: AssetPackManager = AssetPackManagerFactory.getInstance(this)
+                        val loc: AssetPackLocation? = pm.getPackLocation(PACK_NAME)
+                        val path = loc?.assetsPath() // null, если пак недоступен/не установлен
+                        Log.d(TAG, "asset pack location: $path (status may vary)")
+                        result.success(path)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "asset pack unavailable: ${e.message}")
+                        result.success(null)
                     }
                 }
                 else -> result.notImplemented()
