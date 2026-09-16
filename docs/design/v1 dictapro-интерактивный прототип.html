@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DictaPro — интерактивный прототип (V1)</title>
+<!-- Направление: «Диктофон-блокнот» — рабочий инструмент. Один акцент (янтарь), тёмная тёплая база.
+     Типографика: Golos Text с фолбэками. Режим: Layout Restructure — все функции сохраняются. -->
+<style>
+  :root{
+    --bg:#12141a; --surface:#1a1e26; --surface-2:#222834; --line:#2e3644;
+    --text:#eef1f6; --muted:#9aa5b8; --accent:#e0a03c; --accent-ink:#1b1508;
+    --record:#e2585c; --ok:#5fbf8b; --info:#6ea8d8;
+    --r-s:12px; --r-m:18px; --r-l:26px;
+    --fs-xs:12px; --fs-s:14px; --fs-m:17px; --fs-l:20px; --fs-2xl:40px;
+    --font:"Golos Text","PT Sans","Segoe UI",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:#0b0d11;color:var(--text);font-family:var(--font)}
+  body{padding:20px;display:flex;justify-content:center;align-items:flex-start;min-height:100vh}
+  .frame{width:min(420px,100%);max-width:420px;background:var(--bg);border:1px solid var(--line);
+    border-radius:var(--r-l);overflow:hidden;display:flex;flex-direction:column;min-height:760px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+  .status{display:flex;justify-content:space-between;padding:8px 18px;font-size:var(--fs-xs);color:var(--muted)}
+  .head{display:flex;align-items:center;gap:10px;padding:10px 18px 14px}
+  .brand{font-size:var(--fs-l);font-weight:700}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:999px;padding:6px 12px;font-size:var(--fs-xs);color:var(--muted);cursor:pointer}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+  main{flex:1;padding:0 18px 14px;overflow:auto}
+  .screen{display:none}.screen.on{display:block}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-m);padding:16px;margin-bottom:12px}
+  .card h3{margin:0 0 4px;font-size:var(--fs-m)}
+  .muted{color:var(--muted);font-size:var(--fs-s);line-height:1.45}
+  .recwrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:8px 0 14px}
+  .recbtn{width:104px;height:104px;border-radius:50%;border:none;background:var(--record);color:#fff;display:grid;
+    place-items:center;cursor:pointer;transition:transform .12s,background .2s;box-shadow:0 8px 24px rgba(226,88,92,.35)}
+  .recbtn:active{transform:scale(.96)}
+  .recbtn.rec{background:#3a2a2c;box-shadow:none;border:2px solid var(--record)}
+  .recbtn svg{width:40px;height:40px}
+  .timer{font-size:var(--fs-2xl);font-weight:700;font-variant-numeric:tabular-nums}
+  .waves{display:flex;gap:3px;height:26px;align-items:flex-end}
+  .waves i{width:4px;background:var(--accent);border-radius:2px;height:6px;animation:w 1s infinite ease-in-out}
+  .waves i:nth-child(2){animation-delay:.1s}.waves i:nth-child(3){animation-delay:.2s}
+  .waves i:nth-child(4){animation-delay:.3s}.waves i:nth-child(5){animation-delay:.4s}
+  @keyframes w{0%,100%{height:6px}50%{height:24px}}
+  .segs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:2px 0 14px}
+  .seg{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-s);padding:12px 10px;text-align:center;
+    cursor:pointer;font-size:var(--fs-s);color:var(--muted)}
+  .seg.on{border-color:var(--accent);color:var(--text);background:var(--surface-2)}
+  .row{display:flex;align-items:center;gap:12px;min-height:48px}
+  .grow{flex:1}
+  .btn{border:none;border-radius:var(--r-s);padding:12px 16px;font-size:var(--fs-s);cursor:pointer;font-family:inherit}
+  .btn.pri{background:var(--accent);color:var(--accent-ink);font-weight:600}
+  .btn.gh{background:transparent;border:1px solid var(--line);color:var(--text)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .list{list-style:none;margin:0;padding:0}
+  .list li{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-m);padding:14px;margin-bottom:10px}
+  .meta{display:flex;gap:10px;align-items:center;font-size:var(--fs-xs);color:var(--muted);margin-top:6px;flex-wrap:wrap}
+  .tag{background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:var(--fs-xs);color:var(--muted)}
+  .txt{font-size:var(--fs-m);line-height:1.6}
+  .spk{border-left:3px solid var(--info);padding-left:12px;margin:14px 0}
+  .spk.b{border-color:var(--ok)}
+  .spkname{font-size:var(--fs-xs);color:var(--muted);margin-bottom:4px}
+  .actions{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
+  .switch{margin-left:auto;width:52px;height:30px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);
+    position:relative;cursor:pointer;transition:background .2s}
+  .switch i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--muted);transition:left .2s,background .2s}
+  .switch.on{background:#2c3a2f;border-color:var(--ok)}.switch.on i{left:25px;background:var(--ok)}
+  .radio{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;margin-left:auto}
+  .radio.on{border-color:var(--accent)}.radio.on:after{content:"";width:10px;height:10px;border-radius:50%;background:var(--accent)}
+  .bar{height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden;margin-top:10px}
+  .bar i{display:block;height:100%;width:38%;background:var(--accent)}
+  .note{font-size:var(--fs-xs);color:var(--muted);margin-top:8px}
+  nav{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line);background:var(--surface)}
+  nav button{background:none;border:none;color:var(--muted);padding:12px 6px;font-size:var(--fs-xs);font-family:inherit;
+    display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+  nav button.on{color:var(--accent)}
+  svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .toast{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-s);padding:10px 14px;
+    font-size:var(--fs-s);display:none;margin:0 18px 10px}
+  .toast.on{display:block}
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="status"><span>10:52</span><span>офлайн · 76%</span></div>
+  <div class="head">
+    <span class="brand">ДиктаПро</span>
+    <span class="chip grow" id="engineChip"><span class="dot"></span> GigaAM · модель готова</span>
+  </div>
+
+  <main>
+    <section class="screen on" id="s1">
+      <div class="recwrap">
+        <button class="recbtn" id="rec" aria-label="Начать запись">
+          <svg viewBox="0 0 24 24" style="stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        </button>
+        <div class="timer" id="timer">00:00</div>
+        <div class="waves" id="waves" hidden><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="muted" id="recHint">Нажмите, чтобы записать. Всё считается на устройстве</div>
+      </div>
+      <div class="segs" role="tablist" aria-label="Сценарий записи">
+        <div class="seg on" data-seg>Диктовка</div><div class="seg" data-seg>Лекция</div><div class="seg" data-seg>Шумно</div>
+      </div>
+      <div class="card">
+        <div class="row"><span class="grow">Термины этой записи</span><span class="tag">in vivo, ЖКТ +3</span></div>
+        <div class="muted" style="margin-top:6px">Подсказка для редких слов и латиницы. Пусто — ничего не меняется.</div>
+      </div>
+      <ul class="list">
+        <li>
+          <div class="row"><span class="grow" style="font-weight:600">Лекция по кормлению</span><span class="tag">расшифровано</span></div>
+          <div class="meta"><span>18:54</span><span>32,4 МБ</span><span>ошибок ≈2%</span><span>сегодня</span></div>
+          <div class="actions">
+            <button class="btn gh" data-go="s2">Открыть текст</button>
+            <button class="btn gh" data-toast="Экспорт: HTML · PDF · TXT с таймкодами">Экспорт</button>
+          </div>
+        </li>
+        <li>
+          <div class="row"><span class="grow" style="font-weight:600">Совещание у заказчика</span><span class="tag">в очереди</span></div>
+          <div class="meta"><span>11:07</span><span>18,1 МБ</span><span>сегодня</span></div>
+          <div class="actions">
+            <button class="btn pri" data-toast="Расшифровка пошла: 11 мин → ≈2 мин">Расшифровать</button>
+            <button class="btn gh" data-toast="Плеер 0.5x–2.0x · переименование · делиться">Ещё</button>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <section class="screen" id="s2">
+      <div class="card">
+        <h3>Лекция по кормлению</h3>
+        <div class="meta"><span>движок GigaAM</span><span>18 мин → 1 мин 40 с</span><span>на устройстве</span></div>
+      </div>
+      <div class="card">
+        <div class="spk"><div class="spkname">Говорящий A</div>
+          <div class="txt">Рацион крупного рогатого скота строится так, чтобы животное получало достаточно энергии и питательных веществ.</div></div>
+        <div class="spk b"><div class="spkname">Говорящий B</div>
+          <div class="txt">Отдельное внимание уделяют защищённым жирам: они позволяют повысить энергетическую плотность рациона.</div></div>
+        <div class="actions">
+          <button class="btn gh" data-toast="Текст скопирован">Копировать</button>
+          <button class="btn gh" data-toast="Поделиться: текст · аудио · PDF">Поделиться</button>
+          <button class="btn gh" data-toast="Экспорт HTML / PDF / TXT с таймкодами">Экспорт</button>
+          <button class="btn gh" data-toast="Редактор диалога: спикеры A/B, склейка реплик">Редактор</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row"><span class="grow">Саммари и решения</span><button class="btn gh" data-toast="Саммари на устройстве (облако выключено)">Сделать</button></div>
+        <div class="note">Облако выключено — текст не покидает телефон.</div>
+      </div>
+    </section>
+
+    <section class="screen" id="s3">
+      <div class="card">
+        <h3>Движок распознавания</h3>
+        <div class="row"><span class="grow">GigaAM<br><span class="muted">Точнее в разы · русский · пунктуация и цифры</span></span><span class="radio on"></span></div>
+        <div class="row"><span class="grow">VOSK<br><span class="muted">Старый движок — оставлен как запасной</span></span><span class="radio"></span></div>
+        <div class="note" id="modelNote">Модель скачана · 221 МБ · приложение 1.48</div>
+        <div class="bar" id="bar" hidden><i></i></div>
+        <button class="btn pri" id="dl" style="margin-top:10px" hidden>Скачать модель (230 МБ)</button>
+      </div>
+      <div class="card">
+        <h3>Проверено на записях</h3>
+        <div class="muted">Чтение вслух — 1,4% ошибок · деловая речь — 4,3% · техническая — 6,0% · дальний микрофон — 18,9%</div>
+      </div>
+      <div class="card">
+        <h3>Текст</h3>
+        <div class="row"><span class="grow">Локальная чистка<br><span class="muted">Для VOSK. GigaAM сам ставит знаки и цифры</span></span><span class="switch" data-switch><i></i></span></div>
+      </div>
+      <div class="card">
+        <h3>Онлайн и саммари</h3>
+        <div class="row"><span class="grow">Онлайн-транскрипция</span><span class="switch" data-switch><i></i></span></div>
+        <div class="row"><span class="grow">Облачное саммари (Z.ai)<br><span class="muted">ВЫКЛ — текст не уходит с телефона</span></span><span class="switch" data-switch><i></i></span></div>
+      </div>
+      <div class="card">
+        <h3>Данные</h3>
+        <div class="row"><span class="grow">Папка записей<br><span class="muted">Внутреннее хранилище · 1,2 ГБ</span></span><button class="btn gh" data-toast="Бэкап и экспорт архива">Бэкап</button></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+  <nav>
+    <button class="on" data-go="s1"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Записи</button>
+    <button data-go="s2"><svg class="i" viewBox="0 0 24 24"><path d="M5 4h14v12H8l-3 3z"/></svg>Расшифровка</button>
+    <button data-go="s3"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>Настройки</button>
+  </nav>
+</div>
+<script>
+  const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+  let t=0,id=null,recording=false;
+  const go=id2=>{$$('.screen').forEach(x=>x.classList.toggle('on',x.id===id2));$$('nav button').forEach(b=>b.classList.toggle('on',b.dataset.go===id2));};
+  $$('[data-go]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.go)));
+  $$('[data-seg]').forEach(s=>s.addEventListener('click',()=>{$$('[data-seg]').forEach(x=>x.classList.remove('on'));s.classList.add('on');}));
+  $$('[data-switch]').forEach(s=>s.addEventListener('click',()=>s.classList.toggle('on')));
+  const toast=$('#toast');const showT=m=>{toast.textContent=m;toast.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(()=>toast.classList.remove('on'),2200);};
+  $$('[data-toast]').forEach(b=>b.addEventListener('click',()=>showT(b.dataset.toast)));
+  $('#rec').addEventListener('click',()=>{recording=!recording;$('#rec').classList.toggle('rec',recording);$('#waves').hidden=!recording;
+    $('#recHint').textContent=recording?'Идёт запись — говорите':'Нажмите, чтобы записать. Всё считается на устройстве';
+    if(recording){t=0;id=setInterval(()=>{t++;$('#timer').textContent=String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');},1000);}
+    else{clearInterval(id);showT('Запись сохранена · можно расшифровать');}});
+  $('#engineChip').addEventListener('click',()=>go('s3'));
+  $('#dl').addEventListener('click',()=>{$('#bar').hidden=false;showT('Скачивание модели: ~230 МБ по Wi-Fi');});
+</script>
+</body>
+</html>

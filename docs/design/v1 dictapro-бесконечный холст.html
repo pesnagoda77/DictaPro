@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DictaPro — бесконечный холст (V1)</title>
+<style>
+  :root{
+    --bg:#0f1116; --surface:#181c23; --surface-2:#212734; --line:#2c3442;
+    --text:#eef1f6; --muted:#98a3b6; --accent:#e0a03c; --ok:#5fbf8b; --info:#6ea8d8; --warn:#e0b34a;
+    --font:"Golos Text","PT Sans","Segoe UI",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font)}
+  .canvas{min-width:1400px;padding:28px 32px 60px}
+  h1{font-size:30px;margin:0 0 6px}
+  h2{font-size:20px;margin:0 0 14px;color:var(--accent)}
+  .rowlabel{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:34px 0 12px}
+  .grid{display:grid;gap:14px}
+  .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px}
+  .card h3{margin:0 0 8px;font-size:16px}
+  .muted{color:var(--muted);font-size:13px;line-height:1.5}
+  .kv{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:5px 0;border-bottom:1px dashed var(--line)}
+  .kv:last-child{border:0}
+  .sw{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .sw div{width:96px;font-size:11px;color:var(--muted)}
+  .sw i{display:block;height:44px;border-radius:10px;margin-bottom:4px}
+  .type p{margin:0 0 10px}
+  .t1{font-size:26px;font-weight:700}.t2{font-size:19px;font-weight:600}.t3{font-size:16px}.t4{font-size:14px;color:var(--muted)}
+  .flow{display:flex;gap:0;align-items:flex-start;overflow-x:auto;padding-bottom:10px}
+  .step{min-width:210px;max-width:210px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;margin-right:26px;position:relative}
+  .step:after{content:"→";position:absolute;right:-21px;top:50%;transform:translateY(-50%);color:var(--accent);font-size:18px}
+  .step:last-child:after{content:""}
+  .step h4{margin:0 0 8px;font-size:15px}
+  .pill{display:inline-block;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:3px 9px;font-size:11px;color:var(--muted);margin:3px 4px 0 0}
+  .ok{color:var(--ok)}.warn{color:var(--warn)}.info{color:var(--info)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  ul{margin:6px 0 0;padding-left:18px;font-size:13px;color:var(--muted);line-height:1.6}
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="rowlabel">Ряд 1 · о проекте</div>
+  <h1>ДиктаПро — диктофон, который расшифровывает на телефоне</h1>
+  <div class="grid g4">
+    <div class="card">
+      <h3>Что это</h3>
+      <div class="muted">Диктофон с расшифровкой прямо на устройстве: ни облака, ни аккаунта. Разовая покупка вместо подписки. Русский язык — основной.</div>
+    </div>
+    <div class="card">
+      <h3>Кому</h3>
+      <div class="muted">Тем, кто диктует и ведёт записи по работе: юристы, врачи, аграрии, студенты и преподаватели, интервьюеры. Профессионалам важен не текст ради текста, а результат.</div>
+    </div>
+    <div class="card">
+      <h3>Задачу какую решаем</h3>
+      <div class="muted">Записи есть, а пользоваться ими тяжело: расшифровка в облаке — дорого и небезопасно, локальная — раньше была нечитаемой. Мы даём читаемый текст и приватность одновременно.</div>
+    </div>
+    <div class="card">
+      <h3>Чем сильны (замеры)</h3>
+      <div class="muted">
+        Чтение вслух — <b class="ok">1,4%</b> ошибок<br>
+        Деловая речь — <b class="ok">4,3%</b><br>
+        Техническая с терминами — <b class="ok">6,0%</b><br>
+        Дальний микрофон/ТВ — <b class="warn">18,9%</b><br>
+        Старый движок VOSK — <span class="muted">66%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="rowlabel">Ряд 2 · дизайн-система</div>
+  <div class="grid g3">
+    <div class="card">
+      <h3>Тон</h3>
+      <div class="muted">Рабочий инструмент, не игрушка. Тёмная тёплая база, крупные цели (палец, а не курсор), один акцент на янтаре. Ничего декоративного: цвет несёт смысл — запись красная, успех зелёный, информация синяя.</div>
+    </div>
+    <div class="card">
+      <h3>Цвета</h3>
+      <div class="sw">
+        <div><i style="background:#12141a"></i>#12141a база</div>
+        <div><i style="background:#1a1e26"></i>#1a1e26 поверхность</div>
+        <div><i style="background:#2e3644"></i>#2e3644 линия</div>
+        <div><i style="background:#eef1f6"></i>#eef1f6 текст</div>
+        <div><i style="background:#9aa5b8"></i>#9aa5b8 вторичный</div>
+        <div><i style="background:#e0a03c"></i>#e0a03c акцент</div>
+        <div><i style="background:#e2585c"></i>#e2585c запись</div>
+        <div><i style="background:#5fbf8b"></i>#5fbf8b успех</div>
+      </div>
+    </div>
+    <div class="card type">
+      <h3>Шрифт и размеры</h3>
+      <p class="t1">Расшифровка крупно</p>
+      <p class="t2">Заголовок экрана</p>
+      <p class="t3">Текст записи 17 px, интерлиньяж 1,6 — читается с телефона</p>
+      <p class="t4">Подписи 12–14 px, второстепенное серым</p>
+      <div class="muted">Гарнитура Golos Text (свободная, русская) — в приложении вкладывается в сборку. Было: 11–14 px и цвета иконок «на глаз».</div>
+    </div>
+  </div>
+
+  <div class="rowlabel">Ряд 3 · экраны (слева направо по пути пользователя)</div>
+  <div class="flow">
+    <div class="step">
+      <h4>1. Записи (главный)</h4>
+      <div class="muted">Одна большая кнопка записи, таймер, сценарии (Диктовка / Лекция / Шумно), термины записи, список с поиском и статусами.</div>
+      <span class="pill">запись + таймер до 60 мин</span><span class="pill">сценарии</span><span class="pill">термины</span><span class="pill">поиск</span>
+    </div>
+    <div class="step">
+      <h4>2. Расшифровка</h4>
+      <div class="muted">Текст крупно, блоки по говорящим, четыре крупных действия: копировать, поделиться, экспорт, редактор. Рядом — саммари.</div>
+      <span class="pill">GigaAM / VOSK</span><span class="pill">диаризация A/B</span><span class="pill">подсветка неуверенных слов</span>
+    </div>
+    <div class="step">
+      <h4>3. Редактор диалога</h4>
+      <div class="muted">Правка по репликам, склейка, смена говорящего, экспорт HTML. Сохраняется из старой версии без изменений.</div>
+      <span class="pill">склейка реплик</span><span class="pill">экспорт HTML</span>
+    </div>
+    <div class="step">
+      <h4>4. Плеер</h4>
+      <div class="muted">Прослушивание с 0.5x–2.0x, переход к месту по тексту.</div>
+      <span class="pill">скорости 0.5–2.0</span>
+    </div>
+    <div class="step">
+      <h4>5. Саммари</h4>
+      <div class="muted">Краткое содержание и решения: локально или облаком — по выбору.</div>
+      <span class="pill">локально по умолчанию</span>
+    </div>
+    <div class="step">
+      <h4>6. Настройки: движок</h4>
+      <div class="muted">VOSK / GigaAM, состояние модели, скачивание 230 МБ, честные цифры качества.</div>
+      <span class="pill">выбор движка</span><span class="pill">скачать модель</span>
+    </div>
+    <div class="step">
+      <h4>7. Настройки: текст, онлайн, данные</h4>
+      <div class="muted">Локальная чистка, онлайн-транскрипция с провайдерами и ключами, облачное саммари (по умолчанию ВЫКЛ), папка записей и бэкап.</div>
+      <span class="pill">приватность</span><span class="pill">ключи на устройстве</span><span class="pill">бэкап</span>
+    </div>
+  </div>
+
+  <div class="rowlabel">Проверка: ничего не потеряно</div>
+  <div class="two">
+    <div class="card">
+      <h3 class="ok">Все прежние функции на месте</h3>
+      <ul>
+        <li>Движки VOSK и GigaAM, скачивание и статус модели</li>
+        <li>Запись с таймером (без / 15 / 30 / 60 мин), аудио в фоне</li>
+        <li>Термины записи (подсказки для редких слов и латиницы)</li>
+        <li>Локальная чистка текста (для VOSK)</li>
+        <li>Расшифровка офлайн и онлайн (провайдеры + ключи)</li>
+        <li>Облачное саммари (по умолчанию выключено) и локальное саммари</li>
+        <li>Список записей, поиск, теги, переименование</li>
+        <li>Плеер со скоростями 0.5–2.0, диктофон-режимы</li>
+        <li>Редактор диалога (спикеры A/B, склейка), экспорт HTML/PDF/TXT с таймкодами</li>
+        <li>Диаризация, подсветка неуверенных слов, словарь имён, авто-пунктуация VOSK</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 class="info">Что берём у других диктофонов (не копируя)</h3>
+      <ul>
+        <li>Сценарии записи плитками с человеческим пояснением</li>
+        <li>Настройки группами вместо одной длинной простыни</li>
+        <li>Видимый путь хранения и бэкап отдельным понятным пунктом</li>
+        <li>Быстрая запись без открытия приложения (в план, после релиза)</li>
+        <li>Управление записью из уведомления (у нас есть — вынести на видное место)</li>
+      </ul>
+      <div class="muted">Не берём: обилие технических тумблеров на виду, криптические подписи, рекламу и «убрать рекламу».</div>
+    </div>
+  </div>
+
+  <div class="rowlabel">Направление работы</div>
+  <div class="card">
+    <div class="muted">Режим: <b>перестройка структуры</b> (не косметика и не «с нуля»). Сохраняем все функции, смысл и тексты; меняем иерархию, размеры, группировку и внешний язык. Причина слабости прежнего вида: интерфейс собран из мелких элементов без единой системы — 11–14 px, случайные цвета иконок, всё на одном экране. Три варианта направления для выбора: этот («инструмент», спокойный тёмный), «блокнот-бумага» (светлый, текстовый, для чтения) и «консоль» (плотный тёмный, для профессионалов с цифрами). Собран первый.</div>
+  </div>
+</div>
+</body>
+</html>
