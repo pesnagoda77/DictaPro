@@ -1,0 +1,25 @@
+﻿name: iOS build check
+
+# Проверка iOS-сборки на macOS. Запускается ВРУЧНУЮ (кнопка Run workflow),
+# чтобы не присылать письма о падениях при каждом изменении кода.
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Версия Flutter
+        run: flutter --version
+      - name: Зависимости
+        run: flutter pub get
+      - name: Установка модулей iOS
+        run: cd ios && pod install --repo-update
+      - name: Сборка iOS без подписи
+        run: flutter build ios --release --no-codesign
