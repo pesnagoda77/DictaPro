@@ -17,7 +17,6 @@ import 'services/gigaam_service.dart';
 import 'services/audio_convert.dart';
 import 'services/glossary_service.dart';
 import 'services/online_transcribe_service.dart';
-import 'services/keep_alive.dart';
 import 'dialogue_editor.dart';
 import 'tag_service.dart';
 import 'export_service.dart';
@@ -85,8 +84,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    // Задача 036: подчищаем остатки прошлых прогонов (старые временные файлы).
-    TranscribeKeepAlive.sweepOldTemp();
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -414,13 +411,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (!GigaamService.isPrepared) {
       await _showModelPreparingDialog();
     }
-    // Задача 036: расшифровка идёт минутами — поднимаем foreground-службу,
-    // иначе при выключенном экране система убивает процесс и результат теряется.
-    var keepAliveStarted = false;
-    try {
-      await TranscribeKeepAlive.start('Расшифровка: готовлю аудио…');
-      keepAliveStarted = true;
-    } catch (_) {}
     String? text;
     String? wav16k;
     final diagLines = <String>[];
@@ -477,16 +467,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       stage.value = 'Расшифровка идёт…';
       text = await GigaamService.transcribeWithGlossary(
         wav16k,
-        onProgress: (done, all) {
-          progress.value = (done, all);
-          // Задача 036: прогресс виден в уведомлении даже с погасшим экраном.
-          final pct = all > 0 ? ((done / all) * 100).round() : 0;
-          TranscribeKeepAlive.update('Кусок $done из $all · $pct%');
-        },
-        onPartial: (done, all, partial) {
-          // Задача 036: частичный результат сохраняем — при выгрузке не потеряется.
-          TranscribeKeepAlive.savePartial(partial);
-        },
+        onProgress: (done, all) => progress.value = (done, all),
         onLog: (line) => diagLines.add(line),
       );
     } finally {
@@ -495,19 +476,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       progress.dispose();
       elapsed.dispose();
       stage.dispose();
-      if (keepAliveStarted) await TranscribeKeepAlive.stop();
-      // Задача 036: временный WAV сразу удаляем — раньше он оставался
-      // навсегда, из-за чего папка приложения распухла до ~890 МБ.
-      if (wav16k != null) {
-        try {
-          final f = File(wav16k);
-          if (await f.exists()) await f.delete();
-        } catch (_) {}
-      }
-      await TranscribeKeepAlive.cleanupTempFiles();
-      if (text != null && text.trim().isNotEmpty) {
-        await TranscribeKeepAlive.clearPartial();
-      }
+      // ДИАГНОСТИКА: WAV оставляем, чтобы проверить его длительность снаружи.
+      // (в релизе — удалять)
     }
     // ДИАГНОСТИКА: сохраняем текст и цифры прогона в доступную папку приложения,
     // чтобы результат можно было проверить снаружи (файл не удаляем).

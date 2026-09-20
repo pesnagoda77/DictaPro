@@ -179,7 +179,6 @@ class GigaamService {
   static Future<String?> transcribe(
     String wavPath, {
     void Function(int done, int total)? onProgress,
-    void Function(int done, int total, String text)? onPartial,
     void Function(String line)? onLog,
   }) async {
     await ensureModelReady();
@@ -202,10 +201,6 @@ class GigaamService {
         switch (message[0] as String) {
           case 'progress':
             onProgress?.call(message[1] as int, message[2] as int);
-          case 'partial':
-            // Задача 036: промежуточный текст — чтобы результат не терялся.
-            onPartial?.call(message[1] as int, message[2] as int,
-                message[3] as String);
           case 'log':
             debugPrint('[gigaam] ${message[1]}');
             onLog?.call('${message[1]}');
@@ -236,11 +231,9 @@ class GigaamService {
   static Future<String?> transcribeWithGlossary(
     String wavPath, {
     void Function(int done, int total)? onProgress,
-    void Function(int done, int total, String text)? onPartial,
     void Function(String line)? onLog,
   }) async {
-    final text = await transcribe(wavPath,
-        onProgress: onProgress, onPartial: onPartial, onLog: onLog);
+    final text = await transcribe(wavPath, onProgress: onProgress, onLog: onLog);
     if (text == null) return null;
     var out = text;
     final terms = await HotwordsStorage.recent();
@@ -358,11 +351,6 @@ void _gigaamIsolateEntry(_GigaamJob job) {
         recognizer.decode(stream);
         final text = recognizer.getResult(stream).text.trim();
         if (text.isNotEmpty) parts.add(text);
-        if (idx % 5 == 0) {
-          // Задача 036: каждые 5 кусков отдаём накопленный текст наружу,
-          // чтобы он сохранился на диск в обход изолята.
-          job.progressPort.send(['partial', idx, planned, parts.join(' ')]);
-        }
       } finally {
         stream.free();
       }
