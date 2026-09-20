@@ -94,6 +94,91 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _loadRecordings();
     _loadSortPreference();
     _loadRecentHotwords();
+    // Задача 038: баннер о незаконченной расшифровке показываем сразу
+    // при открытии приложения, а не только при повторном запуске того
+    // же файла.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkUnfinishedTranscription();
+    });
+  }
+
+  /// Задача 038: стартовый баннер «Найдена незаконченная расшифровка».
+  /// Читает и старый plain-text формат (сборка 51) — в нём нет номера
+  /// куска, тогда предлагаем хотя бы сохранить текст.
+  Future<void> _checkUnfinishedTranscription() async {
+    final saved = await TranscribeKeepAlive.readPartial();
+    if (!mounted || saved == null) return;
+    final chars = saved.$2.trim().length;
+    if (chars == 0) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showMaterialBanner(MaterialBanner(
+      content: Text(
+        'Найдена незаконченная расшифровка: $chars символов'
+        '${saved.$1 > 0 ? ' (оборвалась на куске ${saved.$1})' : ''}',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () async {
+            messenger.hideCurrentMaterialBanner();
+            // Продолжить: если знаем файл и нашли его запись — идём
+            // полным путём (расшифровка → сохранение в запись → саммари);
+            // диалог «продолжить с куска N» всплывёт внутри расшифровки.
+            final path = saved.$3;
+            if (path != null) {
+              try {
+                Recording? rec;
+                for (final r in _recordings) {
+                  if (r.filePath == path) {
+                    rec = r;
+                    break;
+                  }
+                }
+                if (rec != null) {
+                  await _transcribeRecording(rec);
+                  return;
+                }
+              } catch (_) {}
+            }
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text(
+                    'Откройте ту же запись и запустите расшифровку — предложим продолжить с места обрыва.'),
+              ));
+            }
+          },
+          child: const Text('Продолжить'),
+        ),
+        TextButton(
+          onPressed: () async {
+            messenger.hideCurrentMaterialBanner();
+            // Сохраняем найденный текст отдельной записью — он не потеряется.
+            try {
+              final now = DateTime.now();
+              final rec = Recording(
+                id: now.millisecondsSinceEpoch.toString(),
+                filePath: '',
+                createdAt: now,
+                durationMs: 0,
+                fileSize: 0,
+                title: 'Прерванная расшифровка',
+                transcription: saved.$2.trim(),
+              );
+              await AudioService().updateRecording(rec);
+              await _loadRecordings();
+              await TranscribeKeepAlive.clearPartial();
+            } catch (_) {}
+          },
+          child: const Text('Сохранить текст'),
+        ),
+        TextButton(
+          onPressed: () async {
+            messenger.hideCurrentMaterialBanner();
+            await TranscribeKeepAlive.clearPartial();
+          },
+          child: const Text('Удалить'),
+        ),
+      ],
+    ));
   }
 
   Future<void> _loadRecentHotwords() async {
@@ -522,9 +607,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           // Задача 036: частичный результат сохраняем — при выгрузке не
           // потеряется. Текст = уже готовая база + новые куски; число
           // кусков абсолютное (с учётом пропущенных).
+          // Задача 038: пишем и путь файла — стартовый баннер по нему
+          // открывает нужную запись напрямую.
           final merged =
               baseText.isEmpty ? partial : '$baseText $partial'.trim();
-          TranscribeKeepAlive.savePartial(done, merged);
+          TranscribeKeepAlive.savePartial(done, merged, path: filePath);
         },
         onLog: (line) => diagLines.add(line),
       );

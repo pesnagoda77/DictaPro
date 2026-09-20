@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -10,6 +11,10 @@ import 'package:path_provider/path_provider.dart';
 /// результат двухчасового файла на 20-й минуте.
 class TranscribeKeepAlive {
   static const _title = 'DictaPro — идёт расшифровка';
+
+  /// Нативные вызовы для задачи 038: фактическое состояние «без ограничений»
+  /// и прямое открытие экрана батареи приложения.
+  static const _ch = MethodChannel('dictapro/keepalive');
 
   /// Поднимает службу (или обновляет уведомление, если она уже работает).
   static Future<void> start(String text) async {
@@ -107,35 +112,71 @@ class TranscribeKeepAlive {
   /// не означала потерю всего текста.
   /// Task 036 (доп.): формат JSON с числом готовых кусков — по нему при
   /// повторном запуске предлагаем «Продолжить с куска N», а не начинаем
-  /// с нуля.
-  static Future<void> savePartial(int chunks, String text) async {
+  /// с нуля. Task 038: в JSON добавляем путь исходного файла — по нему
+  /// стартовый баннер может открыть нужную запись напрямую.
+  static Future<void> savePartial(int chunks, String text,
+      {String? path}) async {
     try {
       final dir = await _filesDir();
       if (dir == null) return;
-      await File('${dir.path}/partial.txt')
-          .writeAsString(jsonEncode({'chunks': chunks, 'text': text}));
+      await File('${dir.path}/partial.txt').writeAsString(jsonEncode({
+            'chunks': chunks,
+            'text': text,
+            if (path != null) 'path': path,
+          }));
     } catch (_) {}
   }
 
-  /// Число готовых кусков и накопленный текст прерванной расшифровки.
-  /// null — продолжать нечего (нет файла, битый формат или старый
-  /// plain-text вариант без счётчика кусков).
-  static Future<(int, String)?> readPartial() async {
+  /// (число готовых кусков, накопленный текст, путь исходного файла).
+  /// Task 038: файлы из сборки 51 писались простым текстом без JSON —
+  /// читаем и их: chunks=0 означает «текст есть, номер куска неизвестен»,
+  /// интерфейс предлагает хотя бы сохранить текст, а не молчит.
+  static Future<(int, String, String?)?> readPartial() async {
     try {
       final dir = await _filesDir();
       if (dir == null) return null;
       final f = File('${dir.path}/partial.txt');
       if (!await f.exists()) return null;
-      final map = jsonDecode(await f.readAsString());
-      if (map is! Map) return null;
-      final chunks = map['chunks'];
-      final text = map['text'];
-      if (chunks is! int || chunks <= 0 || text is! String) return null;
-      if (text.trim().isEmpty) return null;
-      return (chunks, text);
+      final raw = await f.readAsString();
+      if (raw.trim().isEmpty) return null;
+      try {
+        final map = jsonDecode(raw);
+        if (map is Map) {
+          final chunks = map['chunks'];
+          final text = map['text'];
+          if (chunks is int && chunks > 0 && text is String &&
+              text.trim().isNotEmpty) {
+            return (chunks, text, map['path'] as String?);
+          }
+        }
+      } catch (_) {}
+      // Старый формат (≤51): весь файл — это и есть найденный текст.
+      return (0, raw, null);
     } catch (_) {
       return null;
     }
+  }
+
+  /// Task 038: фактическое состояние «без ограничений».
+  /// true — приложение в белом списке батареи; false — ограничено;
+  /// null — Android не ответил (старый API/нет канала).
+  static Future<bool?> batteryUnrestricted() async {
+    try {
+      final r = await _ch
+          .invokeMethod<int>('batteryUnrestrictedStatus');
+      if (r == null) return null;
+      return r == 1;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Task 038: прямая кнопка «Открыть настройки батареи» — экран батареи
+  /// самого приложения (API 26+, фолбэк — карточка приложения).
+  static Future<void> openBatterySettings() async {
+    try {
+      await _ch.invokeMethod('openBatterySettings');
+    } catch (_) {}
   }
 
   static Future<void> clearPartial() async {

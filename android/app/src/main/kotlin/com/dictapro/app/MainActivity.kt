@@ -1,10 +1,13 @@
 package com.dictapro.app
 
+import android.content.Intent
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import com.google.android.play.core.assetpacks.AssetPackLocation
 import com.google.android.play.core.assetpacks.AssetPackManager
@@ -24,11 +27,58 @@ import java.nio.ByteOrder
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "dictapro/convert"
     private val MODEL_CHANNEL = "dictapro/model"
+    private val KEEPALIVE_CHANNEL = "dictapro/keepalive"
     private val TAG = "DictaPro"
     private val PACK_NAME = "gigaam_pack"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        // Task 038: фактическое состояние исключения из экономии батареи и
+        // прямой выход на экран батареи приложения. MIUI-запрос из
+        // flutter_foreground_task открывает системный выбор, после которого
+        // непонятно, включилось ли — здесь проверяем реальный флаг.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, KEEPALIVE_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "batteryUnrestrictedStatus" -> {
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            val pm = getSystemService(POWER_SERVICE) as PowerManager
+                            result.success(if (pm.isIgnoringBatteryOptimizations(packageName)) 1 else 0)
+                        } else {
+                            result.success(null)
+                        }
+                    } catch (e: Exception) {
+                        result.success(null)
+                    }
+                }
+                "openBatterySettings" -> {
+                    try {
+                        val i = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            Intent(Settings.ACTION_APP_BATTERY_SETTINGS).apply {
+                                data = Uri.parse("package:$packageName")
+                            }
+                        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                        } else {
+                            Intent(Settings.ACTION_SETTINGS)
+                        }
+                        startActivity(i)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        try {
+                            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.parse("package:$packageName")
+                            })
+                            result.success(true)
+                        } catch (e2: Exception) {
+                            result.success(false)
+                        }
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {

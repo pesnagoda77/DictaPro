@@ -49,12 +49,22 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _loadSettings();
+    _refreshBatteryStatus();
   }
 
   bool _sttEnabled = false;
   bool _cloudSummary = false;
   String _sttProviderTitle = 'Groq (whisper-large-v3-turbo)';
   int _tempBytes = 0;
+
+  // Задача 038: фактическое состояние исключения из экономии батареи.
+  // null — Android не ответил; обновляем при входе и после запроса.
+  bool? _batteryUnrestricted;
+
+  Future<void> _refreshBatteryStatus() async {
+    final v = await TranscribeKeepAlive.batteryUnrestricted();
+    if (mounted) setState(() => _batteryUnrestricted = v);
+  }
 
   // Задача 036: показываем занятое временными файлами место и даём
   // чистить вручную (основной сценарий — автоочистка сразу после операции).
@@ -354,17 +364,42 @@ class _SettingsPageState extends State<SettingsPage> {
           _group(context, 'Фон и память', [
             // Задача 036: MIUI убивает фоновые процессы без исключения —
             // без этого длинная расшифровка с выключенным экраном нежизнеспособна.
+            // Задача 038: после системного запроса показываем ФАКТИЧЕСКОЕ
+            // состояние (MIUI-диалог выбора не говорит, включилось ли) и даём
+            // прямой выход на экран батареи приложения.
             ListTile(
               leading: const Icon(Icons.battery_saver_outlined),
               title: const Text('Работа без ограничений (MIUI)'),
-              subtitle: const Text(
-                  'Запросить исключение из оптимизации батареи. Без него '
-                  'система может остановить длинную расшифровку в фоне.'),
-              trailing: FilledButton.tonal(
-                onPressed: () async {
-                  await TranscribeKeepAlive.requestBatteryUnrestricted();
-                },
-                child: const Text('Включить'),
+              subtitle: Text(
+                'Запросить исключение из оптимизации батареи. Без него '
+                'система может остановить длинную расшифровку в фоне.\n'
+                'Работа без ограничений: '
+                '${_batteryUnrestricted == null ? 'проверяю…' : (_batteryUnrestricted! ? 'включено' : 'не включено')}'
+                '${_batteryUnrestricted == false ? '\nMIUI: Сведения о батарее → Без ограничений' : ''}',
+              ),
+              trailing: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  FilledButton.tonal(
+                    onPressed: () async {
+                      await TranscribeKeepAlive.requestBatteryUnrestricted();
+                      // Пользователь ходил в системный экран — проверяем факт.
+                      await Future.delayed(const Duration(seconds: 1));
+                      await _refreshBatteryStatus();
+                    },
+                    child: const Text('Включить'),
+                  ),
+                  if (_batteryUnrestricted == false)
+                    TextButton(
+                      onPressed: () async {
+                        await TranscribeKeepAlive.openBatterySettings();
+                        await Future.delayed(const Duration(seconds: 1));
+                        await _refreshBatteryStatus();
+                      },
+                      child: const Text('Открыть настройки батареи'),
+                    ),
+                ],
               ),
             ),
             const Divider(height: 1),
