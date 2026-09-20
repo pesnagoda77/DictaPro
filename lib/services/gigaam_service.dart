@@ -176,8 +176,12 @@ class GigaamService {
   /// Транскрибирует WAV (моно 16 кГц) через GigaAM v3.
   /// Нарезка по паузам Silero VAD, декодирование в отдельном изоляте.
   /// Прогресс: onProgress(фрагмент i, всего N).
+  /// [skipChunks] — сколько первых кусков НЕ расшифровывать (task 036):
+  /// их текст уже сохранён в partial.txt от прерванного прогона, нарезка
+  /// VAD детерминирована, поэтому порядковые номера кусков совпадают.
   static Future<String?> transcribe(
     String wavPath, {
+    int skipChunks = 0,
     void Function(int done, int total)? onProgress,
     void Function(int done, int total, String text)? onPartial,
     void Function(String line)? onLog,
@@ -191,6 +195,7 @@ class GigaamService {
       _GigaamJob(
         modelDir: dir,
         wavPath: wavPath,
+        skipChunks: skipChunks,
         progressPort: receivePort.sendPort,
       ),
       debugName: 'gigaam-asr',
@@ -235,12 +240,16 @@ class GigaamService {
   /// не может выдать сама. Без списка текст не меняется.
   static Future<String?> transcribeWithGlossary(
     String wavPath, {
+    int skipChunks = 0,
     void Function(int done, int total)? onProgress,
     void Function(int done, int total, String text)? onPartial,
     void Function(String line)? onLog,
   }) async {
     final text = await transcribe(wavPath,
-        onProgress: onProgress, onPartial: onPartial, onLog: onLog);
+        skipChunks: skipChunks,
+        onProgress: onProgress,
+        onPartial: onPartial,
+        onLog: onLog);
     if (text == null) return null;
     var out = text;
     final terms = await HotwordsStorage.recent();
@@ -254,10 +263,12 @@ class GigaamService {
 class _GigaamJob {
   final String modelDir;
   final String wavPath;
+  final int skipChunks;
   final SendPort progressPort;
   const _GigaamJob({
     required this.modelDir,
     required this.wavPath,
+    this.skipChunks = 0,
     required this.progressPort,
   });
 }
@@ -345,8 +356,11 @@ void _gigaamIsolateEntry(_GigaamJob job) {
     void decodeOne(Float32List raw) {
       // Пустые/микроскопические куски в декодер не отдаём (роняют нативный ORT).
       if (raw.length < 1600) return; // < 0.1 с
-      idx++;
+      idx++; // абсолютный номер куска (с учётом пропущенных) — для прогресса
       job.progressPort.send(['progress', idx, planned]);
+      // Task 036: куски до skipChunks уже расшифрованы в прошлом прогоне —
+      // их текст лежит в partial.txt, декодировать повторно не нужно.
+      if (idx <= job.skipChunks) return;
       final stream = recognizer!.createStream();
       try {
         // Копия в обычный буфер: оригинал может быть вью на внутренний

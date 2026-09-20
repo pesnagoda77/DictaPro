@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'services/ai_summary_service.dart';
+import 'services/keep_alive.dart';
 import 'services/stt_provider.dart';
 import 'theme/app_theme.dart';
 
@@ -53,6 +54,25 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _sttEnabled = false;
   bool _cloudSummary = false;
   String _sttProviderTitle = 'Groq (whisper-large-v3-turbo)';
+  int _tempBytes = 0;
+
+  // Задача 036: показываем занятое временными файлами место и даём
+  // чистить вручную (основной сценарий — автоочистка сразу после операции).
+  Future<void> _refreshTempSize() async {
+    final n = await TranscribeKeepAlive.tempSize();
+    if (mounted) setState(() => _tempBytes = n);
+  }
+
+  Future<void> _clearTempNow() async {
+    final freed = await TranscribeKeepAlive.cleanupTempFiles();
+    await _refreshTempSize();
+    if (mounted) {
+      final mb = (freed / 1024 / 1024).toStringAsFixed(1);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(freed > 0 ? 'Освобождено $mb МБ' : 'Временных файлов нет')),
+      );
+    }
+  }
 
   Future<void> _pickSttProvider() async {
     final id = await showDialog<String>(
@@ -181,6 +201,7 @@ class _SettingsPageState extends State<SettingsPage> {
         _sttProviderTitle = prov.title;
       });
     }
+    await _refreshTempSize();
   }
 
   Future<void> _saveSettings() async {
@@ -328,6 +349,35 @@ class _SettingsPageState extends State<SettingsPage> {
                 await AiSummaryService.setCloudEnabled(v);
                 if (mounted) setState(() => _cloudSummary = v);
               },
+            ),
+          ]),
+          _group(context, 'Фон и память', [
+            // Задача 036: MIUI убивает фоновые процессы без исключения —
+            // без этого длинная расшифровка с выключенным экраном нежизнеспособна.
+            ListTile(
+              leading: const Icon(Icons.battery_saver_outlined),
+              title: const Text('Работа без ограничений (MIUI)'),
+              subtitle: const Text(
+                  'Запросить исключение из оптимизации батареи. Без него '
+                  'система может остановить длинную расшифровку в фоне.'),
+              trailing: FilledButton.tonal(
+                onPressed: () async {
+                  await TranscribeKeepAlive.requestBatteryUnrestricted();
+                },
+                child: const Text('Включить'),
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.delete_sweep_outlined),
+              title: const Text('Временные файлы'),
+              subtitle: Text(_tempBytes > 0
+                  ? 'Занято: ${(_tempBytes / 1024 / 1024).toStringAsFixed(1)} МБ. Обычно мусор удаляется сразу после расшифровки.'
+                  : 'Временных файлов нет — мусор удаляется сразу после расшифровки.'),
+              trailing: TextButton(
+                onPressed: _tempBytes > 0 ? _clearTempNow : null,
+                child: const Text('Очистить'),
+              ),
             ),
           ]),
           _group(context, 'Данные', [

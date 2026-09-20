@@ -414,6 +414,38 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (!GigaamService.isPrepared) {
       await _showModelPreparingDialog();
     }
+    // Задача 036: если прошлый прогон был прерван (процесс убит системой),
+    // предлагаем продолжить с последнего готового куска — текст уже
+    // накопленных кусков не теряется и не расшифровывается заново.
+    var skipChunks = 0;
+    var baseText = '';
+    final partial = await TranscribeKeepAlive.readPartial();
+    if (partial != null && mounted) {
+      final cont = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Незавершённая расшифровка'),
+          content: Text(
+              'В прошлый раз распознание оборвалось на куске ${partial.$1} '
+              '(${partial.$2.length} символов текста уже готово).\n\n'
+              'Продолжить с этого места или начать заново?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Начать заново'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Продолжить'),
+            ),
+          ],
+        ),
+      );
+      if (cont == true) {
+        skipChunks = partial.$1;
+        baseText = partial.$2.trim();
+      }
+    }
     // Задача 036: расшифровка идёт минутами — поднимаем foreground-службу,
     // иначе при выключенном экране система убивает процесс и результат теряется.
     var keepAliveStarted = false;
@@ -474,9 +506,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     ticker = Timer.periodic(const Duration(seconds: 1), (_) => elapsed.value++);
     try {
       wav16k = await AudioConvert.toWav16k(filePath);
-      stage.value = 'Расшифровка идёт…';
+      stage.value = skipChunks > 0
+          ? 'Продолжаем: пропускаем $skipChunks готовых кусков…'
+          : 'Расшифровка идёт…';
       text = await GigaamService.transcribeWithGlossary(
         wav16k,
+        skipChunks: skipChunks,
         onProgress: (done, all) {
           progress.value = (done, all);
           // Задача 036: прогресс виден в уведомлении даже с погасшим экраном.
@@ -484,11 +519,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           TranscribeKeepAlive.update('Кусок $done из $all · $pct%');
         },
         onPartial: (done, all, partial) {
-          // Задача 036: частичный результат сохраняем — при выгрузке не потеряется.
-          TranscribeKeepAlive.savePartial(partial);
+          // Задача 036: частичный результат сохраняем — при выгрузке не
+          // потеряется. Текст = уже готовая база + новые куски; число
+          // кусков абсолютное (с учётом пропущенных).
+          final merged =
+              baseText.isEmpty ? partial : '$baseText $partial'.trim();
+          TranscribeKeepAlive.savePartial(done, merged);
         },
         onLog: (line) => diagLines.add(line),
       );
+      // Задача 036: дописываем текст пропущенных кусков из прерванного прогона.
+      if (text != null && baseText.isNotEmpty) {
+        final t = text!.trim();
+        text = t.isEmpty ? baseText : '$baseText $t';
+      }
     } finally {
       ticker?.cancel();
       if (mounted) Navigator.of(context).pop();

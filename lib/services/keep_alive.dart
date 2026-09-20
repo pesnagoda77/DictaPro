@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
@@ -104,12 +105,37 @@ class TranscribeKeepAlive {
 
   /// Частичный результат расшифровки: пишем по ходу, чтобы выгрузка процесса
   /// не означала потерю всего текста.
-  static Future<void> savePartial(String text) async {
+  /// Task 036 (доп.): формат JSON с числом готовых кусков — по нему при
+  /// повторном запуске предлагаем «Продолжить с куска N», а не начинаем
+  /// с нуля.
+  static Future<void> savePartial(int chunks, String text) async {
     try {
       final dir = await _filesDir();
       if (dir == null) return;
-      await File('${dir.path}/partial.txt').writeAsString(text);
+      await File('${dir.path}/partial.txt')
+          .writeAsString(jsonEncode({'chunks': chunks, 'text': text}));
     } catch (_) {}
+  }
+
+  /// Число готовых кусков и накопленный текст прерванной расшифровки.
+  /// null — продолжать нечего (нет файла, битый формат или старый
+  /// plain-text вариант без счётчика кусков).
+  static Future<(int, String)?> readPartial() async {
+    try {
+      final dir = await _filesDir();
+      if (dir == null) return null;
+      final f = File('${dir.path}/partial.txt');
+      if (!await f.exists()) return null;
+      final map = jsonDecode(await f.readAsString());
+      if (map is! Map) return null;
+      final chunks = map['chunks'];
+      final text = map['text'];
+      if (chunks is! int || chunks <= 0 || text is! String) return null;
+      if (text.trim().isEmpty) return null;
+      return (chunks, text);
+    } catch (_) {
+      return null;
+    }
   }
 
   static Future<void> clearPartial() async {
