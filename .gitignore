@@ -59,5 +59,4 @@ assets/models/gigaam_v3_punct/*.txt
 assets/models/vosk-model-small-ru-0.22.zip
 
 
-# локальные бэкапы перед правками
 .backups/
