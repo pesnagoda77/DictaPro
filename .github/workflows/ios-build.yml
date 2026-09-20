@@ -19,6 +19,19 @@ jobs:
         run: flutter --version
       - name: Зависимости
         run: flutter pub get
+      - name: Диагностика версий
+        run: |
+          flutter --version
+          echo "--- Podfile ---"
+          cat ios/Podfile | grep -n "platform" || true
+          echo "--- целевые версии в проекте ---"
+          grep -o "IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*" ios/Runner.xcodeproj/project.pbxproj | sort -u || true
+          echo "--- требование Flutter-пода ---"
+          find . -name "Flutter.podspec" 2>/dev/null | head -3
+          for f in $(find . -name "Flutter.podspec" 2>/dev/null | head -3); do echo "== $f"; grep -n "platform\|deployment" $f || true; done
+          echo "--- версия Flutter ---"
+          flutter --version --machine | head -20
+
       - name: Установка модулей iOS
         run: cd ios && pod install --repo-update
       - name: Сборка iOS без подписи
