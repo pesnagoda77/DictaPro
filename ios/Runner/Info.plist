@@ -49,5 +49,9 @@
 	<string>Микрофон используется для записи по нажатию кнопки.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Галерея нужна, чтобы добавить документ или фото.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 </dict>
 </plist>

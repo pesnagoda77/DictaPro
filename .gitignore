@@ -58,3 +58,6 @@ assets/models/gigaam_v3_punct/*.txt
 # РЎС‚Р°СЂР°СЏ РјРѕРґРµР»СЊ VOSK (Р°СЃСЃРµС‚ СѓРґР°Р»С‘РЅ РІРјРµСЃС‚Рµ СЃ РґРІРёР¶РєРѕРј)
 assets/models/vosk-model-small-ru-0.22.zip
 
+
+# локальные бэкапы перед правками
+.backups/
