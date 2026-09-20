@@ -1,9 +1,107 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
+
 /// Улучшенное саммари с контекстным анализом
 /// Определяет тип текста и применяет соответствующий шаблон
 /// Извлекает даты, суммы, контакты, экшн-айтемы
 class EnhancedSummaryService {
+
+  // Task 034: текст длиннее порога считаем по частям (по границам
+  // предложений) — каждая часть в своём compute()-изоляте, прогресс
+  // сообщается наружу через onProgress.
+  static const int _chunkThreshold = 30000;
+
+  /// Асинхронное саммари в изоляте: главный поток свободен, спиннер
+  /// и счётчик секунд тикают, пользователь может уйти с экрана.
+  static Future<SummaryResult> generateSummaryAsync(
+    String text, {
+    TextType? forcedType,
+    void Function(int done, int total)? onProgress,
+  }) async {
+    final chunks = _splitIntoChunks(text, _chunkThreshold);
+    if (chunks.length == 1) {
+      final r = await compute(
+          _generateSummaryIsolate, (chunks.first, forcedType));
+      onProgress?.call(1, 1);
+      return r;
+    }
+    final parts = <SummaryResult>[];
+    for (var i = 0; i < chunks.length; i++) {
+      parts.add(
+          await compute(_generateSummaryIsolate, (chunks[i], forcedType)));
+      onProgress?.call(i + 1, chunks.length);
+    }
+    return _mergeChunkResults(parts, text);
+  }
+
+  static List<String> _splitIntoChunks(String text, int maxChars) {
+    if (text.length <= maxChars) return [text];
+    // Режем по границам предложений — смысл части не ломается.
+    final sentences = <String>[];
+    for (final m
+        in RegExp(r'[^.!?]+[.!?]+["»]?\s*').allMatches(text)) {
+      sentences.add(m.group(0)!);
+    }
+    if (sentences.isEmpty) {
+      // Пунктуации нет — жёстко по словам.
+      final words = text.split(RegExp(r'\s+'));
+      final chunks = <String>[];
+      final buf = StringBuffer();
+      for (final w in words) {
+        if (buf.length + w.length > maxChars && buf.isNotEmpty) {
+          chunks.add(buf.toString().trim());
+          buf.clear();
+        }
+        buf.write('$w ');
+      }
+      final rest = buf.toString().trim();
+      if (rest.isNotEmpty) chunks.add(rest);
+      return chunks;
+    }
+    final chunks = <String>[];
+    final buf = StringBuffer();
+    for (final s in sentences) {
+      if (buf.length + s.length > maxChars && buf.isNotEmpty) {
+        chunks.add(buf.toString().trim());
+        buf.clear();
+      }
+      buf.write(s);
+    }
+    final rest = buf.toString().trim();
+    if (rest.isNotEmpty) chunks.add(rest);
+    return chunks;
+  }
+
+  static SummaryResult _mergeChunkResults(
+      List<SummaryResult> parts, String fullText) {
+    if (parts.length == 1) return parts.first;
+    final points = <String>[];
+    final seen = <String>{};
+    for (final p in parts) {
+      for (final point in p.points) {
+        if (seen.add(point)) points.add(point);
+      }
+    }
+    final sameType =
+        parts.every((p) => p.type == parts.first.type);
+    final title = parts.every((p) => p.title == parts.first.title)
+        ? parts.first.title
+        : 'Саммари';
+    List<String> uniq(Iterable<String> x) => x.toSet().toList();
+    return SummaryResult(
+      title: title,
+      type: sameType ? parts.first.type : TextType.general,
+      points: points.take(25).toList(),
+      fullText: fullText,
+      actionItems:
+          uniq(parts.expand((p) => p.actionItems)),
+      contacts: uniq(parts.expand((p) => p.contacts)),
+      deadlines: uniq(parts.expand((p) => p.deadlines)),
+      amounts: uniq(parts.expand((p) => p.amounts)),
+      dates: uniq(parts.expand((p) => p.dates)),
+    );
+  }
 
   // ========== Определение типа текста ==========
 
@@ -742,3 +840,10 @@ class SummaryResult {
     }
   }
 }
+
+// ========== Task 034: вход для compute() ==========
+
+/// SummaryResult содержит только строки, списки и enum — безопасно
+/// пересекает границу изолята. Аргумент — record (String, TextType?).
+SummaryResult _generateSummaryIsolate((String, TextType?) args) =>
+    EnhancedSummaryService.generateSummary(args.$1, forcedType: args.$2);

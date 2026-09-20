@@ -24,6 +24,7 @@ import 'settings_page.dart';
 import 'summary_page.dart';
 import 'summary_service.dart';
 import 'services/enhanced_summary_service.dart';
+import 'widgets/operation_progress.dart';
 import 'models/recording_details_model.dart';
 
 
@@ -124,6 +125,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void _loadRecordings() {
+    // Task 034: батч может закончиться после ухода с экрана — setState
+    // по уничтоженному State уронил бы приложение.
+    if (!mounted) return;
     setState(() => _recordings = AudioService().getAllRecordings());
   }
 
@@ -255,19 +259,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   bool _isTranscribing = false;
 
+  // Task 034: этап операции для диалога прогресса (расшифровка → саммари).
+  final ValueNotifier<String> _opStage = ValueNotifier('Расшифровка…');
+
   void _showTranscribingDialog() {
     _isTranscribing = true;
+    _opStage.value = 'Расшифровка…';
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => const AlertDialog(
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 20),
-            Text('Обработка записи...'),
-          ],
-        ),
+      builder: (ctx) => AlertDialog(
+        // Task 034: спиннер с тикающим счётчиком секунд и этапом —
+        // операция перестала выглядеть зависшей.
+        content: OperationProgressView(stage: _opStage),
       ),
     );
   }
@@ -497,10 +501,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               : null;
           latest.tags = TagService.extractTags(fullText);
           final useCloudSummary = await AiSummaryService.cloudEnabled();
-          final cloudSummary =
-              useCloudSummary ? await AiSummaryService.generate(fullText) : null;
+          // Task 034: облачное саммари с бюджетом 40 с; по таймауту —
+          // честное сообщение и переход на локальное (оно в изоляте).
+          String? cloudSummary;
+          if (useCloudSummary) {
+            cloudSummary =
+                await AiSummaryService.generateWithTimeout(fullText);
+            if (cloudSummary == null &&
+                AiSummaryService.lastError == 'timeout' &&
+                mounted) {
+              _showSnack('Облако не ответило за 40 с — считаю на устройстве');
+            }
+          }
+          _opStage.value = 'Считаю саммари…';
           latest.summary = cloudSummary ??
-              EnhancedSummaryService.generateSummary(fullText).formatted;
+              (await EnhancedSummaryService.generateSummaryAsync(fullText))
+                  .formatted;
           latest.decisions = SummaryService.getDecisions(fullText);
           await AudioService().updateRecording(latest);
           _loadRecordings();
@@ -554,11 +570,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       return;
     }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
+    _showTranscribingDialog();
 
     try {
       final onlineText = await _onlineTranscript(rec.filePath);
@@ -573,21 +585,33 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ? result.segments.map((s) => s.toMap()).toList()
           : null;
       rec.tags = TagService.extractTags(punctuatedText);
+      // Task 034: облако с бюджетом 40 с, таймаут → честное сообщение и
+      // локальное саммари в изоляте (интерфейс не замерзает).
       final useCloudSummary2 = await AiSummaryService.cloudEnabled();
-      final cloudSummary2 =
-          useCloudSummary2 ? await AiSummaryService.generate(punctuatedText) : null;
+      String? cloudSummary2;
+      if (useCloudSummary2) {
+        cloudSummary2 =
+            await AiSummaryService.generateWithTimeout(punctuatedText);
+        if (cloudSummary2 == null &&
+            AiSummaryService.lastError == 'timeout' &&
+            mounted) {
+          _showSnack('Облако не ответило за 40 с — считаю на устройстве');
+        }
+      }
+      _opStage.value = 'Считаю саммари…';
       rec.summary = cloudSummary2 ??
-          EnhancedSummaryService.generateSummary(punctuatedText).formatted;
+          (await EnhancedSummaryService.generateSummaryAsync(punctuatedText))
+              .formatted;
       rec.decisions = SummaryService.getDecisions(punctuatedText);
       rec.speakerStats = result != null
           ? SummaryService.getSpeakerStats(result.segments.map((s) => s.toMap()).toList())
           : null;
       await AudioService().updateRecording(rec);
 
-      Navigator.pop(context);
+      _hideTranscribingDialog();
       _openDialogueEditor(rec);
     } on PlatformException catch (e) {
-      Navigator.pop(context);
+      _hideTranscribingDialog();
       final msg = e.message ?? 'Ошибка платформы';
       final details = e.details?.toString() ?? '';
       ScaffoldMessenger.of(context).showSnackBar(
@@ -598,7 +622,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ),
       );
     } catch (e) {
-      Navigator.pop(context);
+      _hideTranscribingDialog();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Ошибка транскрибации: $e'),
@@ -1001,6 +1025,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _pulseController.dispose();
     _searchController.dispose();
     _hotwordsController.dispose();
+    _opStage.dispose();
     AudioService().dispose();
     super.dispose();
   }

@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import 'services/enhanced_summary_service.dart';
 import 'models/recording_details_model.dart';
 import 'utils.dart';
+import 'widgets/operation_progress.dart';
 
 /// SummaryPage: Displays detailed summary of a recording with transcription.
 class SummaryPage extends StatefulWidget {
@@ -23,31 +24,56 @@ class _SummaryPageState extends State<SummaryPage> {
   SummaryResult? _summaryResult;
   bool _isLoadingSummary = false;
 
+  // Task 034: этап операции для индикатора с секундомером.
+  final ValueNotifier<String> _stage = ValueNotifier('Готовим текст…');
+
+  @override
+  void dispose() {
+    _stage.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
-    if (widget.recording.summary != null && 
+    if (widget.recording.summary != null &&
         widget.recording.summary!.isNotEmpty &&
         widget.recording.summary != 'Нет доступного резюме') {
       _generateSummary();
     }
   }
 
-  void _generateSummary() {
-    if (widget.recording.transcript == null || 
+  // Task 034: саммари считается в изоляте — главный поток свободен,
+  // счётчик тикает, пользователь может уйти с экрана и вернуться.
+  Future<void> _generateSummary() async {
+    if (widget.recording.transcript == null ||
         widget.recording.transcript!.isEmpty) return;
 
     setState(() => _isLoadingSummary = true);
-
-    Future.delayed(const Duration(milliseconds: 100), () {
-      final summary = EnhancedSummaryService.generateSummary(
+    _stage.value = 'Считаю саммари…';
+    try {
+      final summary = await EnhancedSummaryService.generateSummaryAsync(
         widget.recording.transcript!,
+        onProgress: (done, total) {
+          // Промежуточный прогресс для длинных текстов (по частям).
+          _stage.value = total > 1
+              ? 'Считаю саммари… часть $done из $total'
+              : 'Считаю саммари…';
+        },
       );
+      // Экран могли закрыть, пока изолят считал — setState только если живы.
+      if (!mounted) return;
       setState(() {
         _summaryResult = summary;
         _isLoadingSummary = false;
       });
-    });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoadingSummary = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не получилось посчитать саммари')),
+      );
+    }
   }
 
   @override
@@ -131,10 +157,18 @@ class _SummaryPageState extends State<SummaryPage> {
 
   Widget _buildSummaryCard(RecordingDetailsModel recording, BuildContext context) {
     if (_isLoadingSummary) {
-      return const Center(
+      // Task 034: вместо мёртвого спиннера — индикатор с этапом и
+      // тикающим счётчиком секунд. Страница остаётся интерактивной.
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: Padding(
-          padding: EdgeInsets.all(32.0),
-          child: CircularProgressIndicator(),
+          padding: const EdgeInsets.all(24.0),
+          child: Center(
+            child: OperationProgressView(stage: _stage),
+          ),
         ),
       );
     }

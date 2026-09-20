@@ -19,6 +19,40 @@ class AiSummaryService {
 
   static const String cloudEnabledKey = 'summary_cloud_enabled';
 
+  // Task 034: общий бюджет облачного саммари. Нормальный расчёт 20–25 с,
+  // поэтому обрывать раньше 40 с нельзя — но и ждать вечность тоже.
+  static const Duration cloudTimeout = Duration(seconds: 40);
+
+  /// Причина последнего неудачного облачного вызова:
+  /// 'no_key' | 'timeout' | 'network' | null (успех или не вызывался).
+  /// Вызывающий код по ней показывает честное сообщение и откатывается
+  /// на локальное саммари.
+  static String? lastError;
+
+  /// Облачное саммари с бюджетом [cloudTimeout]. null + [lastError] —
+  /// смотри [lastError] для диагностики.
+  static Future<String?> generateWithTimeout(
+    String transcript, {
+    String? userNotes,
+  }) async {
+    lastError = null;
+    if (transcript.trim().isEmpty) return null;
+    final apiKey = await getApiKey();
+    if (apiKey == null) {
+      lastError = 'no_key';
+      return null;
+    }
+    try {
+      final result = await generate(transcript, userNotes: userNotes)
+          .timeout(cloudTimeout);
+      if (result == null) lastError = 'network';
+      return result;
+    } on TimeoutException {
+      lastError = 'timeout';
+      return null;
+    }
+  }
+
   /// Облачное саммари по умолчанию ВЫКЛЮЧЕНО (принцип: офлайн по умолчанию,
   /// облако — только осознанный выбор пользователя).
   static Future<bool> cloudEnabled() async {
