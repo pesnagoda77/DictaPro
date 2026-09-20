@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>План на вечер 16.09 — DictaPro и портфель</title>
+<style>
+  :root{--bg:#0f1216;--card:#171c23;--line:#242c36;--txt:#e8edf3;--dim:#9aa7b4;--ok:#3ddc97;--warn:#ffb454;--acc:#5aa9ff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.55 -apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:26px 14px 56px}
+  .wrap{max-width:900px;margin:0 auto}
+  h1{font-size:24px;margin:0 0 4px}
+  .sub{color:var(--dim);font-size:14px;margin-bottom:20px}
+  h2{font-size:18px;margin:26px 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0}
+  .win{display:flex;gap:14px;align-items:flex-start}
+  .win .t{flex:0 0 108px;font-weight:700;color:var(--acc);font-size:15px}
+  .win .b{flex:1}
+  ol{margin:6px 0 6px 20px;padding:0}
+  li{margin:6px 0}
+  .badge{display:inline-block;font-size:12px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);color:var(--dim)}
+  .b-ok{color:var(--ok);border-color:#2b6b52}
+  .b-w{color:var(--warn);border-color:#6b542b}
+  .mono{font-family:Consolas,Menlo,monospace;font-size:12.5px;background:#11161c;border:1px solid var(--line);border-radius:8px;padding:2px 7px}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#1c222b;color:var(--dim)}
+  .dim{color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>План на вечер 16.09 — короткие окна</h1>
+  <div class="sub">Твоё участие сведено к минимуму: установить сборку и нажать кнопку. Всё остальное — сбор данных, логи, тексты — я делаю сам через кабель.</div>
+
+  <h2>Окно 1 — примерно сейчас (5 минут)</h2>
+  <div class="card"><div class="win"><div class="t">3 минуты</div><div class="b">
+    <ol>
+      <li>Поставить <span class="mono">DictaPro-v49-diagnostic-arm64.apk</span> файловым менеджером (через adb MIUI не даёт — можно не включать).</li>
+      <li>Открыть запись «Гнусный обманщик» → <b>«Расшифровать»</b> — и уходить. Прогон ~4 минуты, дальше он идёт сам.</li>
+      <li>Если ставить неудобно — нажми «Расшифровать» на текущей сборке: я сниму лог и всё равно узнаю, где теряется хвост.</li>
+    </ol>
+    <span class="badge b-w">зачем</span> я получу длительность звука, дошедшего до движка, и сам текст — и закрою обрыв последних 12 %.
+  </div></div></div>
+
+  <h2>Окно 2 — примерно через 15 минут (5 минут)</h2>
+  <div class="card"><div class="win"><div class="t">3 минуты</div><div class="b">
+    <ol>
+      <li>Посмотреть конец текста: появились ли титры «Рассказ читал Фёдор Заровчацкий» — это и есть проверка хвоста.</li>
+      <li>Поставить <span class="mono">DictaPro-v49-settings-arm64.apk</span> — новые настройки группами: Оформление / Запись / Распознавание / Саммари / Данные. Переключить светлую тему и сказать, где криво.</li>
+      <li>Если Адвоката! собралась — поставить и открыть: проверим, что после переименования пакета запускается.</li>
+    </ol>
+  </div></div></div>
+
+  <h2>18:50 — свободное окно: прогон приложений</h2>
+  <table>
+    <tr><th>Приложение</th><th>Состояние сборки</th><th>Что проверить</th></tr>
+    <tr><td>Адвоката! <span class="dim">com.pesnagoda.advocate</span></td><td><span class="badge b-ok">готово 17:18</span> 25,6 МБ</td><td>запуск, справочник, поиск, тёмная тема</td></tr>
+    <tr><td>Таблетница <span class="dim">com.pesnagoda.medstracker</span></td><td><span class="badge b-ok">готово 13:22</span></td><td>запуск, добавление лекарства, напоминание</td></tr>
+    <tr><td>Гарантийник <span class="dim">com.pesnagoda.warrantyscanner</span></td><td><span class="badge b-ok">готово 13:35</span></td><td>запуск, скан чека, срок гарантии</td></tr>
+    <tr><td>Кофе и Судьба</td><td><span class="badge b-ok">готово 17:26</span> 16,8 МБ</td><td>запуск, гадание, страница подписки</td></tr>
+    <tr><td>Руна Судьбы</td><td><span class="badge b-w">APK от 17.07</span> — соберу, если нужно</td><td>запуск, расклад, покупка premium</td></tr>
+  </table>
+  <p class="dim">Формат: по 3–5 минут на приложение, замечания пишем списком — я правлю сразу и собираю следующую версию.</p>
+
+  <h2>Что я делаю, пока тебя нет</h2>
+  <div class="card">
+    <ol>
+      <li><b>Оформление, шаг 3.</b> Настройки группами — <span class="badge b-ok">уже собрано</span>. Дальше карточка записи: плеер 0,5–2x, редактор реплик, саммари, состояния «пусто» и «ошибка».</li>
+      <li><b>Сборки к вечеру.</b> <span class="badge b-ok">готово</span> Адвоката! (25,6 МБ, пакет com.pesnagoda.advocate) и Кофе (16,8 МБ, собиралась заново — починил сломанные кэши Kotlin и залоченный каталог).</li>
+      <li><b>Хвост расшифровки.</b> Как только ты запустишь прогон — заберу WAV и текст с телефона и назову причину точно.</li>
+      <li><b>Журнал и реестр.</b> Разбор сегодняшнего прогона уже записан.</li>
+    </ol>
+  </div>
+</div>
+</body>
+</html>

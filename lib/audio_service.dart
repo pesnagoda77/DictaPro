@@ -9,6 +9,7 @@ import 'package:hive/hive.dart';
 
 import 'models/transcription.dart';
 import 'settings_page.dart';
+import 'dart:math' as math;
 
 export 'models/transcription.dart' show DialogueSegment;
 
@@ -154,6 +155,18 @@ class AudioService {
     await _startKeepAliveService();
 
     return path;
+  }
+
+  /// Живой уровень сигнала при записи: 0..1 (для индикатора на экране).
+  /// record 5.x отдаёт амплитуду в dBFS: -60 (тишина) .. 0 (максимум).
+  Stream<double> amplitudeLevel(
+      {Duration interval = const Duration(milliseconds: 80)}) {
+    return _recorder.onAmplitudeChanged(interval).map((amp) {
+      final db = amp.current.isFinite ? amp.current : -60.0;
+      final norm = ((db + 60.0) / 60.0).clamp(0.0, 1.0);
+      // небольшая кривая: речь обычно -25..-12 dBFS, так полоса живее
+      return math.pow(norm, 0.7).toDouble();
+    });
   }
 
   void setSleepTimer(int minutes, Function onComplete) {

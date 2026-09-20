@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DictaPro — разбор прогона 16.09.2026</title>
+<style>
+  :root{
+    --bg:#0f1216; --card:#171c23; --line:#242c36; --txt:#e8edf3; --dim:#9aa7b4;
+    --ok:#3ddc97; --warn:#ffb454; --bad:#ff6b6b; --acc:#5aa9ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.55 -apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:28px 16px 60px}
+  .wrap{max-width:980px;margin:0 auto}
+  h1{font-size:26px;margin:0 0 6px}
+  .sub{color:var(--dim);font-size:14px;margin-bottom:22px}
+  h2{font-size:19px;margin:30px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:12px 0}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+  .metric{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+  .metric .v{font-size:24px;font-weight:700}
+  .metric .k{color:var(--dim);font-size:13px;margin-top:4px}
+  .badge{display:inline-block;font-size:12px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);color:var(--dim)}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)} .acc{color:var(--acc)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:6px 0}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#1c222b;color:var(--dim);font-weight:600}
+  .bar{height:26px;border-radius:8px;background:#1c222b;position:relative;overflow:hidden;margin:6px 0}
+  .bar > i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#2f8f68,#3ddc97)}
+  .bar > b{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#8a4a4a,#ff6b6b);opacity:.85}
+  .bar span{position:absolute;left:10px;top:3px;font-size:13px;color:#0b0e12;font-weight:700}
+  .step{display:flex;gap:12px;margin:10px 0}
+  .step .n{flex:0 0 26px;height:26px;border-radius:50%;background:#22303d;color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+  .mono{font-family:Consolas,Menlo,monospace;font-size:13px;background:#11161c;border:1px solid var(--line);border-radius:10px;padding:10px 12px;overflow-x:auto;white-space:pre-wrap}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:720px){.cols{grid-template-columns:1fr}}
+  .dim{color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>DictaPro — разбор прогона на телефоне</h1>
+  <div class="sub">16 сентября 2026 · Redmi Note 10S (Helio G95, Android 11) · файл: рассказ О. Генри «Гнусный обманщик», 25:45 (аудиокнига)</div>
+
+  <h2>Главное</h2>
+  <div class="metrics">
+    <div class="metric"><div class="v ok">0</div><div class="k">вылетов (было: падение на длинном mp3)</div></div>
+    <div class="metric"><div class="v ok">≈ 3,5 мин</div><div class="k">время расшифровки 25,8 мин аудио (было 15–17)</div></div>
+    <div class="metric"><div class="v ok">0,15–0,19</div><div class="k">RTF (цель ≤ 0,6) — запас четырёхкратный</div></div>
+    <div class="metric"><div class="v ok">хвост на месте</div><div class="k">закрыто диагностическим прогоном: потеря звука 0,0 с</div></div>
+  </div>
+
+  <h2>Хвост записи — закрыто 16.09 в 18:01</h2>
+  <div class="card">
+    <p>Повторный прогон на диагностической сборке снял все версии сразу:</p>
+    <ul>
+      <li>лог приложения: <span class="mono">Decoded PCM: 272633856 bytes</span>, <span class="mono">ДЛИТЕЛЬНОСТИ: источник=1545,6 с, wav=1545,5 с, потеря=0,0 с</span> — конвертация даёт полный звук;</li>
+      <li>нарезка: <span class="mono">покрытие: wav=1545.5 с, речь=1358.0 с (87,9 % от файла), кусков=136, planned=149</span> — 12 % файла это паузы, а не потеря;</li>
+      <li>декодирование: <span class="mono">vad segments=136 decoded=149 parts=149</span> — все проходы дали текст;</li>
+      <li>итог: <b>3595 слов против 3594 на ПК, совпадение 98,7 %, крупных пропусков 0</b>, в конце есть титры «Рассказ читал Фёдор Заровчацкий».</li>
+    </ul>
+    <p class="dim">Единственное отличие в финале — имя: «Урике» (телефон) против «Урики» (стенд). Прошлый обрыв на 12 % в этой сборке не воспроизводится: помогло исправление выхода из цикла декодирования (раньше он мог завершиться, не дождавшись флага конца потока). Если оборвётся снова — теперь это сразу видно в логе по строке «покрытие».</p>
+  </div>
+
+  <h2>Что было сломано и что стало</h2>
+  <table>
+    <tr><th>Проблема</th><th>Причина (по логу/коду)</th><th>Решение</th><th>Проверено</th></tr>
+    <tr>
+      <td>Вылет на длинном mp3</td>
+      <td>весь расшифрованный звук читался в память одним массивом — 272 МБ на 25 мин (<span class="mono">OutOfMemoryError</span>, поток конвертации)</td>
+      <td>потоковая конвертация блоками по 2 МБ; память не зависит от длины</td>
+      <td class="ok">прогон до конца, приложение живо</td>
+    </tr>
+    <tr>
+      <td>10–17 минут на расшифровку</td>
+      <td>цикл декодирования ждал по 10 мс на каждой итерации — десятки тысяч холостых пауз</td>
+      <td>забираем всё готовое сразу; уступаем поток только когда пусто</td>
+      <td class="ok">27,6 %/мин ≈ 3,5 мин</td>
+    </tr>
+    <tr>
+      <td>Непонятно, идёт ли счёт</td>
+      <td>индикации не было</td>
+      <td>окно «Расшифровка»: полоса + «Кусок X из N · NN%»</td>
+      <td class="ok">наблюдал 9 % → 77 % → конец</td>
+    </tr>
+    <tr>
+      <td>Потеря хвоста записи</td>
+      <td>в первом прогоне текст обрывался на 88 % (не хватало 479 слов)</td>
+      <td>исправлен выход из цикла декодирования (ждать флаг конца потока) + диагностика: длительности, покрытие нарезки, выгрузка текста и WAV</td>
+      <td class="ok">повторный прогон: потеря 0,0 с, совпадение с ПК 98,7 %, титры на месте</td>
+    </tr>
+  </table>
+
+  <h2>Качество: сравнение «телефон против стенда на ПК»</h2>
+  <div class="card">
+    <p>Один и тот же движок (GigaAM v3 + Silero VAD), два независимых прогона. Совпадение по словам — <b class="ok">91,7 %</b>; расхождения почти целиком в именах собственных и в склейке слов на стыках кусков.</p>
+    <div class="cols">
+      <div>
+        <div class="dim">Телефон: 3115 слов</div>
+        <div class="bar"><i style="width:87%"></i><b style="width:13%;left:87%"></b><span>87 % есть &nbsp;|&nbsp; 13 % нет</span></div>
+      </div>
+      <div>
+        <div class="dim">ПК (стенд): 3594 слова</div>
+        <div class="bar"><i style="width:100%"></i><span>полностью</span></div>
+      </div>
+    </div>
+    <p class="dim">Обрыв ровно на границе куска: телефон заканчивается на «…спросил Текер, стукнув стаканом по столу», тогда как на ПК дальше идёт последняя сцена и закрывающие титры («Сказал малыш… назовите меня дон Франциско Урике… Рассказ читал Фёдор Заровчацкий»).</p>
+  </div>
+
+  <h2>Примеры расхождений (не потеря, а озвучка имён)</h2>
+  <table>
+    <tr><th>Место</th><th>ПК (стенд)</th><th>Телефон</th><th>Комментарий</th></tr>
+    <tr><td>имя героя</td><td>малыш Лиано</td><td>малыш Лиана</td><td>имя собственное</td></tr>
+    <tr><td>топоним</td><td>лагеря Королитос</td><td>лагеря Каролитос</td><td>имя собственное</td></tr>
+    <tr><td>рельеф</td><td>зарослями чипараля</td><td>зарослями чипороля</td><td>редкое слово</td></tr>
+    <tr><td>конь</td><td>любимый алюр</td><td>любимый аллюр</td><td>варианты нормы</td></tr>
+    <tr><td>склейка</td><td>войнстерос</td><td>войн аст</td><td>разрезало на стыке кусков</td></tr>
+    <tr><td>склейка</td><td>альбун</td><td>аль бун</td><td>разрезало на стыке кусков</td></tr>
+  </table>
+
+  <h2>Диагностика хвоста: две версии и как проверим</h2>
+  <div class="step"><div class="n">1</div><div><b>Версия A — конвертация потеряла хвост.</b><br><span class="dim">Признак: в логе длительность WAV меньше длительности mp3 (1545 с).</span></div></div>
+  <div class="step"><div class="n">2</div><div><b>Версия B — нарезка прорезала весь файл, но последние куски остались без текста.</b><br><span class="dim">Признак: длительности совпадают, а «речь / файл» и число непустых кусков меньше ожидаемого.</span></div></div>
+  <div class="step"><div class="n">3</div><div><b>Что уже сделано в диагностической сборке:</b> корректное завершение цикла декодирования (ждать флаг конца потока, а не выходить по пустой итерации), лог длительностей источника и WAV, лог покрытия нарезки, выгрузка текста и WAV в открытую папку <span class="mono">Android/data/com.dictapro.app/files</span>.</div></div>
+
+  <h2>Что дальше</h2>
+  <table>
+    <tr><th>Шаг</th><th>Действие</th><th>Кто</th></tr>
+    <tr><td>1</td><td>Поставить диагностическую сборку и нажать «Расшифровать» на этой же записи (~4 мин)</td><td>Славан</td></tr>
+    <tr><td>2</td><td>Забрать WAV и файл диагностики, сравнить длительности, найти причину — и закрыть хвост</td><td>я</td></tr>
+    <tr><td>3</td><td>Добавить индикацию на этапе «Готовим аудио» (там ещё есть тишина)</td><td>я</td></tr>
+    <tr><td>4</td><td>Доделать оформление: настройки группами, карточка записи (плеер 0,5–2x, редактор реплик, саммари)</td><td>я</td></tr>
+  </table>
+
+  <p class="dim" style="margin-top:26px">Отчёт собран автоматически по замерам: потоки процесса на телефоне, окно прогресса (дамп интерфейса), журнал падений, сравнение текстов телефон/ПК по словам (нормализация: регистр, пунктуация, ё).</p>
+</div>
+</body>
+</html>

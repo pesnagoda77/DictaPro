@@ -37,8 +37,8 @@ android {
         applicationId "com.dictapro.app"
         minSdkVersion flutter.minSdkVersion
         targetSdk 35
-        versionCode 49
-        versionName "1.49"
+        versionCode 50
+        versionName "1.50"
     }
 
     signingConfigs {

@@ -28,7 +28,13 @@ class AudioConvert {
       if (cleanMp3 != null) convertPath = cleanMp3;
     }
 
-    final tempDir = await getTemporaryDirectory();
+    // ДИАГНОСТИКА: кладём WAV в доступную папку приложения (Android/data/.../files/tmp),
+    // чтобы можно было проверить длительность конвертированного файла снаружи.
+    Directory? tempDir;
+    try {
+      tempDir = await getExternalStorageDirectory();
+    } catch (_) {}
+    tempDir ??= await getTemporaryDirectory();
     final tempWav =
         '${tempDir.path}/dictapro_16k_${DateTime.now().millisecondsSinceEpoch}.wav';
 

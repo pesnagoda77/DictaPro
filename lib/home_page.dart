@@ -9,6 +9,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:hive/hive.dart';
 import 'audio_service.dart' hide DialogueSegment;
+import 'theme/app_theme.dart';
 import 'models/transcription.dart';
 import 'services/ai_summary_service.dart';
 import 'services/stt_provider.dart';
@@ -62,6 +63,8 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool _isRecording = false;
+  double _level = 0;
+  StreamSubscription<double>? _levelSub;
   List<Recording> _recordings = [];
   SortOption _sortOption = SortOption.dateNewest;
   int _recordSeconds = 0;
@@ -175,9 +178,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _recordSeconds = 0;
     _amplitude = 0.0;
     _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (!mounted) return;
       setState(() {
         _recordSeconds++;
-        _amplitude = _isRecording ? 0.3 + (_recordSeconds % 10) / 20 : 0.0;
+        // затухание индикатора: полоса не «висит» на прошлом значении
+        _level *= 0.85;
       });
     });
   }
@@ -192,6 +197,42 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final m = (s ~/ 60).toString().padLeft(2, '0');
     final sec = (s % 60).toString().padLeft(2, '0');
     return '$m:$sec';
+  }
+
+  /// Состояние «пусто»: говорим, что делать дальше, а не просто «нет записей».
+  Widget _emptyState() {
+    final isSearch = _searchQuery.isNotEmpty;
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSearch ? Icons.search_off : Icons.mic_none,
+              size: 56,
+              color: scheme.onSurface.withOpacity(0.25),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              isSearch ? 'Ничего не нашлось' : 'Пока ни одной записи',
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isSearch
+                  ? 'Попробуйте другое слово или очистите поиск.'
+                  : 'Нажмите большую кнопку «Начать запись» — или импортируйте '
+                      'готовый файл (mp3, m4a, wav) и расшифруйте его.',
+              style: Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   String _fmtSize(int bytes) {
@@ -370,16 +411,95 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (!GigaamService.isPrepared) {
       await _showModelPreparingDialog();
     }
-    final wav16k = await AudioConvert.toWav16k(filePath);
     String? text;
+    String? wav16k;
+    final diagLines = <String>[];
+    // Окно работ появляется сразу и всё время показывает движение: этап, полоса
+    // и секундомер. Раньше оно всплывало только после подготовки звука, поэтому
+    // во время декодирования казалось, что ничего не происходит.
+    final progress = ValueNotifier<(int, int)>((0, 0));
+    final elapsed = ValueNotifier<int>(0);
+    final stage = ValueNotifier<String>('Готовим аудио (декодирование)…');
+    Timer? ticker;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Расшифровка'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ValueListenableBuilder<(int, int)>(
+              valueListenable: progress,
+              builder: (ctx, v, _) => Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LinearProgressIndicator(
+                      value: v.$2 > 0 ? (v.$1 / v.$2).clamp(0.0, 1.0) : null),
+                  const SizedBox(height: 10),
+                  ValueListenableBuilder<int>(
+                    valueListenable: elapsed,
+                    builder: (ctx, sec, _) {
+                      final shown = v.$2 > 0
+                          ? 'Кусок ${v.$1} из ${v.$2} · ${((v.$1 / v.$2) * 100).round()}%'
+                          : stage.value;
+                      final mm = sec ~/ 60;
+                      final ss = (sec % 60).toString().padLeft(2, '0');
+                      return Text('$shown · прошло $mm:$ss',
+                          style: const TextStyle(fontSize: 13));
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text('Считается на устройстве — можно не держать экран открытым',
+                style: TextStyle(fontSize: 12)),
+          ],
+        ),
+      ),
+    );
+    ticker = Timer.periodic(const Duration(seconds: 1), (_) => elapsed.value++);
     try {
-      text = await GigaamService.transcribeWithGlossary(wav16k);
+      wav16k = await AudioConvert.toWav16k(filePath);
+      stage.value = 'Расшифровка идёт…';
+      text = await GigaamService.transcribeWithGlossary(
+        wav16k,
+        onProgress: (done, all) => progress.value = (done, all),
+        onLog: (line) => diagLines.add(line),
+      );
     } finally {
-      if (wav16k != filePath) {
-        try {
-          File(wav16k).deleteSync();
-        } catch (_) {}
+      ticker?.cancel();
+      if (mounted) Navigator.of(context).pop();
+      progress.dispose();
+      elapsed.dispose();
+      stage.dispose();
+      // ДИАГНОСТИКА: WAV оставляем, чтобы проверить его длительность снаружи.
+      // (в релизе — удалять)
+    }
+    // ДИАГНОСТИКА: сохраняем текст и цифры прогона в доступную папку приложения,
+    // чтобы результат можно было проверить снаружи (файл не удаляем).
+    try {
+      final ext = await getExternalStorageDirectory();
+      if (ext != null && text != null) {
+        final dir = Directory('${ext.path}/exports');
+        await dir.create(recursive: true);
+        final stamp = DateTime.now().toIso8601String().replaceAll(':', '-').substring(0, 19);
+        final f = File('${dir.path}/dictapro_$stamp.txt');
+        final words = text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+        await f.writeAsString(
+            '=== ДиктаПро: диагностика прогона ===\n'
+            'источник: $filePath\n'
+            'wav16k: $wav16k\n'
+            'символов: ${text.length}; слов: $words\n'
+            '${diagLines.join('\n')}\n'
+            '=== ТЕКСТ ===\n$text\n');
+        debugPrint('DictaPro: выгружено ${f.path} (${text.length} символов, $words слов)');
       }
+    } catch (e) {
+      debugPrint('DictaPro: выгрузка не удалась: $e');
     }
     if (text == null || text.trim().isEmpty) {
       throw StateError('GigaAM не справился с записью');
@@ -479,8 +599,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Future<void> _toggleRecord() async {
     if (_isRecording) {
       await AudioService().stopRecording();
+      _levelSub?.cancel();
+      _levelSub = null;
       _stopTimer();
-      setState(() => _isRecording = false);
+      setState(() {
+        _isRecording = false;
+        _level = 0;
+      });
       _loadRecordings();
 
       // Full batch transcription после остановки записи
@@ -541,6 +666,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       await AudioService().startRecording();
       _startTimer();
       setState(() => _isRecording = true);
+      // Живой уровень с микрофона: полоса двигается по реальному звуку.
+      _levelSub?.cancel();
+      _levelSub = AudioService().amplitudeLevel().listen((v) {
+        if (!mounted) return;
+        setState(() {
+          _level = v > _level ? v : (_level * 0.72 + v * 0.28);
+        });
+      });
     }
   }
 
@@ -1021,6 +1154,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _levelSub?.cancel();
     _timer?.cancel();
     _pulseController.dispose();
     _searchController.dispose();
@@ -1113,82 +1247,100 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  _engineLabel,
-                  style: const TextStyle(fontSize: 11, color: Colors.white38),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                            color: Color(0xFF5FBF8B), shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(_engineLabel,
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
                 if (_isRecording) ...[
-                  Container(
-                    width: 160,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                    child: FractionallySizedBox(
-                      alignment: Alignment.centerLeft,
-                      widthFactor: _amplitude.clamp(0.0, 1.0),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
+                  // Живой уровень звука: заполняется по реальной амплитуде с микрофона.
+                  SizedBox(
+                    width: 190,
+                    height: 8,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: _level.clamp(0.0, 1.0),
+                        minHeight: 8,
+                        backgroundColor: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withOpacity(0.12),
+                        valueColor:
+                            const AlwaysStoppedAnimation<Color>(AppColors.record),
                       ),
                     ),
                   ),
                   const SizedBox(height: 8),
                 ],
-                AnimatedBuilder(
-                  animation: _pulseController,
-                  builder: (context, child) {
-                    final scale = _isRecording
-                        ? 1.0 + _pulseController.value * 0.15
-                        : 1.0;
-                    return Transform.scale(
-                      scale: scale,
-                      child: Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _isRecording
-                              ? Colors.red.withOpacity(0.15)
-                              : Theme.of(context)
-                                  .colorScheme
-                                  .primary
-                                  .withOpacity(0.15),
-                          border: Border.all(
-                            color: _isRecording
-                                ? Colors.red
-                                : Theme.of(context).colorScheme.primary,
-                            width: 3,
-                          ),
-                        ),
-                        child: Center(
-                          child: Icon(
-                            _isRecording ? Icons.mic : Icons.mic_none,
-                            size: 48,
-                            color: _isRecording
-                                ? Colors.red
-                                : Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
+                GestureDetector(
+                  onTap: _toggleRecord,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: _isRecording ? 108 : 132,
+                    height: _isRecording ? 108 : 132,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _isRecording
+                          ? Theme.of(context).colorScheme.surface
+                          : AppColors.record,
+                      border: Border.all(
+                        color: _isRecording
+                            ? AppColors.record
+                            : Colors.transparent,
+                        width: 3,
                       ),
-                    );
-                  },
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.record.withOpacity(0.35),
+                          blurRadius: 26,
+                          spreadRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      _isRecording ? Icons.stop : Icons.mic,
+                      size: _isRecording ? 44 : 52,
+                      color: _isRecording ? AppColors.record : Colors.white,
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
+                Text(
+                  _isRecording ? 'Остановить запись' : 'Начать запись',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
                 Text(
                   _fmtTime(_recordSeconds ~/ 10),
                   style: TextStyle(
-                    fontSize: 36,
+                    fontSize: 34,
                     fontWeight: FontWeight.bold,
-                    color: _isRecording ? Colors.red : Colors.white30,
+                    color: _isRecording
+                        ? AppColors.record
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 if (AudioService().sleepDurationMinutes != null)
                   Text(
                     'Таймер: ${AudioService().sleepDurationMinutes} мин',
@@ -1204,11 +1356,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     decoration: InputDecoration(
                       hintText:
                           'Термины этой записи (имена, аббревиатуры — через запятую)',
-                      hintStyle:
-                          const TextStyle(fontSize: 12, color: Colors.white38),
+                      hintStyle: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant),
                       isDense: true,
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.05),
+                      fillColor:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide: BorderSide.none,
@@ -1216,7 +1370,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       prefixIcon: const Icon(Icons.spellcheck,
                           size: 18, color: Colors.white38),
                     ),
-                    style: const TextStyle(fontSize: 13, color: Colors.white70),
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   if (_recentHotwords.isNotEmpty) ...[
                     const SizedBox(height: 8),
@@ -1255,31 +1409,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ],
                 ],
                 const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: _toggleRecord,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: _isRecording ? 64 : 80,
-                    height: _isRecording ? 64 : 80,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _isRecording ? Colors.white : Colors.red,
-                      boxShadow: [
-                        BoxShadow(
-                          color: (_isRecording ? Colors.white : Colors.red)
-                              .withOpacity(0.4),
-                          blurRadius: 20,
-                          spreadRadius: 4,
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      _isRecording ? Icons.stop : Icons.fiber_manual_record,
-                      size: _isRecording ? 32 : 36,
-                      color: _isRecording ? Colors.red : Colors.white,
-                    ),
-                  ),
-                ),
+                // (нижняя кнопка записи убрана — одна большая кнопка выше)
                 const SizedBox(height: 8),
                 if (!_isRecording)
                   GestureDetector(
@@ -1318,7 +1448,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                     child: Row(
                       children: [
                         const Icon(Icons.library_music,
@@ -1362,14 +1492,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                   Expanded(
                     child: filtered.isEmpty
-                        ? Center(
-                            child: Text(
-                              _searchQuery.isEmpty
-                                  ? 'Нет записей'
-                                  : 'Ничего не найдено',
-                              style: const TextStyle(color: Colors.white30),
-                            ),
-                          )
+                        ? _emptyState()
                         : ListView.builder(
                             padding: EdgeInsets.only(
                                 left: 16, right: 16, top: 8, bottom: MediaQuery.of(context).padding.bottom + 16),
@@ -1387,10 +1510,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 12),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF1E1E2E),
-                                  borderRadius: BorderRadius.circular(16),
+                                  color: Theme.of(context).colorScheme.surface,
+                                  borderRadius: BorderRadius.circular(18),
                                   border: Border.all(
-                                    color: Colors.white.withOpacity(0.05),
+                                    color: Theme.of(context).dividerColor,
                                     width: 1,
                                   ),
                                 ),

@@ -179,6 +179,7 @@ class GigaamService {
   static Future<String?> transcribe(
     String wavPath, {
     void Function(int done, int total)? onProgress,
+    void Function(String line)? onLog,
   }) async {
     await ensureModelReady();
     final dir = (await modelDir()).path;
@@ -202,6 +203,7 @@ class GigaamService {
             onProgress?.call(message[1] as int, message[2] as int);
           case 'log':
             debugPrint('[gigaam] ${message[1]}');
+            onLog?.call('${message[1]}');
           case 'done':
             completer.complete(message[1] as String?);
             receivePort.close();
@@ -229,8 +231,9 @@ class GigaamService {
   static Future<String?> transcribeWithGlossary(
     String wavPath, {
     void Function(int done, int total)? onProgress,
+    void Function(String line)? onLog,
   }) async {
-    final text = await transcribe(wavPath, onProgress: onProgress);
+    final text = await transcribe(wavPath, onProgress: onProgress, onLog: onLog);
     if (text == null) return null;
     var out = text;
     final terms = await HotwordsStorage.recent();
@@ -301,6 +304,7 @@ void _gigaamIsolateEntry(_GigaamJob job) {
     final parts = <String>[];
     var idx = 0;
     var vadSegs = 0;
+    var planned = 0; // сколько всего кусков пойдёт в декодер (для прогресса)
     final segLens = <int>[];
 
     // Замерено на реальной записи (локальный прогон): лучшая конфигурация —
@@ -335,7 +339,7 @@ void _gigaamIsolateEntry(_GigaamJob job) {
       // Пустые/микроскопические куски в декодер не отдаём (роняют нативный ORT).
       if (raw.length < 1600) return; // < 0.1 с
       idx++;
-      job.progressPort.send(['progress', idx, 0]);
+      job.progressPort.send(['progress', idx, planned]);
       final stream = recognizer!.createStream();
       try {
         // Копия в обычный буфер: оригинал может быть вью на внутренний
@@ -384,6 +388,8 @@ void _gigaamIsolateEntry(_GigaamJob job) {
     ]);
 
     // Как на эталонном прогоне: кормим по 512 сэмплов (32 мс), буфер 60 с.
+    // Фаза 1 — нарезка (быстрая): собираем куски, чтобы потом показать честный прогресс.
+    final segs = <Float32List>[];
     const chunk = 512;
     var offset = 0;
     while (offset < total) {
@@ -393,7 +399,7 @@ void _gigaamIsolateEntry(_GigaamJob job) {
       while (!vad.isEmpty()) {
         vadSegs++;
         segLens.add(vad.front().samples.length);
-        decodeSegment(vad.front().samples);
+        segs.add(Float32List.fromList(vad.front().samples));
         vad.pop();
       }
     }
@@ -401,8 +407,27 @@ void _gigaamIsolateEntry(_GigaamJob job) {
     while (!vad.isEmpty()) {
       vadSegs++;
       segLens.add(vad.front().samples.length);
-      decodeSegment(vad.front().samples);
+      segs.add(Float32List.fromList(vad.front().samples));
       vad.pop();
+    }
+
+    // Фаза 2 — расшифровка. Число проходов известно заранее: показываем «кусок X из N».
+    for (final s in segs) {
+      planned += (s.length <= maxSegSamples)
+          ? 1
+          : ((s.length + maxSegSamples - 1) ~/ maxSegSamples);
+    }
+    var speechSamples = 0;
+    for (final s in segs) {
+      speechSamples += s.length;
+    }
+    job.progressPort.send([
+      'log',
+      'покрытие: wav=${(total / 16000).toStringAsFixed(1)} c, речь=${(speechSamples / 16000).toStringAsFixed(1)} c '
+          '(${(100 * speechSamples / total).toStringAsFixed(1)}% от файла), кусков=$vadSegs, planned=$planned'
+    ]);
+    for (final s in segs) {
+      decodeSegment(s);
     }
 
     job.progressPort.send([

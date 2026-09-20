@@ -14,6 +14,9 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.BufferedInputStream
+import java.io.FileInputStream
+import java.io.RandomAccessFile
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -36,15 +39,19 @@ class MainActivity : FlutterActivity() {
                         result.error("INVALID_ARGUMENTS", "inputPath or outputPath is null", null)
                         return@setMethodCallHandler
                     }
-                    try {
-                        Log.d(TAG, "Starting conversion: input=$inputPath")
-                        convertAudioToWav(inputPath, outputPath, 16000, 1)
-                        Log.d(TAG, "Conversion OK")
-                        result.success(mapOf("success" to true))
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Conversion FAILED", e)
-                        result.success(mapOf("success" to false, "error" to e.message))
-                    }
+                    // Декодирование длинного аудио (mp3/стерео/44,1 кГц) занимает минуты:
+                    // выносим из главного потока, иначе Android показывает «приложение не отвечает».
+                    Thread {
+                        try {
+                            Log.d(TAG, "Starting conversion: input=$inputPath")
+                            convertAudioToWav(inputPath, outputPath, 16000, 1)
+                            Log.d(TAG, "Conversion OK")
+                            runOnUiThread { result.success(mapOf("success" to true)) }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Conversion FAILED", e)
+                            runOnUiThread { result.success(mapOf("success" to false, "error" to e.message)) }
+                        }
+                    }.start()
                 }
                 else -> result.notImplemented()
             }
@@ -109,6 +116,7 @@ class MainActivity : FlutterActivity() {
         var inputChannels = 2
         var mimeType = "unknown"
         var format: MediaFormat? = null
+        var sourceDurationUs = 0L
 
         Log.d(TAG, "Track count: ${extractor.trackCount}")
         for (i in 0 until extractor.trackCount) {
@@ -121,6 +129,7 @@ class MainActivity : FlutterActivity() {
                 inputChannels = try { trackFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) } catch (_: Exception) { 2 }
                 mimeType = mime
                 format = trackFormat
+                sourceDurationUs = try { trackFormat.getLong(MediaFormat.KEY_DURATION) } catch (_: Exception) { 0L }
                 Log.d(TAG, "Selected audio track $i: $inputSampleRate Hz, $inputChannels ch, mime=$mime")
                 break
             }
@@ -161,9 +170,16 @@ class MainActivity : FlutterActivity() {
         var hasOutput = false
 
         try {
+            // Важно: раньше на каждой итерации стояли таймауты по 10 мс — на длинном файле
+            // это десятки тысяч холостых ожиданий (mp3 на 25 минут декодировался >10 минут).
+            // Теперь забираем всё, что готово, без ожидания, и уступаем поток только когда пусто.
+            var eosQueued = false
+        var emptyRounds = 0
             while (!isEOS) {
-                val inputBufferId = codec.dequeueInputBuffer(10000)
-                if (inputBufferId >= 0) {
+                var fed = false
+                while (true) {
+                    val inputBufferId = codec.dequeueInputBuffer(0)
+                    if (inputBufferId < 0) break
                     val inputBuffer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                         codec.getInputBuffer(inputBufferId)!!
                     } else {
@@ -173,15 +189,20 @@ class MainActivity : FlutterActivity() {
                     val sampleSize = extractor.readSampleData(inputBuffer, 0)
                     if (sampleSize < 0) {
                         codec.queueInputBuffer(inputBufferId, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                        isEOS = true
+                        eosQueued = true
+                        fed = true
+                        break
                     } else {
                         codec.queueInputBuffer(inputBufferId, 0, sampleSize, extractor.sampleTime, 0)
                         extractor.advance()
+                        fed = true
                     }
                 }
 
-                var outputBufferId = codec.dequeueOutputBuffer(bufferInfo, 10000)
+                var gotOutput = false
+                var outputBufferId = codec.dequeueOutputBuffer(bufferInfo, 0)
                 while (outputBufferId >= 0) {
+                    gotOutput = true
                     hasOutput = true
                     val outputBuffer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                         codec.getOutputBuffer(outputBufferId)!!
@@ -194,7 +215,24 @@ class MainActivity : FlutterActivity() {
                     outputBuffer.get(chunk)
                     pcmFos.write(chunk)
                     codec.releaseOutputBuffer(outputBufferId, false)
-                    outputBufferId = codec.dequeueOutputBuffer(bufferInfo, 10000)
+                    if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                        isEOS = true
+                    }
+                    outputBufferId = codec.dequeueOutputBuffer(bufferInfo, 0)
+                }
+                // Ждём именно флаг конца потока из декодера: иначе можно потерять хвост файла.
+                if (eosQueued && !gotOutput && !fed) {
+                    emptyRounds++
+                    if (emptyRounds > 3000) { // ~3 с без ответа — аварийный выход
+                        Log.w(TAG, "decoder stalled; forcing EOS")
+                        isEOS = true
+                    }
+                } else {
+                    emptyRounds = 0
+                }
+                if (!fed && !gotOutput) {
+                    // ничего не готово — короткая уступка, чтобы не жечь процессор впустую
+                    Thread.sleep(1)
                 }
             }
         } catch (e: Exception) {
@@ -212,22 +250,25 @@ class MainActivity : FlutterActivity() {
             throw Exception("No audio data decoded — file may be corrupted or in unsupported format")
         }
 
-        val pcmData = tempPcmFile.readBytes()
-        tempPcmFile.delete()
-        Log.d(TAG, "Decoded PCM: ${pcmData.size} bytes")
-
-        if (pcmData.isEmpty()) {
+        // Потоковая обработка блоками: раньше весь PCM читался в память одним массивом
+        // (для mp3 25 минут это ~272 МБ) — на телефоне это OutOfMemoryError.
+        val tmpSize = tempPcmFile.length()
+        if (tmpSize <= 0) {
+            tempPcmFile.delete()
             throw Exception("Decoded audio is empty")
         }
-
-        val finalPcm = if (inputSampleRate != targetSampleRate || inputChannels != targetChannels) {
-            Log.d(TAG, "Resampling: $inputSampleRate Hz ${inputChannels}ch -> $targetSampleRate Hz ${targetChannels}ch")
-            resamplePcm16(pcmData, inputSampleRate, inputChannels, targetSampleRate, targetChannels)
-        } else {
-            pcmData
+        Log.d(TAG, "Decoded PCM: ${tmpSize} bytes; streaming to WAV")
+        streamToWav16k(tempPcmFile, outputPath, inputSampleRate, inputChannels, targetSampleRate, targetChannels)
+        tempPcmFile.delete()
+        try {
+            val wavBytes = File(outputPath).length() - 44
+            val wavSec = wavBytes / (targetSampleRate.toDouble() * targetChannels * 2)
+            val srcSec = if (sourceDurationUs > 0) sourceDurationUs / 1_000_000.0 else -1.0
+            Log.d(TAG, "ДЛИТЕЛЬНОСТИ: источник=${"%.1f".format(srcSec)} c, wav=${"%.1f".format(wavSec)} c, потеря=" +
+                    (if (srcSec > 0) "%.1f".format(srcSec - wavSec) else "?") + " c")
+        } catch (e: Exception) {
+            Log.w(TAG, "не удалось посчитать длительности", e)
         }
-
-        writeWavFile(outputPath, finalPcm, targetSampleRate, targetChannels, 16)
         Log.d(TAG, "WAV written: $outputPath")
     }
 
@@ -257,6 +298,87 @@ class MainActivity : FlutterActivity() {
             }
         }
         return output
+    }
+
+ 
+    /// Потоковая конвертация PCM -> WAV 16 кГц: читаем блоками, ресемплим на лету.
+    /// Так память не зависит от длины файла (раньше читали весь PCM сразу — OOM).
+    private fun streamToWav16k(tmpPcm: File, outputPath: String, inRate: Int, inCh: Int, outRate: Int, outCh: Int) {
+        val ratio = inRate.toDouble() / outRate.toDouble()
+        val fos = FileOutputStream(outputPath)
+        val header = ByteArray(44)
+        fos.write(header) // заголовок допишем в конце, когда узнаем размер данных
+        var dataBytes = 0L
+
+        val input = BufferedInputStream(FileInputStream(tmpPcm), 1 shl 20)
+        val blockBytes = 1 shl 21 // 2 МБ на блок
+        val buf = ByteArray(blockBytes)
+        val outBuf = ByteArray(blockBytes * 4 + 64)
+        var framesRead = 0L
+        var nextSrcFrame = 0.0
+
+        try {
+            while (true) {
+                val read = input.read(buf)
+                if (read <= 0) break
+                val frames = read / (inCh * 2)
+                if (frames <= 0) continue
+                var outN = 0
+                val endFrame = framesRead + frames
+                while (nextSrcFrame < endFrame) {
+                    val local = (nextSrcFrame - framesRead).toInt().coerceIn(0, frames - 1)
+                    val base = local * inCh * 2
+                    val left = ((buf[base].toInt() and 0xFF) or (buf[base + 1].toInt() shl 8)).toShort()
+                    val mono: Short = if (inCh >= 2) {
+                        val right = ((buf[base + 2].toInt() and 0xFF) or (buf[base + 3].toInt() shl 8)).toShort()
+                        (((left.toInt() + right.toInt()) / 2).toShort())
+                    } else left
+                    if (outN + 4 > outBuf.size) {
+                        fos.write(outBuf, 0, outN)
+                        dataBytes += outN
+                        outN = 0
+                    }
+                    outBuf[outN++] = (mono.toInt() and 0xFF).toByte()
+                    outBuf[outN++] = ((mono.toInt() shr 8) and 0xFF).toByte()
+                    if (outCh == 2) {
+                        outBuf[outN++] = outBuf[outN - 2]
+                        outBuf[outN++] = outBuf[outN - 1]
+                    }
+                    nextSrcFrame += ratio
+                }
+                fos.write(outBuf, 0, outN)
+                dataBytes += outN
+                framesRead = endFrame
+            }
+        } finally {
+            try { input.close() } catch (_: Exception) {}
+        }
+
+        // дописываем корректный заголовок
+        val byteRate = outRate * outCh * 2
+        val h = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
+        h.put("RIFF".toByteArray())
+        h.putInt((dataBytes + 36).toInt())
+        h.put("WAVE".toByteArray())
+        h.put("fmt ".toByteArray())
+        h.putInt(16)
+        h.putShort(1.toShort())
+        h.putShort(outCh.toShort())
+        h.putInt(outRate)
+        h.putInt(byteRate)
+        h.putShort((outCh * 2).toShort())
+        h.putShort(16.toShort())
+        h.put("data".toByteArray())
+        h.putInt(dataBytes.toInt())
+        val raf = RandomAccessFile(outputPath, "rw")
+        try {
+            raf.seek(0)
+            raf.write(h.array())
+        } finally {
+            raf.close()
+        }
+        fos.close()
+        Log.d(TAG, "streamToWav16k done: $dataBytes bytes of PCM")
     }
 
     private fun writeWavFile(path: String, pcmData: ByteArray, sampleRate: Int, channels: Int, bitsPerSample: Int) {

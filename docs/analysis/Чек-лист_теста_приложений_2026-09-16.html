@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Чек-лист теста приложений — 16.09</title>
+<style>
+  :root{--bg:#0f1216;--card:#171c23;--line:#242c36;--txt:#e8edf3;--dim:#9aa7b4;--ok:#3ddc97;--warn:#ffb454;--acc:#5aa9ff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.55 -apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:26px 14px 56px}
+  .wrap{max-width:900px;margin:0 auto}
+  h1{font-size:24px;margin:0 0 4px}
+  .sub{color:var(--dim);font-size:14px;margin-bottom:20px}
+  h2{font-size:18px;margin:26px 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0}
+  .app{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .app .name{font-weight:700;font-size:16px}
+  .app .id{color:var(--dim);font-size:12.5px;font-family:Consolas,Menlo,monospace}
+  .badge{display:inline-block;font-size:12px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);color:var(--dim)}
+  .b-ok{color:var(--ok);border-color:#2b6b52}
+  .b-w{color:var(--warn);border-color:#6b542b}
+  ul.check{list-style:none;margin:10px 0 0;padding:0}
+  ul.check li{position:relative;padding:5px 0 5px 30px;font-size:15px}
+  ul.check li::before{content:'';position:absolute;left:0;top:9px;width:16px;height:16px;border:1.5px solid var(--line);border-radius:5px}
+  .mono{font-family:Consolas,Menlo,monospace;font-size:12.5px;background:#11161c;border:1px solid var(--line);border-radius:8px;padding:2px 7px}
+  .dim{color:var(--dim)}
+  .note{color:var(--warn);font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Чек-лист теста приложений</h1>
+  <div class="sub">16.09, окно с 18:50 · по 3–5 минут на приложение · замечания пишем списком, я правлю сразу</div>
+
+  <h2>Порядок и сборки</h2>
+  <div class="card">
+    <div class="app"><span class="name">1. Адвоката!</span><span class="id">com.pesnagoda.advocate</span><span class="badge b-ok">25,6 МБ · собрано 17:18</span></div>
+    <ul class="check">
+      <li>Запускается, не падает на старте (проверка после переименования пакета)</li>
+      <li>Справочник: открыть раздел, прочитать статью — текст не обрезан</li>
+      <li>Поиск по статьям находит по ключевому слову</li>
+      <li>Тёмная тема — читаемо, ничего не сливается</li>
+      <li>Копирование/поделиться статьёй работает</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="app"><span class="name">2. Таблетница</span><span class="id">com.pesnagoda.medstracker</span><span class="badge b-ok">84,6 МБ · собрано 13:22</span></div>
+    <ul class="check">
+      <li>Добавить лекарство: название, дозировка, время приёма</li>
+      <li>Курс: несколько приёмов в день — расписание читаемо</li>
+      <li>Отметка «принял» и история приёма сохраняются после перезапуска</li>
+      <li>Напоминание приходит (проверить на ближайшем времени)</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="app"><span class="name">3. Гарантийник</span><span class="id">com.pesnagoda.warrantyscanner</span><span class="badge b-ok">50,6 МБ · собрано 13:35</span></div>
+    <ul class="check">
+      <li>Добавить покупку: магазин, дата, срок гарантии</li>
+      <li>Расчёт даты окончания гарантии — верный (сверить на одном примере)</li>
+      <li>Список покупок: сортировка по окончанию гарантии</li>
+      <li>Напоминание «гарантия заканчивается»</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="app"><span class="name">4. Кофе и Судьба</span><span class="id">coffee_fortune</span><span class="badge b-ok">16,8 МБ · собрано 17:26</span></div>
+    <ul class="check">
+      <li>Запуск и первый экран — понятно, что делать</li>
+      <li>Гадание: результат осмысленный, не повторяется подряд</li>
+      <li>Страница подписки: цены и кнопка покупки показываются</li>
+      <li>Тёмная/светлая тема — обе аккуратные</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="app"><span class="name">5. Руна Судьбы</span><span class="id">com.slavanapps.runeday</span><span class="badge b-w">APK от 17.07 — скажи, соберу свежую</span></div>
+    <ul class="check">
+      <li>Запуск, главный экран, расклад на день</li>
+      <li>История раскладов сохраняется</li>
+      <li>Покупка «навсегда» / «на 30 дней» — витрина открывается</li>
+    </ul>
+  </div>
+
+  <h2>Что уже сделано с моей стороны</h2>
+  <div class="card">
+    <ul class="check">
+      <li>DictaPro: окно расшифровки с живой динамикой (полоса + секундомер + этапы) — <span class="badge b-ok">собрано</span></li>
+      <li>DictaPro: живой уровень записи по реальной амплитуде с микрофона вместо синтетики — <span class="badge b-ok">собирается</span></li>
+      <li>DictaPro: настройки группами, тёмная/светлая тема — <span class="badge b-ok">собрано ранее</span></li>
+      <li>Адвоката! и Кофе — пересобраны и лежат в Releases</li>
+    </ul>
+    <p class="note">Важно: когда будем ставить сборки DictaPro — сначала <span class="mono">liveprogress</span> (динамика окна), затем <span class="mono">levelmeter</span> (уровень записи). Ставится поверх, записи не теряются.</p>
+  </div>
+</div>
+</body>
+</html>

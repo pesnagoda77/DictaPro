@@ -4,6 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'audio_service.dart';
 import 'home_page.dart';
 import 'splash_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,8 @@ void main() async {
   );
   await Hive.initFlutter();
   await AudioService().init();
+  // Выбранная тема (тёмная/светлая) — из памяти устройства
+  await ThemeController.instance.load();
   // Модель GigaAM готовится лениво при первой расшифровке
   // (GigaamService.ensureModelReady) — старт приложения не блокируем.
   runApp(const DictaProApp());
@@ -33,18 +36,16 @@ class DictaProApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'ДиктаПро',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0F0F1E),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF6366F1),
-          secondary: Color(0xFF8B5CF6),
-          surface: Color(0xFF1E1E2E),
-        ),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeController.instance.mode,
+      builder: (context, mode, _) => MaterialApp(
+        title: 'ДиктаПро',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
+        themeMode: mode,
+        home: const SplashWrapper(),
       ),
-      home: const SplashWrapper(),
     );
   }
 }
