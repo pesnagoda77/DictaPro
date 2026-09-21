@@ -55,7 +55,7 @@ class MainActivity : FlutterActivity() {
                 "openBatterySettings" -> {
                     try {
                         val i = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                            Intent(Settings.ACTION_APP_BATTERY_SETTINGS).apply {
+                            Intent("android.settings.APP_BATTERY_SETTINGS").apply {
                                 data = Uri.parse("package:$packageName")
                             }
                         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
