@@ -34,6 +34,10 @@ jobs:
       - name: Зависимости
         run: flutter pub get
 
+      - name: Модель распознавания (GigaAM v3)
+        run: python3 tools/fetch_model.py
+
+
       - name: Сборка IPA разработки
         run: flutter build ipa --release --export-options-plist=ios/ExportOptions-dev.plist
 

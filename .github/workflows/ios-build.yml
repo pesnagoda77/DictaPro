@@ -19,6 +19,10 @@ jobs:
         run: flutter --version
       - name: Зависимости
         run: flutter pub get
+
+      - name: Модель распознавания (GigaAM v3)
+        run: python3 tools/fetch_model.py
+
       - name: Диагностика версий
         run: |
           flutter --version
