@@ -8,11 +8,17 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 class AudioConvert {
   static const _platform = MethodChannel('dictapro/convert');
+
+  /// Task 041: конвертации одного файла, запущенные параллельно (двойной
+  /// тап, батч + ручной запуск), должны ждать одну и ту же операцию,
+  /// а не писать два tmp-файла одновременно.
+  static final Map<String, Future<String>> _inFlight = {};
 
   /// Возвращает путь к WAV 16 кГц моно.
   /// Если [audioPath] уже такой WAV — возвращает его как есть.
@@ -21,6 +27,18 @@ class AudioConvert {
     final ext = audioPath.toLowerCase().split('.').last;
     if (ext == 'wav' && await _isWav16kMono(audioPath)) return audioPath;
 
+    final running = _inFlight[audioPath];
+    if (running != null) return running;
+    final future = _convert(audioPath, ext);
+    _inFlight[audioPath] = future;
+    try {
+      return await future;
+    } finally {
+      _inFlight.remove(audioPath);
+    }
+  }
+
+  static Future<String> _convert(String audioPath, String ext) async {
     String convertPath = audioPath;
     String? cleanMp3;
     if (ext == 'mp3') {
@@ -35,8 +53,37 @@ class AudioConvert {
       tempDir = await getExternalStorageDirectory();
     } catch (_) {}
     tempDir ??= await getTemporaryDirectory();
-    final tempWav =
-        '${tempDir.path}/dictapro_16k_${DateTime.now().millisecondsSinceEpoch}.wav';
+
+    // Task 041: имя временного WAV детерминировано от пути источника.
+    // Прошлый прогон мог быть убит системой: рядом остался недописанный
+    // «*.tmp.pcm» (видели два — 131 МБ и 59 МБ) и обрезанный WAV.
+    // Готовый валидный WAV переиспользуем — три часа звука не ждут
+    // второй раз; мусор сначала сносим, чтобы нативная конвертация
+    // не писала поверх чужого хвоста.
+    final tag = _hashFor(audioPath);
+    final tempWav = '${tempDir.path}/dictapro_16k_$tag.wav';
+    final stalePcm = File('$tempWav.tmp.pcm');
+    if (await stalePcm.exists()) {
+      try {
+        await stalePcm.delete();
+        debugPrint('AudioConvert: удалён недописанный ${stalePcm.path}');
+      } catch (_) {}
+    }
+    final prevWav = File(tempWav);
+    if (await prevWav.exists()) {
+      if (await _isWav16kMono(tempWav)) {
+        debugPrint('AudioConvert: переиспользуем готовый $tempWav');
+        if (cleanMp3 != null) {
+          try {
+            File(cleanMp3).deleteSync();
+          } catch (_) {}
+        }
+        return tempWav;
+      }
+      try {
+        await prevWav.delete();
+      } catch (_) {}
+    }
 
     final result = await _platform.invokeMethod<Map<dynamic, dynamic>>(
       'convertToWav',
@@ -53,6 +100,16 @@ class AudioConvert {
       throw Exception(result?['error'] ?? 'Conversion failed');
     }
     return tempWav;
+  }
+
+  /// FNV-1a по коду пути — стабильное короткое имя без новых зависимостей.
+  static String _hashFor(String path) {
+    var h = 0x811c9dc5;
+    for (final u in path.codeUnits) {
+      h ^= u;
+      h = (h * 0x01000193) & 0x7fffffff;
+    }
+    return h.toRadixString(16);
   }
 
   static Future<bool> _isWav16kMono(String path) async {

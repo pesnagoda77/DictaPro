@@ -392,6 +392,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   final ValueNotifier<String> _opStage = ValueNotifier('Расшифровка…');
 
   void _showTranscribingDialog() {
+    // Task 041: повторный вход (двойной тап, батч + ручной запуск)
+    // не должен запускать вторую конвертацию и второй диалог.
+    if (_isTranscribing) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Расшифровка уже идёт — дождитесь окончания')),
+      );
+      return;
+    }
     _isTranscribing = true;
     _opStage.value = 'Расшифровка…';
     showDialog(

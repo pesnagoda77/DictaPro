@@ -1,9 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:path_provider/path_provider.dart';
+
+/// Task 041: единый тег для logcat: adb logcat | grep -i keepalive
+void _keepLog(String msg) => debugPrint('[keepalive] $msg');
 
 /// Задача 036. Длинная операция (расшифровка файла) должна выживать при
 /// выключенном экране. Раньше foreground-служба поднималась только на запись,
@@ -25,14 +29,25 @@ class TranscribeKeepAlive {
       }
       final perm = await FlutterForegroundTask.checkNotificationPermission();
       if (perm != NotificationPermission.granted) {
+        _keepLog('разрешение на уведомления: $perm — запрашиваем');
         await FlutterForegroundTask.requestNotificationPermission();
       }
       await FlutterForegroundTask.startService(
         notificationTitle: _title,
         notificationText: text,
       );
-    } catch (_) {
-      // не критично: если служба не поднялась, работа продолжается как раньше
+      // Task 041: раньше ошибки проглатывались молча — «уведомления не было»
+      // диагностировать было нечем. Проверяем, что служба реально поднялась.
+      final up = await FlutterForegroundTask.isRunningService;
+      _keepLog('startService: running=$up perm=$perm');
+      if (!up) {
+        _keepLog('ВНИМАНИЕ: служба не поднялась — фоновая работа под угрозой');
+      }
+    } catch (e) {
+      // не критично: если служба не поднялась, работа продолжается как раньше.
+      // Task 041: но молчать об ошибке нельзя — иначе повторяется история
+      // «уведомления не было, и никто не знает почему».
+      _keepLog('start ОШИБКА: $e');
     }
   }
 
@@ -43,16 +58,26 @@ class TranscribeKeepAlive {
           notificationTitle: _title,
           notificationText: text,
         );
+      } else {
+        // Task 041: update при мёртвой службе — поднимаем заново, иначе
+        // прогресс расшифровки невидим в шторке.
+        _keepLog('update при мёртвой службе — поднимаем');
+        await start(text);
       }
-    } catch (_) {}
+    } catch (e) {
+      _keepLog('update ОШИБКА: $e');
+    }
   }
 
   static Future<void> stop() async {
     try {
       if (await FlutterForegroundTask.isRunningService) {
         await FlutterForegroundTask.stopService();
+        _keepLog('stop: служба остановлена');
       }
-    } catch (_) {}
+    } catch (e) {
+      _keepLog('stop ОШИБКА: $e');
+    }
   }
 
   /// Запрос «работать без ограничений» — MIUI без этого душит фон.
