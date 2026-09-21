@@ -164,7 +164,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 transcription: saved.$2.trim(),
               );
               await AudioService().updateRecording(rec);
-              await _loadRecordings();
+              _loadRecordings();
               await TranscribeKeepAlive.clearPartial();
             } catch (_) {}
           },
