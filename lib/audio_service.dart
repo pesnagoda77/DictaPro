@@ -106,6 +106,25 @@ class AudioService {
   // Live-превью расшифровки при записи убрано вместе с VOSK (task 019):
   // батч-расшифровка GigaAM после остановки и так лучше по качеству.
 
+  /// Путь к файлу записи, устойчивый к переустановке приложения.
+  ///
+  /// На iOS папка документов содержит UUID контейнера, который МЕНЯЕТСЯ при
+  /// каждой переустановке. Если в базе сохранён старый абсолютный путь, файл
+  /// «не находится», хотя лежит рядом. Поэтому: если сохранённый путь не
+  /// существует — берём из него только имя файла и подставляем текущую папку.
+  static Future<String> resolveFilePath(String stored) async {
+    try {
+      if (stored.isEmpty) return stored;
+      if (await File(stored).exists()) return stored;
+      final name = stored.split(RegExp(r'[\\/]')).last;
+      if (name.isEmpty) return stored;
+      final dir = await getApplicationDocumentsDirectory();
+      final candidate = File('${dir.path}/$name');
+      if (await candidate.exists()) return candidate.path;
+    } catch (_) {}
+    return stored;
+  }
+
   Future<void> init() async {
     if (_isInit) return;
 

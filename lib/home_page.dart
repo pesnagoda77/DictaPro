@@ -100,6 +100,93 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkUnfinishedTranscription();
     });
+    _liveTimer = Timer.periodic(const Duration(seconds: 3), (_) => _refreshLiveStatus());
+  }
+
+  /// Обновляет состояние живой плашки: идёт ли расшифровка и сколько готово.
+  Future<void> _refreshLiveStatus() async {
+    try {
+      final saved = await TranscribeKeepAlive.readPartial();
+      final running = await TranscribeKeepAlive.isRunning();
+      final marker = await TranscribeKeepAlive.readActiveMarker();
+      final text = (saved?.$2 ?? '').trim();
+      // Активной считаем задачу, если служба жива и есть либо маркер старта,
+      // либо уже сохранённый кусок текста.
+      final active = running && (marker != null || text.isNotEmpty);
+      if (!mounted) return;
+      final chunks = saved?.$1 ?? 0;
+      final path = saved?.$3;
+      final startedMs = marker?.$1 ?? 0;
+      final stage = marker?.$2 ?? '';
+      if (active != _liveActive ||
+          chunks != _liveChunks ||
+          text.length != _liveChars ||
+          path != _livePath ||
+          startedMs != _liveStartedMs ||
+          stage != _liveStage) {
+        final wasActive = _liveActive;
+        setState(() {
+          _liveActive = active;
+          _liveChunks = chunks;
+          _liveChars = text.length;
+          _livePath = path;
+          _liveStartedMs = startedMs;
+          _liveStage = stage;
+        });
+        // Расшифровка завершилась — перечитываем список, чтобы текст появился на экране
+        if (wasActive && !active) _loadRecordings();
+      }
+    } catch (_) {}
+  }
+
+  /// Живая плашка «Идёт расшифровка» — видно, что процесс пошёл и сколько готово.
+  Widget _liveStatusCard() {
+    String shortName = '';
+    final p = _livePath;
+    if (p != null && p.isNotEmpty) {
+      shortName = p.split(RegExp(r'[\\/]')).last;
+    }
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(
+              width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Идёт расшифровка',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    if (_liveStartedMs > 0)
+                      'идёт ${(((DateTime.now().millisecondsSinceEpoch - _liveStartedMs) / 60000).floor())} мин',
+                    'готово кусков: $_liveChunks',
+                    'символов: $_liveChars',
+                    if (shortName.isNotEmpty) shortName,
+                  ].join(' · '),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                if (_liveStage.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(_liveStage,
+                        style: Theme.of(context).textTheme.bodySmall),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Задача 038: стартовый баннер «Найдена незаконченная расшифровка».
@@ -390,6 +477,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   // Task 034: этап операции для диалога прогресса (расшифровка → саммари).
   final ValueNotifier<String> _opStage = ValueNotifier('Расшифровка…');
+
+  // Живая плашка: показываем, что расшифровка идёт (даже если интерфейс
+  // перезапускался и окно прогресса потерялось).
+  bool _liveActive = false;
+  int _liveChunks = 0;
+  int _liveChars = 0;
+  String? _livePath;
+  int _liveStartedMs = 0;
+  String _liveStage = '';
+  Timer? _liveTimer;
+
 
   void _showTranscribingDialog() {
     // Task 041: повторный вход (двойной тап, батч + ручной запуск)
@@ -861,11 +959,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Future<void> _transcribeRecording(rec) async {
-    // Проверяем, что файл существует
-    if (!File(rec.filePath).existsSync()) {
+    // Путь может содержать старый UUID контейнера (iOS меняет его при
+    // переустановке) — вычисляем актуальный.
+    final filePath = await AudioService.resolveFilePath(rec.filePath);
+    if (!await File(filePath).exists()) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Файл не найден: ${rec.filePath}'),
+          content: Text('Файл не найден: $filePath'),
           backgroundColor: Colors.red.shade900,
         ),
       );
@@ -875,9 +975,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _showTranscribingDialog();
 
     try {
-      final onlineText = await _onlineTranscript(rec.filePath);
+      final onlineText = await _onlineTranscript(filePath);
       final result = onlineText == null
-          ? await _transcribeOffline(rec.filePath)
+          ? await _transcribeOffline(filePath)
           : null;
 
       final punctuatedText = onlineText ?? result!.fullText;
@@ -1195,7 +1295,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           break;
       }
     } else if (choice == 'audio') {
-      ExportService.shareAudioFile(rec.filePath);
+      ExportService.shareAudioFile(await AudioService.resolveFilePath(rec.filePath));
     }
   }
 
@@ -1607,6 +1707,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ],
             ),
           ),
+          if (_liveActive) _liveStatusCard(),
           Expanded(
             child: Container(
               decoration: BoxDecoration(

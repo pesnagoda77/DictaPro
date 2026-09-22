@@ -25,7 +25,8 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   Future<void> _initPlayer() async {
-    await _player.setFilePath(widget.recording.filePath);
+    final resolved = await AudioService.resolveFilePath(widget.recording.filePath);
+    await _player.setFilePath(resolved);
     _duration = _player.duration ?? Duration.zero;
 
     _player.positionStream.listen((pos) {
