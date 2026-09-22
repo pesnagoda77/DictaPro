@@ -314,7 +314,10 @@ void _gigaamIsolateEntry(_GigaamJob job) {
           windowSize: 512,
         ),
         sampleRate: 16000,
-        numThreads: 1,
+        // Task 045: было numThreads: 1 → 4. VAD (нарезка) при 1 потоке
+        // узкое место на длинных файлах; замер на реальной записи —
+        // фаза нарезки ускоряется заметно, декодер и так на 4 потоках.
+        numThreads: 4,
       ),
       bufferSizeInSeconds: 60,
     );

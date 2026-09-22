@@ -114,6 +114,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       // либо уже сохранённый кусок текста.
       final active = running && (marker != null || text.isNotEmpty);
       if (!mounted) return;
+      // Task 045: partial стёрт (расшифровка завершена/убрана) — убираем
+      // и карточку восстановления.
+      if (saved == null && _recoveryJob != null) {
+        setState(() => _recoveryJob = null);
+      }
       final chunks = saved?.$1 ?? 0;
       final path = saved?.$3;
       final startedMs = marker?.$1 ?? 0;
@@ -189,83 +194,139 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  /// Задача 038: стартовый баннер «Найдена незаконченная расшифровка».
-  /// Читает и старый plain-text формат (сборка 51) — в нём нет номера
-  /// куска, тогда предлагаем хотя бы сохранить текст.
+  /// Task 045: при открытии приложения ищем оборванную расшифровку и
+  /// показываем карточку восстановления (видна всегда, не исчезает,
+  /// пока пользователь не выбрал действие). Раньше был MaterialBanner —
+  /// его легко пропустить, и текст терялся.
   Future<void> _checkUnfinishedTranscription() async {
     final saved = await TranscribeKeepAlive.readPartial();
-    if (!mounted || saved == null) return;
-    final chars = saved.$2.trim().length;
-    if (chars == 0) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showMaterialBanner(MaterialBanner(
-      content: Text(
-        'Найдена незаконченная расшифровка: $chars символов'
-        '${saved.$1 > 0 ? ' (оборвалась на куске ${saved.$1})' : ''}',
+    if (!mounted) return;
+    if (saved == null || saved.$2.trim().isEmpty) {
+      setState(() => _recoveryJob = null);
+      return;
+    }
+    setState(() => _recoveryJob = saved);
+  }
+
+  /// Кнопка [Продолжить] карточки: находим запись по пути из partial.txt
+  /// и идём полным путём расшифровки — с автоматическим продолжением
+  /// с куска M, без лишнего диалога (task 045).
+  Future<void> _resumeRecoveryJob() async {
+    final job = _recoveryJob;
+    if (job == null) return;
+    setState(() => _recoveryJob = null);
+    final path = job.$3;
+    if (path != null) {
+      try {
+        Recording? rec;
+        for (final r in _recordings) {
+          if (r.filePath == path) {
+            rec = r;
+            break;
+          }
+        }
+        if (rec != null) {
+          await _transcribeRecording(rec, resumeFromPartial: true);
+          return;
+        }
+      } catch (_) {}
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+            'Откройте ту же запись и запустите расшифровку — предложим продолжить с места обрыва.'),
+      ));
+    }
+  }
+
+  /// Кнопка [Показать текст]: сохраняем накопленный текст отдельной
+  /// записью и открываем его — результат не теряется (task 045).
+  Future<void> _showRecoveryText() async {
+    final job = _recoveryJob;
+    if (job == null) return;
+    try {
+      final now = DateTime.now();
+      final rec = Recording(
+        id: now.millisecondsSinceEpoch.toString(),
+        filePath: '',
+        createdAt: now,
+        durationMs: 0,
+        fileSize: 0,
+        title: 'Прерванная расшифровка',
+        transcription: job.$2.trim(),
+      );
+      await AudioService().updateRecording(rec);
+      await TranscribeKeepAlive.clearPartial();
+      setState(() => _recoveryJob = null);
+      _loadRecordings();
+      _openDialogueEditor(rec);
+    } catch (_) {}
+  }
+
+  Future<void> _discardRecoveryJob() async {
+    await TranscribeKeepAlive.clearPartial();
+    if (mounted) setState(() => _recoveryJob = null);
+  }
+
+  /// Карточка восстановления: «Расшифровка прервана · N символов · кусок M»
+  /// с действиями [Продолжить] и [Показать текст] (task 045).
+  Widget _recoveryCard() {
+    final job = _recoveryJob;
+    if (job == null) return const SizedBox.shrink();
+    final chunks = job.$1;
+    final chars = job.$2.trim().length;
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(16),
       ),
-      actions: [
-        TextButton(
-          onPressed: () async {
-            messenger.hideCurrentMaterialBanner();
-            // Продолжить: если знаем файл и нашли его запись — идём
-            // полным путём (расшифровка → сохранение в запись → саммари);
-            // диалог «продолжить с куска N» всплывёт внутри расшифровки.
-            final path = saved.$3;
-            if (path != null) {
-              try {
-                Recording? rec;
-                for (final r in _recordings) {
-                  if (r.filePath == path) {
-                    rec = r;
-                    break;
-                  }
-                }
-                if (rec != null) {
-                  await _transcribeRecording(rec);
-                  return;
-                }
-              } catch (_) {}
-            }
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text(
-                    'Откройте ту же запись и запустите расшифровку — предложим продолжить с места обрыва.'),
-              ));
-            }
-          },
-          child: const Text('Продолжить'),
-        ),
-        TextButton(
-          onPressed: () async {
-            messenger.hideCurrentMaterialBanner();
-            // Сохраняем найденный текст отдельной записью — он не потеряется.
-            try {
-              final now = DateTime.now();
-              final rec = Recording(
-                id: now.millisecondsSinceEpoch.toString(),
-                filePath: '',
-                createdAt: now,
-                durationMs: 0,
-                fileSize: 0,
-                title: 'Прерванная расшифровка',
-                transcription: saved.$2.trim(),
-              );
-              await AudioService().updateRecording(rec);
-              _loadRecordings();
-              await TranscribeKeepAlive.clearPartial();
-            } catch (_) {}
-          },
-          child: const Text('Сохранить текст'),
-        ),
-        TextButton(
-          onPressed: () async {
-            messenger.hideCurrentMaterialBanner();
-            await TranscribeKeepAlive.clearPartial();
-          },
-          child: const Text('Удалить'),
-        ),
-      ],
-    ));
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: scheme.onErrorContainer),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Расшифровка прервана',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: scheme.onErrorContainer)),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    '$chars символов',
+                    if (chunks > 0) 'кусок $chunks',
+                  ].join(' · '),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: scheme.onErrorContainer),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: _showRecoveryText,
+            child: const Text('Показать текст'),
+          ),
+          const SizedBox(width: 4),
+          FilledButton(
+            onPressed: _resumeRecoveryJob,
+            child: const Text('Продолжить'),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Удалить',
+            onPressed: _discardRecoveryJob,
+            icon: Icon(Icons.close, size: 18, color: scheme.onErrorContainer),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadRecentHotwords() async {
@@ -488,6 +549,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String _liveStage = '';
   Timer? _liveTimer;
 
+  // Task 045: карточка «Расшифровка прервана» — состояние задачи с диска
+  // (partial.txt): куски, текст, файл, статус, время старта. Видна сразу
+  // при открытии приложения, а не прячется в баннере.
+  (int, String, String?, String, int)? _recoveryJob;
+
 
   void _showTranscribingDialog() {
     // Task 041: повторный вход (двойной тап, батч + ручной запуск)
@@ -601,38 +667,45 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   /// дальше стандартный путь (VAD + изолят) без изменений.
   /// При первом запуске показываем прогресс локального копирования модели
   /// («Подготовка модели: X%») — без сети, без возможности отменить.
-  Future<TranscriptionResult> _transcribeOffline(String filePath) async {
+  Future<TranscriptionResult> _transcribeOffline(String filePath,
+      {bool resumeFromPartial = false}) async {
     if (!GigaamService.isPrepared) {
       await _showModelPreparingDialog();
     }
     // Задача 036: если прошлый прогон был прерван (процесс убит системой),
     // предлагаем продолжить с последнего готового куска — текст уже
     // накопленных кусков не теряется и не расшифровывается заново.
+    // Task 045: вход с карточки восстановления — продолжаем молча,
+    // диалог не показываем (пользователь уже нажал [Продолжить]).
     var skipChunks = 0;
     var baseText = '';
     final partial = await TranscribeKeepAlive.readPartial();
     if (partial != null && mounted) {
-      final cont = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Незавершённая расшифровка'),
-          content: Text(
-              'В прошлый раз распознание оборвалось на куске ${partial.$1} '
-              '(${partial.$2.length} символов текста уже готово).\n\n'
-              'Продолжить с этого места или начать заново?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Начать заново'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Продолжить'),
-            ),
-          ],
-        ),
-      );
-      if (cont == true) {
+      final sameFile =
+          partial.$3 == null || partial.$3 == filePath;
+      final resume = resumeFromPartial && sameFile
+          ? true
+          : await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Незавершённая расшифровка'),
+                content: Text(
+                    'В прошлый раз распознание оборвалось на куске ${partial.$1} '
+                    '(${partial.$2.length} символов текста уже готово).\n\n'
+                    'Продолжить с этого места или начать заново?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Начать заново'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Продолжить'),
+                  ),
+                ],
+              ),
+            );
+      if (resume == true) {
         skipChunks = partial.$1;
         baseText = partial.$2.trim();
       }
@@ -647,6 +720,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     String? text;
     String? wav16k;
     final diagLines = <String>[];
+    // Task 045: время старта задачи — фиксируем в состоянии на диске,
+    // чтобы при перезапуске отличать «считалось сейчас» от «оборвалось».
+    final jobStartedMs = DateTime.now().millisecondsSinceEpoch;
     // Окно работ появляется сразу и всё время показывает движение: этап, полоса
     // и секундомер. Раньше оно всплывало только после подготовки звука, поэтому
     // во время декодирования казалось, что ничего не происходит.
@@ -715,9 +791,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           // кусков абсолютное (с учётом пропущенных).
           // Задача 038: пишем и путь файла — стартовый баннер по нему
           // открывает нужную запись напрямую.
+          // Task 045: пишем и состояние задачи (status/startedMs) — по
+          // нему при перезапуске показываем карточку «прервана».
           final merged =
               baseText.isEmpty ? partial : '$baseText $partial'.trim();
-          TranscribeKeepAlive.savePartial(done, merged, path: filePath);
+          TranscribeKeepAlive.savePartial(done, merged,
+              path: filePath, status: 'running', startedMs: jobStartedMs);
         },
         onLog: (line) => diagLines.add(line),
       );
@@ -733,12 +812,38 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       elapsed.dispose();
       stage.dispose();
       if (keepAliveStarted) await TranscribeKeepAlive.stop();
-      // Задача 036: временный WAV сразу удаляем — раньше он оставался
-      // навсегда, из-за чего папка приложения распухла до ~890 МБ.
+      // Task 045: почти весь файл — тишина (речь < 1% длины) — временной
+      // WAV НЕ удаляем: складываем рядом с диагностикой в exports/,
+      // иначе разобрать «почему пустой текст» без исходника невозможно.
+      var speechPercent = -1.0;
+      for (final line in diagLines) {
+        final m = RegExp(r'речь=[\d.]+ c \(([\d.]+)% от файла\)')
+            .firstMatch(line);
+        if (m != null) {
+          speechPercent = double.tryParse(m.group(1)!) ?? -1.0;
+          break;
+        }
+      }
       if (wav16k != null) {
         try {
           final f = File(wav16k);
-          if (await f.exists()) await f.delete();
+          if (await f.exists()) {
+            if (speechPercent >= 0 && speechPercent < 1.0) {
+              final ext = await getExternalStorageDirectory();
+              if (ext != null) {
+                final dir = Directory('${ext.path}/exports');
+                await dir.create(recursive: true);
+                final name = wav16k.split(RegExp(r'[\\/]')).last;
+                await f.rename('${dir.path}/$name');
+                debugPrint('DictaPro: речь $speechPercent% (<1%) — '
+                    'WAV сохранён в exports для разбора');
+              }
+            } else {
+              // Задача 036: временный WAV сразу удаляем — раньше он оставался
+              // навсегда, из-за чего папка приложения распухла до ~890 МБ.
+              await f.delete();
+            }
+          }
         } catch (_) {}
       }
       await TranscribeKeepAlive.cleanupTempFiles();
@@ -958,7 +1063,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _loadRecordings();
   }
 
-  Future<void> _transcribeRecording(rec) async {
+  /// Task 045: [resumeFromPartial] — вход с карточки восстановления:
+  /// расшифровка продолжается с куска M автоматически, без диалога
+  /// «продолжить/начать заново».
+  Future<void> _transcribeRecording(rec,
+      {bool resumeFromPartial = false}) async {
     // Путь может содержать старый UUID контейнера (iOS меняет его при
     // переустановке) — вычисляем актуальный.
     final filePath = await AudioService.resolveFilePath(rec.filePath);
@@ -977,7 +1086,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     try {
       final onlineText = await _onlineTranscript(filePath);
       final result = onlineText == null
-          ? await _transcribeOffline(filePath)
+          ? await _transcribeOffline(filePath,
+              resumeFromPartial: resumeFromPartial)
           : null;
 
       final punctuatedText = onlineText ?? result!.fullText;
@@ -1707,7 +1817,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ],
             ),
           ),
-          if (_liveActive) _liveStatusCard(),
+          // Task 045: карточка восстановления видна сразу, пока не выбрано
+          // действие; живая плашка «Идёт расшифровка» важнее — заменяет её.
+          if (_liveActive)
+            _liveStatusCard()
+          else if (_recoveryJob != null)
+            _recoveryCard(),
           Expanded(
             child: Container(
               decoration: BoxDecoration(

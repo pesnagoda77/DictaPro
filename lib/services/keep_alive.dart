@@ -198,14 +198,12 @@ class TranscribeKeepAlive {
     await cleanupTempFiles(onlyOld: true);
   }
 
-  /// Частичный результат расшифровки: пишем по ходу, чтобы выгрузка процесса
-  /// не означала потерю всего текста.
-  /// Task 036 (доп.): формат JSON с числом готовых кусков — по нему при
-  /// повторном запуске предлагаем «Продолжить с куска N», а не начинаем
-  /// с нуля. Task 038: в JSON добавляем путь исходного файла — по нему
-  /// стартовый баннер может открыть нужную запись напрямую.
+  /// Частичный результат + состояние задачи (task 045): статус
+  /// ('running' во время работы; файл стирается по завершении = 'done')
+  /// и время старта — по ним при загрузке отличаем «сейчас считается»
+  /// от «оборвалась», не гадая по живости службы.
   static Future<void> savePartial(int chunks, String text,
-      {String? path}) async {
+      {String? path, String status = 'running', int? startedMs}) async {
     try {
       final dir = await _filesDir();
       if (dir == null) return;
@@ -213,15 +211,20 @@ class TranscribeKeepAlive {
             'chunks': chunks,
             'text': text,
             if (path != null) 'path': path,
+            'status': status,
+            if (startedMs != null) 'startedMs': startedMs,
           }));
     } catch (_) {}
   }
 
-  /// (число готовых кусков, накопленный текст, путь исходного файла).
+  /// (число готовых кусков, накопленный текст, путь исходного файла,
+  /// статус, время старта мс).
   /// Task 038: файлы из сборки 51 писались простым текстом без JSON —
   /// читаем и их: chunks=0 означает «текст есть, номер куска неизвестен»,
   /// интерфейс предлагает хотя бы сохранить текст, а не молчит.
-  static Future<(int, String, String?)?> readPartial() async {
+  /// Task 045: старые JSON без status/startedMs читаем как 'interrupted' —
+  /// это и есть следы оборванного прогона.
+  static Future<(int, String, String?, String, int)?> readPartial() async {
     try {
       final dir = await _filesDir();
       if (dir == null) return null;
@@ -236,12 +239,18 @@ class TranscribeKeepAlive {
           final text = map['text'];
           if (chunks is int && chunks > 0 && text is String &&
               text.trim().isNotEmpty) {
-            return (chunks, text, map['path'] as String?);
+            return (
+              chunks,
+              text,
+              map['path'] as String?,
+              (map['status'] as String?) ?? 'interrupted',
+              (map['startedMs'] as num?)?.toInt() ?? 0,
+            );
           }
         }
       } catch (_) {}
       // Старый формат (≤51): весь файл — это и есть найденный текст.
-      return (0, raw, null);
+      return (0, raw, null, 'interrupted', 0);
     } catch (_) {
       return null;
     }
