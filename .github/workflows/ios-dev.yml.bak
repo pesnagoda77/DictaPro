@@ -1,0 +1,46 @@
+name: iOS IPA (development, для кабельной установки)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ipa:
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Подготовка подписи разработки
+        env:
+          DEV_CERT_P12_BASE64: ${{ secrets.DEV_CERT_P12_BASE64 }}
+          DEV_P12_PASSWORD: ${{ secrets.DEV_P12_PASSWORD }}
+          DEV_PROFILE_BASE64: ${{ secrets.DEV_PROFILE_BASE64 }}
+        run: |
+          set -e
+          echo "$DEV_CERT_P12_BASE64" | base64 --decode > /tmp/dev_cert.p12
+          echo "$DEV_PROFILE_BASE64" | base64 --decode > /tmp/dev.mobileprovision
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import /tmp/dev_cert.p12 -k build.keychain -P "$DEV_P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp /tmp/dev.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Зависимости
+        run: flutter pub get
+
+      - name: Сборка IPA разработки
+        run: flutter build ipa --release --export-options-plist=ios/ExportOptions-dev.plist
+
+      - name: Что получилось
+        run: ls -la build/ios/ipa/ || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DictaPro-ipa-dev
+          path: build/ios/ipa/*.ipa

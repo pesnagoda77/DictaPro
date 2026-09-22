@@ -1,0 +1,57 @@
+name: iOS IPA (signed ad-hoc)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ipa:
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Подготовка подписи
+        env:
+          BUILD_CERT_P12_BASE64: ${{ secrets.BUILD_CERT_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          PROVISION_PROFILE_BASE64: ${{ secrets.PROVISION_PROFILE_BASE64 }}
+          DEV_PROFILE_BASE64: ${{ secrets.DEV_PROFILE_BASE64 }}
+          ASC_KEY_BASE64: ${{ secrets.ASC_KEY_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          set -e
+          echo "$BUILD_CERT_P12_BASE64" | base64 --decode > /tmp/build_cert.p12
+          echo "$PROVISION_PROFILE_BASE64" | base64 --decode > /tmp/profile.mobileprovision
+          echo "$DEV_PROFILE_BASE64" | base64 --decode > /tmp/profile_dev.mobileprovision
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import /tmp/build_cert.p12 -k build.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp /tmp/profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          cp /tmp/profile_dev.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$ASC_KEY_BASE64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+
+      - name: Зависимости
+        run: flutter pub get
+
+      - name: Модель распознавания (GigaAM v3)
+        run: python3 tools/fetch_model.py
+
+
+      - name: Сборка подписанного IPA
+        run: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+
+      - name: Что получилось
+        run: ls -la build/ios/ipa/ || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DictaPro-ipa
+          path: build/ios/ipa/*.ipa

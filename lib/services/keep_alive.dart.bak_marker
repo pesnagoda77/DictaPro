@@ -40,7 +40,6 @@ class TranscribeKeepAlive {
       // диагностировать было нечем. Проверяем, что служба реально поднялась.
       final up = await FlutterForegroundTask.isRunningService;
       _keepLog('startService: running=$up perm=$perm');
-      await writeActiveMarker(text);
       if (!up) {
         _keepLog('ВНИМАНИЕ: служба не поднялась — фоновая работа под угрозой');
       }
@@ -50,60 +49,6 @@ class TranscribeKeepAlive {
       // «уведомления не было, и никто не знает почему».
       _keepLog('start ОШИБКА: $e');
     }
-  }
-
-  /// Маркер «расшифровка идёт»: файл со временем старта и путём записи.
-  /// Нужен, чтобы интерфейс показывал живую плашку сразу после запуска —
-  /// ещё до того, как будет готов первый кусок текста.
-  static Future<File?> _activeFile() async {
-    try {
-      final dir = await _filesDir();
-      if (dir == null) return null;
-      return File('${dir.path}/active_job.txt');
-    } catch (_) {
-      return null;
-    }
-  }
-
-  static Future<void> writeActiveMarker(String text) async {
-    try {
-      final f = await _activeFile();
-      if (f == null) return;
-      await f.writeAsString(jsonEncode({
-        'started': DateTime.now().millisecondsSinceEpoch,
-        'text': text,
-      }));
-      _keepLog('маркер активной задачи записан');
-    } catch (e) {
-      _keepLog('writeActiveMarker ОШИБКА: $e');
-    }
-  }
-
-  /// Возвращает время старта (мс) и текст этапа, если задача ещё «живая»
-  /// (стартовала не позже 6 часов назад и процесс с тех пор не завершил её).
-  static Future<(int, String)?> readActiveMarker() async {
-    try {
-      final f = await _activeFile();
-      if (f == null || !await f.exists()) return null;
-      final j = jsonDecode(await f.readAsString());
-      final started = (j['started'] as num?)?.toInt() ?? 0;
-      if (started == 0) return null;
-      final age = DateTime.now().millisecondsSinceEpoch - started;
-      if (age > 6 * 3600 * 1000) return null;
-      return (started, (j['text'] as String?) ?? '');
-    } catch (_) {
-      return null;
-    }
-  }
-
-  static Future<void> clearActiveMarker() async {
-    try {
-      final f = await _activeFile();
-      if (f != null && await f.exists()) {
-        await f.delete();
-        _keepLog('маркер активной задачи убран');
-      }
-    } catch (_) {}
   }
 
   static Future<void> update(String text) async {
@@ -139,7 +84,6 @@ class TranscribeKeepAlive {
         await FlutterForegroundTask.stopService();
         _keepLog('stop: служба остановлена');
       }
-      await clearActiveMarker();
     } catch (e) {
       _keepLog('stop ОШИБКА: $e');
     }
