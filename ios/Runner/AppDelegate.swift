@@ -27,8 +27,11 @@ import AVFoundation
               try Wav16kConverter.convert(inputPath: input, outputPath: output)
               DispatchQueue.main.async { result(["success": true]) }
             } catch {
+              let ns = error as NSError
+              let msg = "stage=\(Wav16kConverter.lastStage) type=\(type(of: error)) domain=\(ns.domain) code=\(ns.code) desc=\(ns.localizedDescription)"
+              Wav16kConverter.log("ERROR " + msg)
               DispatchQueue.main.async {
-                result(["success": false, "error": "\(error)"])
+                result(["success": false, "error": msg])
               }
             }
           }
@@ -71,8 +74,29 @@ import AVFoundation
 /// linear resampling plus a hand-written RIFF header keeps this deterministic.
 enum Wav16kConverter {
   static let targetRate: Double = 16000
+  static var lastStage = "init"
+
+  static func logPath() -> String {
+    let dir = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
+    return dir + "/dictapro_convert.log"
+  }
+
+  static func log(_ line: String) {
+    let path = logPath()
+    let stamp = ISO8601DateFormatter().string(from: Date())
+    let text = stamp + " " + line + "\n"
+    if let h = FileHandle(forWritingAtPath: path) {
+      h.seekToEndOfFile()
+      if let d = text.data(using: .utf8) { h.write(d) }
+      h.closeFile()
+    } else {
+      try? text.write(toFile: path, atomically: true, encoding: .utf8)
+    }
+  }
 
   static func convert(inputPath: String, outputPath: String) throws {
+    lastStage = "open_source"
+    log("start input=\(inputPath) output=\(outputPath)")
     let src = try AVAudioFile(forReading: URL(fileURLWithPath: inputPath))
     let fmt = src.processingFormat
     let srcRate = fmt.sampleRate
@@ -89,6 +113,8 @@ enum Wav16kConverter {
     }
     out.write(Data(count: 44))
 
+    lastStage = "prepare"
+    log("source rate=\(srcRate) ch=\(srcCh)")
     let step = srcRate / targetRate
     let chunkFrames: AVAudioFrameCount = 32768
     var pos: Double = 0
@@ -132,6 +158,8 @@ enum Wav16kConverter {
       dataBytes &+= UInt32(pending.count)
     }
 
+    lastStage = "write_header"
+    log("pcm bytes=\(dataBytes)")
     // RIFF / WAVE header for mono 16-bit PCM.
     var header = Data()
     func append32(_ v: UInt32) { var x = v.littleEndian; withUnsafeBytes(of: &x) { header.append(contentsOf: $0) } }
@@ -151,6 +179,8 @@ enum Wav16kConverter {
     header.append(contentsOf: Array("data".utf8))
     append32(dataBytes)
 
+    lastStage = "done"
+    log("finished output=\(outputPath)")
     out.seek(toFileOffset: 0)
     out.write(header)
     out.closeFile()

@@ -116,16 +116,26 @@ class AudioConvert {
     try {
       final f = File(path);
       if (!f.existsSync()) return false;
-      final raf = await f.open();
-      final head = await raf.read(44);
-      await raf.close();
-      if (head.length < 44) return false;
-      if (String.fromCharCodes(head.sublist(0, 4)) != 'RIFF') return false;
-      final reader = ByteData.sublistView(head);
-      // fmt-чанк: channels (22), sampleRate (24), bitsPerSample (34)
-      final channels = reader.getUint16(22, Endian.little);
-      final sampleRate = reader.getUint32(24, Endian.little);
-      final bits = reader.getUint16(34, Endian.little);
+      final bytes = await f.readAsBytes();
+      if (bytes.length < 44) return false;
+      if (String.fromCharCodes(bytes.sublist(0, 4)) != 'RIFF') return false;
+      if (String.fromCharCodes(bytes.sublist(8, 12)) != 'WAVE') return false;
+      // Walk RIFF chunks: files written on iOS carry JUNK/FLLR chunks before
+      // fmt, so fixed offsets are wrong.
+      final reader = ByteData.sublistView(bytes);
+      var i = 12;
+      int? channels, sampleRate, bits;
+      while (i + 8 <= bytes.length) {
+        final id = String.fromCharCodes(bytes.sublist(i, i + 4));
+        final size = reader.getUint32(i + 4, Endian.little);
+        if (id == 'fmt ' && i + 8 + 16 <= bytes.length) {
+          channels = reader.getUint16(i + 8 + 2, Endian.little);
+          sampleRate = reader.getUint32(i + 8 + 4, Endian.little);
+          bits = reader.getUint16(i + 8 + 14, Endian.little);
+        }
+        if (id == 'data') break;
+        i += 8 + size + (size & 1);
+      }
       return channels == 1 && sampleRate == 16000 && bits == 16;
     } catch (_) {
       return false;
