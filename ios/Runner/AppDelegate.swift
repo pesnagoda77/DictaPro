@@ -13,7 +13,6 @@ import AVFoundation
     if let controller = window?.rootViewController as? FlutterViewController {
       let messenger = controller.binaryMessenger
 
-      // 1) Audio -> 16 kHz mono WAV (same contract as Android MainActivity 'dictapro/convert').
       FlutterMethodChannel(name: "dictapro/convert", binaryMessenger: messenger).setMethodCallHandler { call, result in
         switch call.method {
         case "convertToWav":
@@ -28,7 +27,9 @@ import AVFoundation
               try Wav16kConverter.convert(inputPath: input, outputPath: output)
               DispatchQueue.main.async { result(["success": true]) }
             } catch {
-              DispatchQueue.main.async { result(["success": false, "error": error.localizedDescription]) }
+              DispatchQueue.main.async {
+                result(["success": false, "error": "\(error)"])
+              }
             }
           }
         default:
@@ -36,8 +37,6 @@ import AVFoundation
         }
       }
 
-      // 2) Model channel: on iOS the GigaAM model ships inside the app bundle
-      //    (flutter assets) and Dart copies it from there, so no native path is needed.
       FlutterMethodChannel(name: "dictapro/model", binaryMessenger: messenger).setMethodCallHandler { call, result in
         if call.method == "getGigaamModelPath" {
           result(nil)
@@ -46,8 +45,6 @@ import AVFoundation
         }
       }
 
-      // 3) Keep-alive channel: Android-only battery helpers. On iOS report "unknown"
-      //    and route settings requests to the app's own settings page.
       FlutterMethodChannel(name: "dictapro/keepalive", binaryMessenger: messenger).setMethodCallHandler { call, result in
         switch call.method {
         case "batteryUnrestrictedStatus":
@@ -69,61 +66,93 @@ import AVFoundation
   }
 }
 
+/// Decodes any audio file readable by AVFoundation and writes a plain
+/// 16 kHz mono 16-bit PCM WAV. No AVAudioConverter is used: decoding plus
+/// linear resampling plus a hand-written RIFF header keeps this deterministic.
 enum Wav16kConverter {
-  static func convert(inputPath: String, outputPath: String,
-                      sampleRate: Double = 16000, channels: AVAudioChannelCount = 1) throws {
-    let inURL = URL(fileURLWithPath: inputPath)
-    let outURL = URL(fileURLWithPath: outputPath)
+  static let targetRate: Double = 16000
 
-    let srcFile = try AVAudioFile(forReading: inURL)
-    let srcFormat = srcFile.processingFormat
-
-    guard let outFormat = AVAudioFormat(commonFormat: .pcmFormatInt16,
-                                        sampleRate: sampleRate,
-                                        channels: channels,
-                                        interleaved: true) else {
-      throw NSError(domain: "dictapro", code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "cannot create output format"])
-    }
-    guard let converter = AVAudioConverter(from: srcFormat, to: outFormat) else {
-      throw NSError(domain: "dictapro", code: 2,
-                    userInfo: [NSLocalizedDescriptionKey: "cannot create audio converter"])
+  static func convert(inputPath: String, outputPath: String) throws {
+    let src = try AVAudioFile(forReading: URL(fileURLWithPath: inputPath))
+    let fmt = src.processingFormat
+    let srcRate = fmt.sampleRate
+    let srcCh = Int(fmt.channelCount)
+    guard srcRate > 0, srcCh > 0 else {
+      throw NSError(domain: "dictapro", code: 10, userInfo: [NSLocalizedDescriptionKey: "unreadable source format"])
     }
 
-    try? FileManager.default.removeItem(at: outURL)
-    let outFile = try AVAudioFile(forWriting: outURL,
-                                  settings: outFormat.settings,
-                                  commonFormat: .pcmFormatInt16,
-                                  interleaved: true)
+    let fm = FileManager.default
+    try? fm.removeItem(atPath: outputPath)
+    fm.createFile(atPath: outputPath, contents: nil)
+    guard let out = FileHandle(forWritingAtPath: outputPath) else {
+      throw NSError(domain: "dictapro", code: 11, userInfo: [NSLocalizedDescriptionKey: "cannot open output file"])
+    }
+    out.write(Data(count: 44))
 
-    let inCapacity: AVAudioFrameCount = 16384
-    let ratio = outFormat.sampleRate / srcFormat.sampleRate
+    let step = srcRate / targetRate
+    let chunkFrames: AVAudioFrameCount = 32768
+    var pos: Double = 0
+    var base: Double = 0
+    var pending = Data()
+    var dataBytes: UInt32 = 0
 
     while true {
-      guard let inBuf = AVAudioPCMBuffer(pcmFormat: srcFormat, frameCapacity: inCapacity) else { break }
-      try srcFile.read(into: inBuf)
-      if inBuf.frameLength == 0 { break }
+      guard let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: chunkFrames) else { break }
+      try src.read(into: buf)
+      let n = Int(buf.frameLength)
+      if n == 0 { break }
+      guard let chData = buf.floatChannelData else { break }
 
-      let outCapacity = AVAudioFrameCount(Double(inBuf.frameLength) * ratio + 1024)
-      guard let outBuf = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: outCapacity) else { break }
-
-      var err: NSError?
-      var supplied = false
-      let status = converter.convert(to: outBuf, error: &err) { _, outStatus in
-        if supplied {
-          outStatus.pointee = .noDataNow
-          return nil
+      var i0 = Int(floor(pos - base))
+      while Double(i0) + 1.0 < Double(n) {
+        let t = Float(pos - base - Double(i0))
+        var acc: Float = 0
+        for c in 0..<srcCh {
+          let s = chData[c]
+          acc += s[i0] * (1 - t) + s[i0 + 1] * t
         }
-        supplied = true
-        outStatus.pointee = .haveData
-        return inBuf
+        acc /= Float(srcCh)
+        let clipped = max(-1.0, min(1.0, acc))
+        var v = Int16(clipped * 32767.0).littleEndian
+        withUnsafeBytes(of: &v) { pending.append(contentsOf: $0) }
+        pos += step
+        i0 = Int(floor(pos - base))
       }
-      if status == .error {
-        throw err ?? NSError(domain: "dictapro", code: 3,
-                             userInfo: [NSLocalizedDescriptionKey: "conversion error"])
+
+      if pending.count >= 1 << 20 {
+        out.write(pending)
+        dataBytes &+= UInt32(pending.count)
+        pending.removeAll(keepingCapacity: true)
       }
-      if status == .endOfStream { break }
-      if outBuf.frameLength > 0 { try outFile.write(from: outBuf) }
+      base += Double(n)
     }
+
+    if !pending.isEmpty {
+      out.write(pending)
+      dataBytes &+= UInt32(pending.count)
+    }
+
+    // RIFF / WAVE header for mono 16-bit PCM.
+    var header = Data()
+    func append32(_ v: UInt32) { var x = v.littleEndian; withUnsafeBytes(of: &x) { header.append(contentsOf: $0) } }
+    func append16(_ v: UInt16) { var x = v.littleEndian; withUnsafeBytes(of: &x) { header.append(contentsOf: $0) } }
+    let byteRate = UInt32(targetRate) * 2
+    header.append(contentsOf: Array("RIFF".utf8))
+    append32(36 &+ dataBytes)
+    header.append(contentsOf: Array("WAVE".utf8))
+    header.append(contentsOf: Array("fmt ".utf8))
+    append32(16)
+    append16(1)
+    append16(1)
+    append32(UInt32(targetRate))
+    append32(byteRate)
+    append16(2)
+    append16(16)
+    header.append(contentsOf: Array("data".utf8))
+    append32(dataBytes)
+
+    out.seek(toFileOffset: 0)
+    out.write(header)
+    out.closeFile()
   }
 }
