@@ -5,6 +5,8 @@ import 'audio_service.dart';
 import 'home_page.dart';
 import 'splash_screen.dart';
 import 'theme/app_theme.dart';
+import 'services/purchase_service.dart';
+import 'services/local_notify.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +29,8 @@ void main() async {
   // Task 054: права на полную версию из локального кэша + перепроверка
   // в Store (без сети — остаёмся на кэше).
   await PurchaseService.instance.init();
+  // Task 056: локальные уведомления «Расшифровка готова» (работают офлайн).
+  await LocalNotify.instance.init();
   // Выбранная тема (тёмная/светлая) — из памяти устройства
   await ThemeController.instance.load();
   // Модель GigaAM готовится лениво при первой расшифровке
