@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>DictaPro — дизайн-система и экраны (v1)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* палитра: глубокая сине-графитовая база + мятный акцент + тёплый сигнальный */
+    --bg0:#111A24; --bg1:#182532; --bg2:#1F2E3D;
+    --surf:rgba(255,255,255,.055); --surf2:rgba(255,255,255,.03);
+    --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.16);
+    --ink:#EAF2F5; --ink2:rgba(234,242,245,.66); --ink3:rgba(234,242,245,.42);
+    --mint:#8FE3D2; --mint2:#4FB3A5; --mintglow:rgba(143,227,210,.20);
+    --red:#FF6B6B; --gold:#FFD166;
+    --r-s:10px; --r:14px; --r-l:20px; --r-xl:26px;
+    --shadow:0 18px 44px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{margin:0;background:#0A1119;color:var(--ink);
+       font-family:"Onest",system-ui,sans-serif;padding:34px 26px 44px;}
+  h2.cap{font-size:15px;font-weight:700;color:var(--ink2);letter-spacing:.3px;margin:0 0 10px 4px;}
+  .row{display:flex;gap:26px;align-items:flex-start;flex-wrap:nowrap;}
+  .col{display:flex;flex-direction:column;}
+  .phone{width:400px;flex:none;border-radius:34px;padding:18px 16px 16px;position:relative;overflow:hidden;
+         background:
+           radial-gradient(120% 60% at 50% -10%, rgba(143,227,210,.13), transparent 60%),
+           radial-gradient(90% 50% at 110% 110%, rgba(255,107,107,.10), transparent 60%),
+           linear-gradient(180deg,var(--bg1),var(--bg0));
+         border:1px solid var(--line2);box-shadow:var(--shadow);}
+  .phone::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.05;
+        background-image:radial-gradient(rgba(255,255,255,.9) .5px, transparent .5px);
+        background-size:3px 3px;}
+  .statusbar{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink3);
+             font-family:"JetBrains Mono",monospace;margin-bottom:10px;}
+  .top{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .logo{width:36px;height:36px;border-radius:10px;object-fit:cover;}
+  .brand{font-weight:700;font-size:16px;line-height:1.1;}
+  .brand span{display:block;font-weight:500;font-size:10.5px;color:var(--mint);letter-spacing:.3px;margin-top:2px;}
+  .top .right{margin-left:auto;display:flex;align-items:center;gap:10px;color:var(--ink3);}
+  .air{border:1px solid var(--line);border-radius:99px;padding:3px 8px;font-size:10px;color:var(--ink2);white-space:nowrap;}
+  .search{display:flex;gap:8px;align-items:center;background:var(--surf);border:1px solid var(--line);
+          border-radius:var(--r-s);padding:10px 11px;font-size:12.5px;color:var(--ink3);margin-bottom:12px;}
+  .h1{font-size:20px;font-weight:800;line-height:1.22;margin:0 0 6px;}
+  .h1 em{font-style:normal;color:var(--mint);}
+  .lead{font-size:13px;color:var(--ink2);margin:0 0 12px;line-height:1.45;}
+  .snip{border-left:3px solid var(--mint);padding-left:10px;font-size:14px;font-weight:700;margin-bottom:14px;line-height:1.35;}
+  .snip b{color:var(--mint);} .snip small{display:block;color:var(--ink2);font-weight:500;font-size:12px;margin-top:2px;}
+  .hero{border-radius:var(--r-l);padding:15px;text-align:center;margin-bottom:13px;
+        background:linear-gradient(180deg,rgba(143,227,210,.10),rgba(143,227,210,.02));border:1px solid rgba(143,227,210,.22);}
+  .hero .cap2{font-size:11.5px;color:var(--ink2);margin-bottom:11px;}
+  .mic{width:88px;height:88px;border-radius:50%;margin:0 auto;background:linear-gradient(180deg,#FF7E7E,var(--red));
+       display:flex;align-items:center;justify-content:center;box-shadow:0 14px 30px rgba(255,107,107,.32);}
+  .mono{font-family:"JetBrains Mono",monospace;}
+  .timer{font-size:25px;font-weight:700;letter-spacing:1px;margin-top:11px;}
+  .recstate{font-size:12px;color:var(--mint);font-weight:600;margin-top:3px;}
+  .chips{display:flex;gap:7px;margin-bottom:11px;}
+  .chip{font-size:12px;padding:6px 11px;border-radius:99px;border:1px solid var(--line);color:var(--ink2);white-space:nowrap;}
+  .chip.on{background:var(--mint);color:#0E2A26;border-color:var(--mint);font-weight:700;}
+  .sec{display:flex;align-items:baseline;margin:2px 0 8px;}
+  .sec b{font-size:13px;font-weight:700;} .sec span{margin-left:auto;font-size:11.5px;color:var(--mint);}
+  .item{border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:9px;
+        background:linear-gradient(180deg,var(--surf),var(--surf2));}
+  .item.lead1{border-color:var(--mintglow);background:linear-gradient(180deg,rgba(143,227,210,.08),rgba(143,227,210,.02));}
+  .ihead{display:flex;gap:10px;align-items:center;}
+  .ic{width:34px;height:34px;border-radius:10px;background:rgba(143,227,210,.13);border:1px solid rgba(143,227,210,.24);
+      display:flex;align-items:center;justify-content:center;flex:none;}
+  .name{font-size:13.5px;font-weight:700;}
+  .sub{font-size:11px;color:var(--ink3);margin-top:2px;}
+  .tag{display:inline-block;margin-top:6px;font-size:10px;font-weight:700;border-radius:99px;padding:2px 8px;
+       background:var(--mint);color:#0E2A26;}
+  .tag.g{background:rgba(255,255,255,.12);color:var(--ink2);font-weight:600;}
+  .tag.r{background:rgba(255,107,107,.18);color:#FFB3B3;}
+  .acts{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:11px;}
+  .act{border:1px solid var(--line);border-radius:11px;padding:9px 4px;text-align:center;font-size:10.5px;color:var(--ink2);
+       background:rgba(255,255,255,.03);}
+  .act b{display:block;font-weight:600;font-size:11px;color:var(--ink);margin-bottom:3px;}
+  .cta{background:linear-gradient(180deg,#FF7E7E,var(--red));border-radius:var(--r);text-align:center;padding:13px;
+       font-weight:800;font-size:14.5px;box-shadow:0 12px 26px rgba(255,107,107,.25);color:#2A0E0E;}
+  .cta small{display:block;font-weight:600;font-size:11px;opacity:.9;margin-top:2px;}
+  .links{display:flex;justify-content:space-between;margin-top:11px;font-size:12px;color:var(--ink2);}
+  .links u{color:var(--mint);text-decoration:none;border-bottom:1px dashed rgba(143,227,210,.45);}
+  .nav{display:flex;margin-top:13px;padding-top:10px;border-top:1px solid var(--line);font-size:10.5px;color:var(--ink3);}
+  .nav div{flex:1;text-align:center;} .nav .on{color:var(--mint);font-weight:700;}
+  .foot{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--ink3);line-height:1.5;}
+  .foot b{color:var(--ink2);}
+  /* прогресс операции */
+  .prog{border:1px solid rgba(143,227,210,.24);background:rgba(143,227,210,.07);border-radius:var(--r);padding:11px;margin-bottom:9px;}
+  .bar{height:5px;border-radius:99px;background:rgba(255,255,255,.10);margin-top:8px;overflow:hidden;}
+  .bar i{display:block;height:100%;width:46%;background:linear-gradient(90deg,var(--mint2),var(--mint));border-radius:99px;}
+  /* диалог */
+  .seg{border-left:2px solid rgba(143,227,210,.35);padding:0 0 0 10px;margin-bottom:11px;}
+  .who{font-size:10.5px;color:var(--mint);font-weight:700;letter-spacing:.3px;}
+  .txt{font-size:12.5px;line-height:1.5;margin-top:3px;color:var(--ink);}
+  .toolrow{display:flex;gap:8px;margin:10px 0;}
+  .tool{border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:11px;color:var(--ink2);}
+  /* итоги */
+  .blk{border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:9px;background:linear-gradient(180deg,var(--surf),var(--surf2));}
+  .blk h4{margin:0 0 7px;font-size:12px;font-weight:700;color:var(--mint);letter-spacing:.2px;}
+  .li{display:flex;gap:8px;font-size:12px;line-height:1.5;color:var(--ink2);margin-bottom:5px;}
+  .li b{color:var(--ink);font-weight:600;}
+  .box{width:13px;height:13px;border-radius:4px;border:1.5px solid var(--mint);margin-top:2px;flex:none;}
+  /* подписка */
+  .toggle{display:flex;background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:13px;}
+  .toggle div{flex:1;text-align:center;padding:9px 0;border-radius:9px;font-size:13px;font-weight:600;color:var(--ink3);}
+  .toggle .on{background:var(--mint);color:#0E2A26;}
+  .toggle .on small{display:block;font-weight:700;font-size:10.5px;opacity:.85;}
+  .card{position:relative;border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:10px;
+        background:linear-gradient(180deg,var(--surf),var(--surf2));}
+  .card.best{border-color:var(--gold);background:linear-gradient(180deg,rgba(255,209,102,.13),rgba(255,209,102,.03));}
+  .badge{position:absolute;top:-9px;right:11px;background:var(--gold);color:#3A2C00;font-size:10px;font-weight:800;
+         padding:3px 8px;border-radius:99px;}
+  .crow{display:flex;align-items:baseline;gap:9px;}
+  .tier{font-size:16px;font-weight:800;}
+  .tier small{display:block;font-weight:500;font-size:10.5px;color:var(--ink3);margin-top:2px;}
+  .price{margin-left:auto;text-align:right;}
+  .price b{font-size:21px;} .price s{display:block;color:var(--ink3);font-size:10.5px;}
+  .vol{margin-top:10px;font-size:13.5px;font-weight:600;}
+  .bonus{margin-top:5px;font-size:12.5px;font-weight:700;color:var(--mint);}
+</style>
+</head>
+<body>
+
+<h2 class="cap">1 · ГЛАВНАЯ — записи, статусы, быстрые действия</h2>
+<div class="row">
+  <div class="col">
+    <div class="phone">
+      <div class="statusbar"><span>21:04</span><span>Авиарежим · 87%</span></div>
+      <div class="top">
+        <img class="logo" src="file:///D:/Projects/Mobile/dictapro_v6/assets/icons/launcher_icon.png" alt="DictaPro">
+        <div class="brand">DictaPro<span>Не покидая телефон</span></div>
+        <div class="right">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M19.4 15a7.4 7.4 0 0 1-14.8 0M12 18.4V22"/></svg>
+        </div>
+      </div>
+      <div class="search">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+        Поиск по записям и текстам
+      </div>
+
+      <div class="hero">
+        <div class="cap2">Распознавание: <b style="color:#fff">на устройстве · модель внутри</b></div>
+        <div class="mic">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2A0E0E" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        </div>
+        <div class="timer mono">00:00</div>
+        <div class="recstate">Начать запись · всё останется в телефоне</div>
+      </div>
+
+      <div class="chips"><div class="chip on">Все</div><div class="chip">Сегодня</div><div class="chip">В очереди</div></div>
+
+      <div class="prog">
+        <div class="name">Расшифровка · «Лекция: неврология»</div>
+        <div class="sub">идёт 3 мин · готово 12 кусков · 46%</div>
+        <div class="bar"><i></i></div>
+      </div>
+
+      <div class="item lead1">
+        <div class="ihead">
+          <div class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="#8FE3D2"><path d="M8 5v14l11-7z"/></svg></div>
+          <div style="flex:1">
+            <div class="name">Встреча по договору</div>
+            <div class="sub mono">22 сен · 04:31 · 8,1 МБ</div>
+          </div>
+        </div>
+        <span class="tag">Расшифровано · Итоги готовы</span>
+      </div>
+
+      <div class="item">
+        <div class="ihead">
+          <div class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8FE3D2" stroke-width="2"><path d="M12 3v18M5 8v8M19 8v8"/></svg></div>
+          <div style="flex:1">
+            <div class="name">Заметка: идеи для приложения</div>
+            <div class="sub mono">22 сен · 00:34 · 1,2 МБ</div>
+          </div>
+        </div>
+        <span class="tag g">Без текста · нажмите «В текст»</span>
+      </div>
+
+      <div class="nav"><div class="on">Записи</div><div>Тексты</div><div>Итоги</div><div>Ещё</div></div>
+      <div class="foot"><b>Бесплатно:</b> 3 файла в месяц и весь остальной функционал приложения.</div>
+    </div>
+  </div>
+
+  <div class="col">
+    <h2 class="cap">2 · КАРТОЧКА ЗАПИСИ — весь функционал в одном месте</h2>
+    <div class="phone">
+      <div class="statusbar"><span>21:06</span><span>Авиарежим · 87%</span></div>
+      <div class="top">
+        <img class="logo" src="file:///D:/Projects/Mobile/dictapro_v6/assets/icons/launcher_icon.png" alt="DictaPro">
+        <div class="brand">Встреча по договору<span>22 сентября · 04:31 · 8,1 МБ</span></div>
+        <div class="right"><span class="air">Всё локально</span></div>
+      </div>
+
+      <div class="h1">Текст готов · <em>Итоги собраны</em></div>
+      <div class="lead">Расшифровано на устройстве за 2 мин 10 с. Разбито на 4 реплики по говорящим.</div>
+
+      <div class="item lead1" style="margin-bottom:12px">
+        <div class="ihead">
+          <div class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="#8FE3D2"><path d="M8 5v14l11-7z"/></svg></div>
+          <div style="flex:1"><div class="name">Прослушать</div><div class="sub">скорость 0.5× … 2.0× · с закладками на репликах</div></div>
+        </div>
+      </div>
+
+      <div class="acts">
+        <div class="act"><b>В текст</b>офлайн</div>
+        <div class="act"><b>Итоги</b>конспект</div>
+        <div class="act"><b>Диалог</b>говорящие</div>
+        <div class="act"><b>Термины</b>глоссарий</div>
+        <div class="act"><b>Теги</b>метки</div>
+        <div class="act"><b>Экспорт</b>TXT·PDF·HTML</div>
+        <div class="act"><b>Отправить</b>поделиться</div>
+        <div class="act"><b>Копировать</b>весь текст</div>
+        <div class="act"><b>Переименовать</b></div>
+        <div class="act"><b>Продолжить</b>после сбоя</div>
+        <div class="act"><b>Сводка дня</b>в итоги</div>
+        <div class="act"><b>Удалить</b></div>
+      </div>
+
+      <div class="foot" style="margin-top:12px">
+        <b>Почему безопасно:</b> запись, расшифровка, итоги и поиск выполняются на устройстве — данные не уходят в интернет.
+      </div>
+      <div class="nav"><div class="on">Записи</div><div>Тексты</div><div>Итоги</div><div>Ещё</div></div>
+    </div>
+  </div>
+</div>
+
+<h2 class="cap" style="margin-top:34px">3 · ТЕКСТ И ДИАЛОГ · 4 · ИТОГИ · 5 · ПОДПИСКА</h2>
+<div class="row">
+  <div class="col">
+    <div class="phone">
+      <div class="statusbar"><span>21:08</span><span>Авиарежим · 87%</span></div>
+      <div class="top">
+        <div class="brand">Текст<span>04:31 · 4 реплики · говорящие размечены вручную</span></div>
+        <div class="right"><span class="air">Копировать</span><span class="air">Поделиться</span></div>
+      </div>
+      <div class="toolrow">
+        <div class="tool">Поменять говорящего</div>
+        <div class="tool">Разделить</div>
+        <div class="tool">Объединить</div>
+      </div>
+      <div class="seg"><div class="who">ГОВОРЯЩИЙ 1</div><div class="txt">…по договору сроки сдвигаются на две недели, если согласование придёт до пятницы.</div></div>
+      <div class="seg"><div class="who">ГОВОРЯЩИЙ 2</div><div class="txt">Понял, тогда я готовлю допсоглашение и отправляю копию юристу.</div></div>
+      <div class="seg"><div class="who">ГОВОРЯЩИЙ 1</div><div class="txt">Да, и не забудь про акт — он нужен к концу месяца.</div></div>
+      <div class="foot">Текст хранится только в телефоне. Можно править вручную — офлайн-движок не переписывает ваши правки.</div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="phone">
+      <div class="statusbar"><span>21:10</span><span>Авиарежим · 87%</span></div>
+      <div class="top">
+        <div class="brand">Итоги встречи<span>локальный конспект · без отправки данных</span></div>
+        <div class="right"><span class="air">Экспорт</span><span class="air">Скопировать</span></div>
+      </div>
+      <div class="blk">
+        <h4>О ЧЁМ ДОГОВОРИЛИСЬ</h4>
+        <div class="li"><b>Сроки:</b> сдвиг на 2 недели при согласовании до пятницы</div>
+        <div class="li"><b>Документы:</b> допсоглашение + копия юристу</div>
+      </div>
+      <div class="blk">
+        <h4>ЗАДАЧИ</h4>
+        <div class="li"><div class="box"></div><div><b>Подготовить допсоглашение</b> — до 26 сентября</div></div>
+        <div class="li"><div class="box"></div><div><b>Акт</b> — к концу месяца</div></div>
+      </div>
+      <div class="blk">
+        <h4>ЦИФРЫ И ДАТЫ</h4>
+        <div class="li">сроки — 2 недели · пятница — крайний день согласования · акт — конец месяца</div>
+      </div>
+      <div class="foot">Итоги собраны из текста, который не покидал телефон.</div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="phone">
+      <div class="statusbar"><span>21:12</span><span>Авиарежим · 87%</span></div>
+      <div class="top">
+        <img class="logo" src="file:///D:/Projects/Mobile/dictapro_v6/assets/icons/launcher_icon.png" alt="DictaPro">
+        <div class="brand">DictaPro<span>Голос → Текст · Не покидая телефон</span></div>
+        <div class="right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg></div>
+      </div>
+      <div class="h1"><em>Без интернета.</em> Аудио не покидает телефон</div>
+      <div class="lead">Выберите объём — платите только за то, что нужно.</div>
+      <div class="snip">от <b>13 ₽ в день</b> — дешевле, чем одна поездка в метро
+        <small>или совсем бесплатно</small></div>
+      <div class="toggle"><div>Месяц</div><div class="on">Год <small>выгоднее до 25%</small></div></div>
+      <div class="card"><div class="crow"><div class="tier">Дневник<small>заметки, лекции, интервью, мысли</small></div>
+        <div class="price"><b>4 900 ₽</b><s>в год · 408 ₽/мес</s></div></div>
+        <div class="vol">Расшифровка: <b>24 ч</b> в месяц</div><div class="bonus">+ 12 ч в подарок каждый месяц</div></div>
+      <div class="card best"><div class="badge">ЛУЧШАЯ ЦЕНА ЗА ГОД</div>
+        <div class="crow"><div class="tier">Безлимит<small>для тех, кто работает голосом каждый день</small></div>
+        <div class="price"><b>17 910 ₽</b><s>в год · 1 493 ₽/мес вместо 1 990 ₽</s></div></div>
+        <div class="vol">Расшифровка: <b>без ограничений</b></div><div class="bonus">+ подарок: месяц нашего следующего приложения</div></div>
+      <div class="card"><div class="crow"><div class="tier">Ассистент<small>встречи, протоколы, консультации</small></div>
+        <div class="price"><b>9 900 ₽</b><s>в год · 825 ₽/мес</s></div></div>
+        <div class="vol">Расшифровка: <b>120 ч</b> в месяц</div><div class="bonus">+ 60 ч в подарок каждый месяц</div></div>
+      <div class="cta">Выбрать безлимит на год<small>17 910 ₽ · это 1 493 ₽ в месяц</small></div>
+      <div class="links"><span><u>Восстановить покупку</u></span><span><u>Ввести промокод</u></span></div>
+      <div class="foot"><b>Вне тарифов — бесплатно:</b> каждый месяц расшифровка 3 аудиофайлов и весь остальной функционал приложения.</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
