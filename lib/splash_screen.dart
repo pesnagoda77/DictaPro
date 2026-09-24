@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 
+import 'app_strings.dart';
+
 class SplashScreen extends StatefulWidget {
   final VoidCallback onComplete;
   
@@ -100,6 +102,22 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                         color: Color(0xFF95E1D3), // Mint from icon
                         fontSize: 16,
                         letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Task 052: главный маркер линейки «офлайн вместо облака» —
+                    // запись и распознавание идут на устройстве.
+                    // Строка локализована (ru/en/de/it), стиль — как у таглайна.
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Text(
+                        AppStrings.splashSlogan(context),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 48),
