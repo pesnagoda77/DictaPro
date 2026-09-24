@@ -11,7 +11,7 @@ import 'package:hive/hive.dart';
 import 'audio_service.dart' hide DialogueSegment;
 import 'theme/app_theme.dart';
 import 'models/transcription.dart';
-import 'services/ai_summary_service.dart';
+
 import 'services/stt_provider.dart';
 import 'services/gigaam_service.dart';
 import 'services/audio_convert.dart';
@@ -916,23 +916,20 @@ class _HomePageState extends State<HomePage>
               ? result.segments.map((s) => s.toMap()).toList()
               : null;
           latest.tags = TagService.extractTags(fullText);
-          final useCloudSummary = await AiSummaryService.cloudEnabled();
-          // Task 034: облачное саммари с бюджетом 40 с; по таймауту —
-          // честное сообщение и переход на локальное (оно в изоляте).
-          String? cloudSummary;
-          if (useCloudSummary) {
-            cloudSummary =
-                await AiSummaryService.generateWithTimeout(fullText);
-            if (cloudSummary == null &&
-                AiSummaryService.lastError == 'timeout' &&
-                mounted) {
-              _showSnack('Облако не ответило за 40 с — считаю на устройстве');
-            }
-          }
+          // Task 057: саммари ТОЛЬКО на устройстве (BYOK-облако отменено).
+          // Никаких ключей, никакой отправки текста. Недоступно/пусто —
+          // честная строка, а не молчание.
           _opStage.value = 'Считаю саммари…';
-          latest.summary = cloudSummary ??
-              (await EnhancedSummaryService.generateSummaryAsync(fullText))
-                  .formatted;
+          try {
+            final local = (await EnhancedSummaryService.generateSummaryAsync(
+                    fullText))
+                .formatted
+                .trim();
+            latest.summary =
+                local.isEmpty ? 'Итоги: не удалось собрать' : local;
+          } catch (_) {
+            latest.summary = 'Итоги: не удалось собрать';
+          }
           latest.decisions = SummaryService.getDecisions(fullText);
           await AudioService().updateRecording(latest);
           // Task 054: трата минут фиксируется после УСПЕШНОЙ расшифровки.
@@ -1108,23 +1105,17 @@ class _HomePageState extends State<HomePage>
           ? result.segments.map((s) => s.toMap()).toList()
           : null;
       rec.tags = TagService.extractTags(punctuatedText);
-      // Task 034: облако с бюджетом 40 с, таймаут → честное сообщение и
-      // локальное саммари в изоляте (интерфейс не замерзает).
-      final useCloudSummary2 = await AiSummaryService.cloudEnabled();
-      String? cloudSummary2;
-      if (useCloudSummary2) {
-        cloudSummary2 =
-            await AiSummaryService.generateWithTimeout(punctuatedText);
-        if (cloudSummary2 == null &&
-            AiSummaryService.lastError == 'timeout' &&
-            mounted) {
-          _showSnack('Облако не ответило за 40 с — считаю на устройстве');
-        }
-      }
+      // Task 057: саммари ТОЛЬКО на устройстве (BYOK-облако отменено).
       _opStage.value = 'Считаю саммари…';
-      rec.summary = cloudSummary2 ??
-          (await EnhancedSummaryService.generateSummaryAsync(punctuatedText))
-              .formatted;
+      try {
+        final local = (await EnhancedSummaryService.generateSummaryAsync(
+                punctuatedText))
+            .formatted
+            .trim();
+        rec.summary = local.isEmpty ? 'Итоги: не удалось собрать' : local;
+      } catch (_) {
+        rec.summary = 'Итоги: не удалось собрать';
+      }
       rec.decisions = SummaryService.getDecisions(punctuatedText);
       rec.speakerStats = result != null
           ? SummaryService.getSpeakerStats(result.segments.map((s) => s.toMap()).toList())

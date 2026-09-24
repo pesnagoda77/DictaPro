@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
-import 'services/ai_summary_service.dart';
 import 'services/keep_alive.dart';
 import 'services/stt_provider.dart';
 import 'theme/app_theme.dart';
@@ -53,7 +52,6 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   bool _sttEnabled = false;
-  bool _cloudSummary = false;
   String _sttProviderTitle = 'Groq (whisper-large-v3-turbo)';
   int _tempBytes = 0;
 
@@ -148,50 +146,6 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  Future<void> _editZaiKey() async {
-    final current = await AiSummaryService.getApiKey();
-    final ctrl = TextEditingController(text: current ?? '');
-    if (!mounted) return;
-    final res = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Ключ Z.ai (ИИ-саммари)'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-                'Для ИИ-саммари записей. Ключ хранится только на устройстве. '
-                'Без ключа используется офлайн-саммари.',
-                style: TextStyle(fontSize: 12, color: Colors.white70)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: ctrl,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Вставь ключ Z.ai'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: const Text('Сохранить'),
-          ),
-        ],
-      ),
-    );
-    if (res != null) {
-      await AiSummaryService.setApiKey(res);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(res.isEmpty
-                ? 'Ключ удалён — офлайн-саммари'
-                : 'Ключ сохранён — ИИ-саммари включено')));
-      }
-    }
-  }
-
   Future<void> _loadSettings() async {
     final box = await Hive.openBox<dynamic>(RecorderSettings.boxName);
     final raw = box.get('recorder');
@@ -201,8 +155,6 @@ class _SettingsPageState extends State<SettingsPage> {
           : RecorderSettings();
       _loaded = true;
     });
-    final cloudSummary = await AiSummaryService.cloudEnabled();
-    if (mounted) setState(() => _cloudSummary = cloudSummary);
     final sttEnabled = await SttSettings.isEnabled();
     final prov = SttProvider.byId(await SttSettings.providerId());
     if (mounted) {
@@ -340,26 +292,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _editSttKey(pr),
               ),
-          ]),
-          _group(context, 'Саммари', [
-            ListTile(
-              leading: const Icon(Icons.auto_awesome_outlined),
-              title: const Text('ИИ-саммари (Z.ai)'),
-              subtitle: const Text('Ключ для умных саммари; без ключа — офлайн'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _editZaiKey,
-            ),
-            const Divider(height: 1),
-            SwitchListTile(
-              secondary: const Icon(Icons.summarize_outlined),
-              title: const Text('Облачное саммари (Z.ai)'),
-              subtitle: const Text('Выкл. = саммари на устройстве. Вкл. = текст записи уходит в Z.ai'),
-              value: _cloudSummary,
-              onChanged: (v) async {
-                await AiSummaryService.setCloudEnabled(v);
-                if (mounted) setState(() => _cloudSummary = v);
-              },
-            ),
           ]),
           _group(context, 'Фон и память', [
             // Задача 036: MIUI убивает фоновые процессы без исключения —
