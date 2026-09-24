@@ -116,7 +116,12 @@ class AudioConvert {
     try {
       final f = File(path);
       if (!f.existsSync()) return false;
-      final bytes = await f.readAsBytes();
+      // Read only the head: a 16-hour recording is gigabytes and must never
+      // be loaded into memory just to inspect the RIFF header.
+      const headLimit = 65536;
+      final raf = await f.open();
+      final bytes = await raf.read(headLimit);
+      await raf.close();
       if (bytes.length < 44) return false;
       if (String.fromCharCodes(bytes.sublist(0, 4)) != 'RIFF') return false;
       if (String.fromCharCodes(bytes.sublist(8, 12)) != 'WAVE') return false;
