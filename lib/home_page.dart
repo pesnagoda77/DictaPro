@@ -20,6 +20,7 @@ import 'services/online_transcribe_service.dart';
 import 'services/keep_alive.dart';
 import 'dialogue_editor.dart';
 import 'tag_service.dart';
+import 'app_strings.dart';
 import 'export_service.dart';
 import 'player_page.dart';
 import 'settings_page.dart';
@@ -876,6 +877,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _loadRecordings();
 
       // Full batch transcription после остановки записи
+      // Task 053: длинные записи (>5 ч) — сначала честный диалог с оценкой,
+      // до показа прогресс-диалога расшифровки.
+      final recordingsPre = AudioService().getAllRecordings();
+      if (recordingsPre.isNotEmpty &&
+          !await _confirmLongTranscription(
+              recordingsPre.first.durationMs as int? ?? 0)) {
+        return;
+      }
       _showTranscribingDialog();
       try {
         final recordings = AudioService().getAllRecordings();
@@ -958,6 +967,37 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     _loadRecordings();
   }
 
+  /// Task 053: запись длиннее 5 часов расшифровывается часами — предупреждаем
+  /// заранее с оценкой времени (из замера на устройстве, см. AppStrings).
+  /// true — можно запускать; false — пользователь отменил.
+  static const _kLongRecordingMs = 5 * 3600000; // 5 часов
+
+  Future<bool> _confirmLongTranscription(int durationMs) async {
+    if (durationMs <= _kLongRecordingMs) return true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AppStrings.longTranscribeTitle(ctx)),
+        content: Text(AppStrings.longTranscribeBody(
+          ctx,
+          duration: AppStrings.humanDuration(durationMs),
+          estimate: AppStrings.transcribeEstimate(durationMs),
+        )),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(AppStrings.longTranscribeCancel(ctx)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(AppStrings.longTranscribeContinue(ctx)),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   Future<void> _transcribeRecording(rec) async {
     // Путь может содержать старый UUID контейнера (iOS меняет его при
     // переустановке) — вычисляем актуальный.
@@ -969,6 +1009,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           backgroundColor: Colors.red.shade900,
         ),
       );
+      return;
+    }
+
+    // Task 053: длинные записи (>5 ч) — сначала честный диалог с оценкой.
+    if (!await _confirmLongTranscription(rec.durationMs as int? ?? 0)) {
       return;
     }
 
