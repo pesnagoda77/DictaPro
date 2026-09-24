@@ -885,6 +885,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               recordingsPre.first.durationMs as int? ?? 0)) {
         return;
       }
+      // Task 054: лимит бесплатной расшифровки действует и на пакетный запуск.
+      if (recordingsPre.isNotEmpty &&
+          !await _checkTranscribeLimit(
+              recordingsPre.first.durationMs as int? ?? 0)) {
+        return;
+      }
       _showTranscribingDialog();
       try {
         final recordings = AudioService().getAllRecordings();
@@ -965,6 +971,60 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Future<void> _deleteRecording(String id) async {
     await AudioService().deleteRecording(id);
     _loadRecordings();
+  }
+
+  // ---------- Task 054: монетизация (разовая покупка) ----------
+
+  /// Paywall: лимит исчерпан → «Купить полную версию» / «Восстановить покупку».
+  Future<void> _showPaywall() async {
+    final used = await UsageLimitService.instance.usedMinutesToday();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AppStrings.limitReachedTitle(ctx)),
+        content: Text(AppStrings.limitReachedBody(ctx,
+            used: used, limit: UsageLimitService.dailyMinutesLimit)),
+        actions: [
+          TextButton(
+            onPressed: () {
+              PurchaseService.instance.restore();
+              Navigator.pop(ctx);
+            },
+            child: Text(AppStrings.restorePurchase(ctx)),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final ok = await PurchaseService.instance.buyFullUnlock();
+              if (!ok && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(AppStrings.storeUnavailable(context))));
+              }
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: Text(AppStrings.buyFull(ctx)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Дневной лимит бесплатной расшифровки (15 мин/день, task 054).
+  /// true — можно расшифровывать (полная версия или лимит не исчерпан).
+  Future<bool> _checkTranscribeLimit(int durationMs) async {
+    if (PurchaseService.instance.unlocked.value) return true;
+    final ok = await UsageLimitService.instance.canTranscribe(durationMs);
+    if (!ok) {
+      await _showPaywall();
+      return false;
+    }
+    return true;
+  }
+
+  /// Фиксация траты минут после УСПЕШНОЙ расшифровки (только бесплатный режим).
+  Future<void> _recordTranscribeUsage(int durationMs) async {
+    if (PurchaseService.instance.unlocked.value) return;
+    await UsageLimitService.instance.recordUsage(durationMs);
   }
 
   /// Task 053: запись длиннее 5 часов расшифровывается часами — предупреждаем
@@ -1054,6 +1114,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ? SummaryService.getSpeakerStats(result.segments.map((s) => s.toMap()).toList())
           : null;
       await AudioService().updateRecording(rec);
+      await _recordTranscribeUsage(rec.durationMs as int? ?? 0);
 
       _hideTranscribingDialog();
       _openDialogueEditor(rec);

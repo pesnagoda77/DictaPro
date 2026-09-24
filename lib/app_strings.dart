@@ -43,6 +43,42 @@ class AppStrings {
       'de': 'Abbrechen',
       'it': 'Annulla',
     },
+    // Task 054: монетизация — лимит исчерпан → paywall.
+    // {n} — дневной лимит минут, {u} — уже использовано сегодня.
+    'limit_reached_title': {
+      'ru': 'Лимит исчерпан',
+      'en': 'Daily limit reached',
+      'de': 'Tageslimit erreicht',
+      'it': 'Limite giornaliero raggiunto',
+    },
+    'limit_reached_body': {
+      'ru': 'Сегодня использовано {u} из {n} минут расшифровки.\n\n'
+          'Полная версия снимает лимит навсегда — разовая покупка, без подписки.',
+      'en': 'You have used {u} of {n} transcription minutes today.\n\n'
+          'The full version removes the limit forever — one-time purchase, no subscription.',
+      'de': 'Heute wurden {u} von {n} Transkriptionsminuten verbraucht.\n\n'
+          'Die Vollversion hebt das Limit dauerhaft auf — einmaliger Kauf, kein Abo.',
+      'it': 'Oggi hai usato {u} dei {n} minuti di trascrizione.\n\n'
+          'La versione completa rimuove il limite per sempre — acquisto una tantum, senza abbonamento.',
+    },
+    'buy_full': {
+      'ru': 'Купить полную версию',
+      'en': 'Buy full version',
+      'de': 'Vollversion kaufen',
+      'it': 'Acquista versione completa',
+    },
+    'restore_purchase': {
+      'ru': 'Восстановить покупку',
+      'en': 'Restore purchase',
+      'de': 'Kauf wiederherstellen',
+      'it': 'Ripristina acquisto',
+    },
+    'store_unavailable': {
+      'ru': 'Магазин сейчас недоступен. Проверьте интернет и попробуйте позже.',
+      'en': 'The store is currently unavailable. Check your internet and try again later.',
+      'de': 'Der Store ist derzeit nicht verfügbar. Prüfen Sie Ihre Internetverbindung.',
+      'it': 'Lo store non è al momento disponibile. Controlla la connessione e riprova.',
+    },
   };
 
   static String _langCode(BuildContext context) {
@@ -81,6 +117,27 @@ class AppStrings {
 
   static String longTranscribeCancel(BuildContext context) =>
       _t('long_transcribe_cancel', context);
+
+  // ---------- Task 054: монетизация ----------
+
+  static String limitReachedTitle(BuildContext context) =>
+      _t('limit_reached_title', context);
+
+  static String limitReachedBody(
+    BuildContext context, {
+    required int used,
+    required int limit,
+  }) =>
+      _fmt(_t('limit_reached_body', context),
+          {'u': '$used', 'n': '$limit'});
+
+  static String buyFull(BuildContext context) => _t('buy_full', context);
+
+  static String restorePurchase(BuildContext context) =>
+      _t('restore_purchase', context);
+
+  static String storeUnavailable(BuildContext context) =>
+      _t('store_unavailable', context);
 
   /// Человекочитаемая длительность: «16 ч 40 мин», «40 мин», «5 мин».
   static String humanDuration(int ms) {
