@@ -24,6 +24,9 @@ void main() async {
   );
   await Hive.initFlutter();
   await AudioService().init();
+  // Task 054: права на полную версию из локального кэша + перепроверка
+  // в Store (без сети — остаёмся на кэше).
+  await PurchaseService.instance.init();
   // Выбранная тема (тёмная/светлая) — из памяти устройства
   await ThemeController.instance.load();
   // Модель GigaAM готовится лениво при первой расшифровке

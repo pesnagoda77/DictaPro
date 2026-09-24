@@ -20,6 +20,7 @@ import 'services/online_transcribe_service.dart';
 import 'services/keep_alive.dart';
 import 'dialogue_editor.dart';
 import 'tag_service.dart';
+import 'app_strings.dart';
 import 'export_service.dart';
 import 'player_page.dart';
 import 'settings_page.dart';
@@ -981,6 +982,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       _loadRecordings();
 
       // Full batch transcription после остановки записи
+      // Task 053: длинные записи (>5 ч) — сначала честный диалог с оценкой,
+      // до показа прогресс-диалога расшифровки.
+      final recordingsPre = AudioService().getAllRecordings();
+      if (recordingsPre.isNotEmpty &&
+          !await _confirmLongTranscription(
+              recordingsPre.first.durationMs as int? ?? 0)) {
+        return;
+      }
+      // Task 054: лимит бесплатной расшифровки действует и на пакетный запуск.
+      if (recordingsPre.isNotEmpty &&
+          !await _checkTranscribeLimit(
+              recordingsPre.first.durationMs as int? ?? 0)) {
+        return;
+      }
       _showTranscribingDialog();
       try {
         final recordings = AudioService().getAllRecordings();
@@ -1066,6 +1081,91 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   /// Task 045: [resumeFromPartial] — вход с карточки восстановления:
   /// расшифровка продолжается с куска M автоматически, без диалога
   /// «продолжить/начать заново».
+  // ---------- Task 054: монетизация (разовая покупка) ----------
+
+  /// Paywall: лимит исчерпан → «Купить полную версию» / «Восстановить покупку».
+  Future<void> _showPaywall() async {
+    final used = await UsageLimitService.instance.usedMinutesToday();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AppStrings.limitReachedTitle(ctx)),
+        content: Text(AppStrings.limitReachedBody(ctx,
+            used: used, limit: UsageLimitService.dailyMinutesLimit)),
+        actions: [
+          TextButton(
+            onPressed: () {
+              PurchaseService.instance.restore();
+              Navigator.pop(ctx);
+            },
+            child: Text(AppStrings.restorePurchase(ctx)),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final ok = await PurchaseService.instance.buyFullUnlock();
+              if (!ok && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(AppStrings.storeUnavailable(context))));
+              }
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: Text(AppStrings.buyFull(ctx)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Дневной лимит бесплатной расшифровки (15 мин/день, task 054).
+  /// true — можно расшифровывать (полная версия или лимит не исчерпан).
+  Future<bool> _checkTranscribeLimit(int durationMs) async {
+    if (PurchaseService.instance.unlocked.value) return true;
+    final ok = await UsageLimitService.instance.canTranscribe(durationMs);
+    if (!ok) {
+      await _showPaywall();
+      return false;
+    }
+    return true;
+  }
+
+  /// Фиксация траты минут после УСПЕШНОЙ расшифровки (только бесплатный режим).
+  Future<void> _recordTranscribeUsage(int durationMs) async {
+    if (PurchaseService.instance.unlocked.value) return;
+    await UsageLimitService.instance.recordUsage(durationMs);
+  }
+
+  /// Task 053: запись длиннее 5 часов расшифровывается часами — предупреждаем
+  /// заранее с оценкой времени (из замера на устройстве, см. AppStrings).
+  /// true — можно запускать; false — пользователь отменил.
+  static const _kLongRecordingMs = 5 * 3600000; // 5 часов
+
+  Future<bool> _confirmLongTranscription(int durationMs) async {
+    if (durationMs <= _kLongRecordingMs) return true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AppStrings.longTranscribeTitle(ctx)),
+        content: Text(AppStrings.longTranscribeBody(
+          ctx,
+          duration: AppStrings.humanDuration(durationMs),
+          estimate: AppStrings.transcribeEstimate(durationMs),
+        )),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(AppStrings.longTranscribeCancel(ctx)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(AppStrings.longTranscribeContinue(ctx)),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   Future<void> _transcribeRecording(rec,
       {bool resumeFromPartial = false}) async {
     // Путь может содержать старый UUID контейнера (iOS меняет его при
@@ -1078,6 +1178,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           backgroundColor: Colors.red.shade900,
         ),
       );
+      return;
+    }
+
+    // Task 053: длинные записи (>5 ч) — сначала честный диалог с оценкой.
+    if (!await _confirmLongTranscription(rec.durationMs as int? ?? 0)) {
       return;
     }
 
@@ -1119,6 +1224,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ? SummaryService.getSpeakerStats(result.segments.map((s) => s.toMap()).toList())
           : null;
       await AudioService().updateRecording(rec);
+      await _recordTranscribeUsage(rec.durationMs as int? ?? 0);
 
       _hideTranscribingDialog();
       _openDialogueEditor(rec);
