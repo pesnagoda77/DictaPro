@@ -134,6 +134,7 @@ class _SummaryPageState extends State<SummaryPage> {
         fileId: widget.recording.filePath ?? widget.recording.title,
         text: transcript,
         audioMs: audioMs,
+        lang: Localizations.localeOf(context).languageCode,
       );
       if (!mounted) return;
       if (res == null) {
