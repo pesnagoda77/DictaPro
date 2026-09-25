@@ -1533,6 +1533,13 @@ class _HomePageState extends State<HomePage>
       MaterialPageRoute(
         builder: (context) => SummaryPage(
           recording: RecordingDetailsModel.fromRecording(rec.toMap()),
+          // Task 059: онлайн-итоги сохраняем текстом в запись (Hive).
+          onSave: (text) async {
+            final latest = await AudioService().getRecordingById(rec.id);
+            if (latest == null) return;
+            latest.summary = text;
+            await AudioService().updateRecording(latest);
+          },
         ),
       ),
     );
