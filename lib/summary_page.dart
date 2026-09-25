@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
+import 'services/ai_hours_service.dart';
 import 'services/enhanced_summary_service.dart';
+import 'services/online_summary_service.dart';
+import 'services/purchase_service.dart';
+import 'app_strings.dart';
 import 'models/recording_details_model.dart';
 import 'utils.dart';
 import 'widgets/operation_progress.dart';
@@ -10,9 +14,13 @@ import 'widgets/operation_progress.dart';
 class SummaryPage extends StatefulWidget {
   final RecordingDetailsModel recording;
 
+  /// Task 059: сохранить готовый текст итогов обратно в запись (Hive).
+  final Future<void> Function(String text)? onSave;
+
   const SummaryPage({
     super.key,
     required this.recording,
+    this.onSave,
   });
 
   @override
@@ -23,6 +31,10 @@ class _SummaryPageState extends State<SummaryPage> {
   bool _showFullText = false;
   SummaryResult? _summaryResult;
   bool _isLoadingSummary = false;
+  // Task 059: онлайн-итоги и счётчик ИИ-часов.
+  bool _onlineBusy = false;
+  bool _onlineWasUsed = false;
+  String _hoursLabel = '';
 
   // Task 034: этап операции для индикатора с секундомером.
   final ValueNotifier<String> _stage = ValueNotifier('Готовим текст…');
@@ -36,6 +48,7 @@ class _SummaryPageState extends State<SummaryPage> {
   @override
   void initState() {
     super.initState();
+    _refreshHoursLabel();
     if (widget.recording.summary != null &&
         widget.recording.summary!.isNotEmpty &&
         widget.recording.summary != 'Нет доступного резюме') {
@@ -74,6 +87,86 @@ class _SummaryPageState extends State<SummaryPage> {
         const SnackBar(content: Text('Не получилось посчитать саммари')),
       );
     }
+  }
+
+  Future<void> _refreshHoursLabel() async {
+    final label = await AiHoursService.instance.balanceLabel();
+    if (mounted) setState(() => _hoursLabel = label);
+  }
+
+  /// Task 059: онлайн-итоги. Gate для бесплатных: без подписки и без
+  /// пакетов кнопка неактивна, серверная авторизация — второй рубеж
+  /// (проверка «бесплатный не может отправить ничего» — перехватом).
+  Future<void> _generateOnlineSummary() async {
+    final transcript = widget.recording.transcript;
+    if (transcript == null || transcript.isEmpty || _onlineBusy) return;
+    final audioMs = widget.recording.duration?.inMilliseconds ?? 0;
+
+    if (!await AiHoursService.instance.canSpend(audioMs)) {
+      _showSnack(AppStrings.t('online_summary_no_hours', context));
+      return;
+    }
+
+    // Предупреждение перед отправкой текста на сервер (ТЗ, точный смысл).
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AppStrings.t('online_summary_warning_title', context)),
+        content: Text(AppStrings.t('online_summary_warning_body', context)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(AppStrings.t('online_summary_cancel', context)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(AppStrings.t('online_summary_send', context)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _onlineBusy = true);
+    _stage.value = AppStrings.t('online_summary_stage', context);
+    try {
+      final res = await OnlineSummaryService.instance.summarize(
+        fileId: widget.recording.filePath ?? widget.recording.title,
+        text: transcript,
+        audioMs: audioMs,
+      );
+      if (!mounted) return;
+      if (res == null) {
+        _showSnack(AppStrings.t('online_summary_failed', context));
+        return;
+      }
+      setState(() {
+        _onlineBusy = false;
+        _onlineWasUsed = true;
+        _summaryResult = SummaryResult(
+          title: AppStrings.t('online_summary_title', context),
+          type: TextType.general,
+          points: res.text.split('\n').where((e) => e.trim().isNotEmpty).toList(),
+          fullText: transcript,
+        );
+      });
+      await _refreshHoursLabel();
+      _showSnack(res.fromCache
+          ? AppStrings.t('online_summary_from_cache', context)
+          : AppStrings.tf('online_summary_spent', context,
+              {'h': _fmtHours(res.aiHoursSpent)}));
+      await widget.onSave?.call(res.text);
+    } finally {
+      if (mounted) setState(() => _onlineBusy = false);
+    }
+  }
+
+  String _fmtHours(double h) => h.toStringAsFixed(1);
+
+  void _showSnack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
@@ -128,6 +221,61 @@ class _SummaryPageState extends State<SummaryPage> {
               ),
             ),
             const SizedBox(height: 12),
+          ],
+
+          // Task 059: выбор вида итогов + счётчик ИИ-часов.
+          if (recording.transcript != null &&
+              recording.transcript!.isNotEmpty) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.summarize_outlined, size: 18),
+                    label: Text(AppStrings.t('summary_local_btn', context)),
+                    onPressed:
+                        _isLoadingSummary || _onlineBusy ? null : _generateSummary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.icon(
+                    icon: _onlineBusy
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.cloud_outlined, size: 18),
+                    label: Text(AppStrings.t('summary_online_btn', context)),
+                    onPressed: _isLoadingSummary || _onlineBusy
+                        ? null
+                        : _generateOnlineSummary,
+                  ),
+                ),
+              ],
+            ),
+            if (_hoursLabel.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _hoursLabel,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  if (_onlineWasUsed)
+                    TextButton(
+                      onPressed: _refreshHoursLabel,
+                      child: Text(AppStrings.t('online_summary_refresh', context)),
+                    ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 16),
           ],
 
           // Summary Content

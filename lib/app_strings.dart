@@ -45,6 +45,76 @@ class AppStrings {
     },
     // Task 054: монетизация — лимит исчерпан → paywall.
     // {n} — дневной лимит минут, {u} — уже использовано сегодня.
+    // Task 059: два вида итогов + ИИ-часы.
+    'summary_local_btn': {
+      'ru': 'Итоги локально',
+      'en': 'On-device summary',
+      'de': 'Zusammenfassung lokal',
+      'it': 'Riepilogo locale',
+    },
+    'summary_online_btn': {
+      'ru': 'Итоги онлайн',
+      'en': 'Online summary',
+      'de': 'Zusammenfassung online',
+      'it': 'Riepilogo online',
+    },
+    'online_summary_warning_title': {
+      'ru': 'Отправить на сервер?',
+      'en': 'Send to server?',
+      'de': 'An Server senden?',
+      'it': 'Inviare al server?',
+    },
+    'online_summary_warning_body': {
+      'ru': 'Функцию запускаете вы сами. Текст записи уйдёт на наш сервер для обработки и вернётся итогами. Локальные итоги работают без интернета и без отправки данных. Продолжить?',
+      'en': 'You run this feature yourself. The recording text will be sent to our server for processing and come back as summaries. On-device summaries work offline without sending any data. Continue?',
+      'de': 'Sie starten diese Funktion selbst. Der Aufnahmetext wird zur Verarbeitung an unseren Server gesendet und als Zusammenfassung zurückgesendet. Lokale Zusammenfassungen funktionieren offline ohne Datenversand. Fortfahren?',
+      'it': 'Avvii tu questa funzione. Il testo della registrazione verrà inviato al nostro server per l\'elaborazione e restituito come riepilogo. I riepiloghi locali funzionano offline senza invio di dati. Continuare?',
+    },
+    'online_summary_cancel': {
+      'ru': 'Отмена', 'en': 'Cancel', 'de': 'Abbrechen', 'it': 'Annulla',
+    },
+    'online_summary_send': {
+      'ru': 'Отправить', 'en': 'Send', 'de': 'Senden', 'it': 'Invia',
+    },
+    'online_summary_stage': {
+      'ru': 'Итоги на сервере…',
+      'en': 'Summarizing on server…',
+      'de': 'Zusammenfassung auf dem Server…',
+      'it': 'Riepilogo sul server…',
+    },
+    'online_summary_title': {
+      'ru': 'Итоги (онлайн)',
+      'en': 'Summary (online)',
+      'de': 'Zusammenfassung (online)',
+      'it': 'Riepilogo (online)',
+    },
+    'online_summary_failed': {
+      'ru': 'Не удалось получить итоги. Проверьте интернет и попробуйте позже.',
+      'en': 'Could not get summaries. Check your internet and try again.',
+      'de': 'Zusammenfassung fehlgeschlagen. Internet prüfen und erneut versuchen.',
+      'it': 'Impossibile ottenere il riepilogo. Controlla internet e riprova.',
+    },
+    'online_summary_no_hours': {
+      'ru': 'ИИ-часы закончились. Продлите подписку или докупите пакет часов.',
+      'en': 'AI hours are used up. Renew your subscription or buy an hours pack.',
+      'de': 'KI-Stunden sind aufgebraucht. Abo verlängern oder Stundenpaket kaufen.',
+      'it': 'Ore AI esaurite. Rinnova l\'abbonamento o acquista un pacchetto di ore.',
+    },
+    'online_summary_from_cache': {
+      'ru': 'Взято из кэша — бесплатно.',
+      'en': 'Served from cache — free.',
+      'de': 'Aus dem Cache — kostenlos.',
+      'it': 'Dal cache — gratis.',
+    },
+    'online_summary_spent': {
+      'ru': 'Списано {h} ИИ-ч.',
+      'en': 'Charged {h} AI hours.',
+      'de': '{h} KI-Stunden abgebucht.',
+      'it': 'Addebitate {h} ore AI.',
+    },
+    'online_summary_refresh': {
+      'ru': 'Обновить', 'en': 'Refresh', 'de': 'Aktualisieren', 'it': 'Aggiorna',
+    },
     'limit_reached_title': {
       'ru': 'Лимит исчерпан',
       'en': 'Daily limit reached',
@@ -119,6 +189,11 @@ class AppStrings {
       _t('long_transcribe_cancel', context);
 
   // ---------- Task 054: монетизация ----------
+
+  // Task 059: универсальные доступы для экрана итогов.
+  static String t(String key, BuildContext context) => _t(key, context);
+  static String tf(String key, BuildContext context, Map<String, String> params) =>
+      _fmt(_t(key, context), params);
 
   static String limitReachedTitle(BuildContext context) =>
       _t('limit_reached_title', context);

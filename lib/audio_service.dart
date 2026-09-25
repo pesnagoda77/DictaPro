@@ -285,6 +285,17 @@ class AudioService {
     }
   }
 
+  /// Task 059: достать запись по id (сохранение онлайн-итогов обратно).
+  Recording? getRecordingById(String id) {
+    final box = _box;
+    if (box == null) return null;
+    final raw = box.get(id);
+    if (raw == null) return null;
+    final map = Map<String, dynamic>.from(raw as Map);
+    map['id'] = id;
+    return Recording.fromMap(map);
+  }
+
   Future<void> updateRecording(Recording recording) async {
     await _box!.put(recording.id, recording.toMap());
   }

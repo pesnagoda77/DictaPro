@@ -1,36 +1,55 @@
-// Task 054: разовая покупка «Полная версия» (non-consumable).
+// Task 059: подписки и пакеты ИИ-часов для онлайн-итогов.
 //
-// Модель: бесплатно — до 15 минут расшифровки в день (см. UsageLimitService);
-// покупка снимает лимит НАВСЕГДА. Подписок нет.
+// Модель (из ТЗ 059, цены/лимиты подтвердил Славан):
+//   тарифы:      Дневник 10 ч/мес · Ассистент 20 ч/мес · Безлимит 40 ч/мес
+//   пакеты сверх: 29 ₽/1 ч · 249 ₽/10 ч · 990 ₽/50 ч · 3 490 ₽/200 ч
 //
-// Офлайн-требование (из ТЗ): после первого подтверждения покупка работает
-// БЕЗ интернета. Поэтому права храним локально (SharedPreferences) и
-// перепроверяем при запуске: если Store доступен — сверяемся с ним,
-// если нет сети — доверяем локальному кэшу.
+// Продукты Store (создать в консолях, инструкция владельцу):
+//   Подписки (auto-renewable): sub_diary, sub_assistant, sub_unlimited
+//   Одноразовые (пакеты):      pack_1h, pack_10h, pack_50h, pack_200h
 //
-// Что создать в консолях (инструкция для владельца, см. журнал):
-//   Play Console → Монетизация → Продукты → Одноразовые → id: full_unlock
-//   App Store Connect → In-App Purchases → Non-Consumable → id: full_unlock
-//   Цену подтвердить у владельца (ориентир: 990–1490 ₽ / 9,99–14,99 €).
+// Полная версия (054, full_unlock) снимает ДНЕВНОЙ ЛИМИТ РАСШИФРОВКИ —
+// это отдельная ось. Онлайн-итоги живут на подписках/пакетах.
+// Пакеты НЕ сгорают (механика «кошелька часов»); включённые часы — месячные.
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'ai_hours_service.dart';
+
+enum SubscriptionTier { none, diary, assistant, unlimited }
+
 class PurchaseService {
   PurchaseService._();
   static final PurchaseService instance = PurchaseService._();
 
-  /// Non-consumable «Полная версия». Должен совпадать с id товара в консолях.
+  /// Non-consumable «Полная версия» (task 054).
   static const fullUnlockId = 'full_unlock';
 
+  /// Task 059: подписки и пакеты часов.
+  static const subDiaryId = 'sub_diary';
+  static const subAssistantId = 'sub_assistant';
+  static const subUnlimitedId = 'sub_unlimited';
+  static const packIds = {
+    'pack_1h': 1.0,
+    'pack_10h': 10.0,
+    'pack_50h': 50.0,
+    'pack_200h': 200.0,
+  };
+
   static const _kUnlocked = 'purchase_unlocked_v1';
+  static const _kActiveSubs = 'subscription_products_v1'; // Set<String>
 
   final _iap = InAppPurchase.instance;
 
-  /// Права: true — полная версия. UI подписывается на поток.
+  /// Полная версия (054): true — снят дневной лимит расшифровки.
   final ValueNotifier<bool> unlocked = ValueNotifier<bool>(false);
+
+  /// Task 059: активный тариф подписки (максимальный из активных).
+  final ValueNotifier<SubscriptionTier> tier =
+      ValueNotifier<SubscriptionTier>(SubscriptionTier.none);
 
   StreamSubscription<List<PurchaseDetails>>? _sub;
   List<ProductDetails> _products = [];
@@ -39,24 +58,34 @@ class PurchaseService {
   bool get storeAvailable => _storeAvailable;
   List<ProductDetails> get products => _products;
 
+  static const Map<SubscriptionTier, double> includedHours = {
+    SubscriptionTier.diary: 10,
+    SubscriptionTier.assistant: 20,
+    SubscriptionTier.unlimited: 40,
+  };
+
   Future<void> init() async {
-    // 1) Локальный кэш — источник прав офлайн.
     final p = await SharedPreferences.getInstance();
     unlocked.value = p.getBool(_kUnlocked) ?? false;
+    tier.value = _tierFromProducts(p.getStringList(_kActiveSubs) ?? []);
 
-    // 2) Поток покупок.
     _sub = _iap.purchaseStream.listen(_onPurchases);
 
-    // 3) Перепроверка при запуске: без сети — остаёмся на кэше.
     try {
       _storeAvailable = await _iap.isAvailable();
       if (_storeAvailable) {
-        final response = await _iap.queryProductDetails({fullUnlockId});
+        final response = await _iap.queryProductDetails({
+          fullUnlockId,
+          subDiaryId,
+          subAssistantId,
+          subUnlimitedId,
+          ...packIds.keys,
+        });
         _products = response.productDetails;
-        if (response.notFoundIDs.contains(fullUnlockId)) {
-          debugPrint('[purchase] товар $fullUnlockId не найден в консоли');
+        final missing = response.notFoundIDs;
+        if (missing.isNotEmpty) {
+          debugPrint('[purchase] не найдены в консоли: $missing');
         }
-        // Восстановление прошлых покупок (non-consumable живёт на аккаунте).
         await restore();
       }
     } catch (e) {
@@ -65,18 +94,37 @@ class PurchaseService {
     }
   }
 
-  /// Купить полную версию. Результат придёт в поток [_onPurchases].
   Future<bool> buyFullUnlock() async {
-    final matches = _products.where((p) => p.id == fullUnlockId);
+    return _buy(fullUnlockId);
+  }
+
+  Future<bool> buySubscription(SubscriptionTier t) {
+    final id = switch (t) {
+      SubscriptionTier.diary => subDiaryId,
+      SubscriptionTier.assistant => subAssistantId,
+      SubscriptionTier.unlimited => subUnlimitedId,
+      SubscriptionTier.none => '',
+    };
+    if (id.isEmpty) return Future.value(false);
+    return _buy(id);
+  }
+
+  /// Пакет часов (одноразовая покупка, часы падают в кошелёк).
+  Future<bool> buyPack(String packId) => _buy(packId);
+
+  Future<bool> _buy(String productId) async {
+    final matches = _products.where((p) => p.id == productId);
     if (matches.isEmpty) {
-      debugPrint('[purchase] товар $fullUnlockId не загружен');
+      debugPrint('[purchase] товар $productId не загружен');
       return false;
     }
     final param = PurchaseParam(productDetails: matches.first);
+    // Подписки и пакеты — одно и то же buyNonConsumable для
+    // одноразовых; подписки идут через buyNonConsumable на обеих платформах
+    // (auto-renewable приходит как подписка автоматически по типу товара).
     return _iap.buyNonConsumable(purchaseParam: param);
   }
 
-  /// «Восстановить покупку» — после переустановки/на новом устройстве.
   Future<void> restore() async {
     try {
       await _iap.restorePurchases();
@@ -87,13 +135,12 @@ class PurchaseService {
 
   Future<void> _onPurchases(List<PurchaseDetails> purchases) async {
     for (final purchase in purchases) {
-      if (purchase.productID != fullUnlockId) continue;
       switch (purchase.status) {
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
-          await _grantUnlock();
+          await _applyPurchase(purchase.productID);
         case PurchaseStatus.pending:
-          break; // ждём
+          break;
         case PurchaseStatus.error:
           debugPrint('[purchase] error: ${purchase.error?.message}');
         case PurchaseStatus.canceled:
@@ -109,10 +156,47 @@ class PurchaseService {
     }
   }
 
+  Future<void> _applyPurchase(String productId) async {
+    if (productId == fullUnlockId) {
+      await _grantUnlock();
+      return;
+    }
+    if (packIds.containsKey(productId)) {
+      // Одноразовая покупка пакета: часы сразу в кошелёк. Повторная
+      // доставка того же purchase не должна зачислить дважды — отсев
+      // по transaction id оставляем Store (pendingCompletePurchase).
+      await AiHoursService.instance.addPackHours(packIds[productId]!);
+      return;
+    }
+    final t = _tierOfProduct(productId);
+    if (t != SubscriptionTier.none) {
+      final p = await SharedPreferences.getInstance();
+      final set = (p.getStringList(_kActiveSubs) ?? []).toSet()..add(productId);
+      await p.setStringList(_kActiveSubs, set.toList());
+      tier.value = _tierFromProducts(set.toList());
+    }
+  }
+
   Future<void> _grantUnlock() async {
     unlocked.value = true;
     final p = await SharedPreferences.getInstance();
     await p.setBool(_kUnlocked, true);
+  }
+
+  SubscriptionTier _tierOfProduct(String productId) => switch (productId) {
+        subDiaryId => SubscriptionTier.diary,
+        subAssistantId => SubscriptionTier.assistant,
+        subUnlimitedId => SubscriptionTier.unlimited,
+        _ => SubscriptionTier.none,
+      };
+
+  SubscriptionTier _tierFromProducts(List<String> products) {
+    var best = SubscriptionTier.none;
+    for (final p in products) {
+      final t = _tierOfProduct(p);
+      if (t.index > best.index) best = t;
+    }
+    return best;
   }
 
   Future<void> dispose() async {

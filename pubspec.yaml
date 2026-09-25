@@ -1,7 +1,7 @@
 name: dictapro
 description: DictaPro - voice recorder with AI transcription
 publish_to: 'none'
-version: 1.3.0+59
+version: 1.4.0+60
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -15,6 +15,7 @@ dependencies:
   hive: 2.2.3
   hive_flutter: 1.1.0
   path_provider: 2.1.5
+  shared_preferences: ^2.2.3
   permission_handler: 10.4.5
   flutter_foreground_task: ^8.15.0
   intl: any
