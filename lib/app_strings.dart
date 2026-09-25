@@ -53,13 +53,13 @@ class AppStrings {
     },
     'limit_reached_body': {
       'ru': 'Сегодня использовано {u} из {n} минут расшифровки.\n\n'
-          'Полная версия снимает лимит навсегда — разовая покупка, без подписки.',
+          'Полная версия — всё без лимитов: расшифровка на устройстве, итоги, теги, экспорт, поиск. Разовая покупка.',
       'en': 'You have used {u} of {n} transcription minutes today.\n\n'
-          'The full version removes the limit forever — one-time purchase, no subscription.',
+          'Full version — everything without limits: on-device transcription, summaries, tags, export, search. One-time purchase.',
       'de': 'Heute wurden {u} von {n} Transkriptionsminuten verbraucht.\n\n'
-          'Die Vollversion hebt das Limit dauerhaft auf — einmaliger Kauf, kein Abo.',
+          'Vollversion — alles ohne Limit: Transkription auf dem Gerät, Zusammenfassungen, Tags, Export, Suche. Einmaliger Kauf.',
       'it': 'Oggi hai usato {u} dei {n} minuti di trascrizione.\n\n'
-          'La versione completa rimuove il limite per sempre — acquisto una tantum, senza abbonamento.',
+          'Versione completa — tutto senza limiti: trascrizione sul dispositivo, riepiloghi, tag, esportazione, ricerca. Acquisto una tantum.',
     },
     'buy_full': {
       'ru': 'Купить полную версию',
