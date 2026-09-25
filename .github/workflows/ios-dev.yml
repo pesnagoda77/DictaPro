@@ -39,7 +39,7 @@ jobs:
 
 
       - name: Сборка IPA разработки
-        run: flutter build ipa --release --export-options-plist=ios/ExportOptions-dev.plist
+        run: flutter build ipa --release --dart-define=DICTA_APP_KEY=${{ secrets.DICTA_APP_KEY }} --export-options-plist=ios/ExportOptions-dev.plist
 
       - name: Что получилось
         run: ls -la build/ios/ipa/ || true
