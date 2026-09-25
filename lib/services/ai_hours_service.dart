@@ -66,10 +66,10 @@ class AiHoursService {
     final month = p.getString(_kMonth) ?? _monthKey();
     final monthOk = month == _monthKey() &&
         now.millisecondsSinceEpoch >= lastSeen; // anti-rollback
-    final used = monthOk ? (p.getDouble(_kIncludedUsed) ?? 0) : 0;
+    final used = monthOk ? (p.getDouble(_kIncludedUsed) ?? 0.0) : 0.0;
     final packMin = p.getDouble(_kPackMinutes) ?? 0;
 
-    double inclLeft = (includedHours() - used).clamp(0.0, double.infinity);
+    double inclLeft = (includedHours() - used).clamp(0.0, double.infinity).toDouble();
     var needHours = need;
 
     double usedNew = used;

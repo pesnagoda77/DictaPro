@@ -30,8 +30,8 @@ class TranscribeKeepAlive {
     try {
       // iOS: foreground-службы нет — держим живой аудиосеанс.
       if (Platform.isIOS) {
-        await _iosBg('startSilence');
-        await _iosBg('beginTask');
+        await _chIos.invokeMethod('startSilence');
+        await _chIos.invokeMethod('beginTask');
         _iosBgStarted = true;
         await writeActiveMarker(text);
         return;
