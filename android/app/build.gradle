@@ -12,7 +12,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace "com.dictapro.app"
-    compileSdk 35
+    compileSdk 36
     ndkVersion flutter.ndkVersion
 
     // Install-time asset pack с моделью GigaAM v3 (task 019).
@@ -38,7 +38,7 @@ android {
     defaultConfig {
         applicationId "com.dictapro.app"
         minSdkVersion flutter.minSdkVersion
-        targetSdk 35
+        targetSdk 36
         versionCode 63
         versionName "1.4.1"
     }
