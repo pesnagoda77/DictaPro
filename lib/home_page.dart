@@ -18,6 +18,9 @@ import 'services/audio_convert.dart';
 import 'services/glossary_service.dart';
 import 'services/online_transcribe_service.dart';
 import 'services/keep_alive.dart';
+import 'services/purchase_service.dart';
+import 'services/usage_limit_service.dart';
+import 'services/local_notify.dart';
 import 'dialogue_editor.dart';
 import 'tag_service.dart';
 import 'app_strings.dart';
@@ -63,7 +66,8 @@ class HomePage extends StatefulWidget {
   State createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
+class _HomePageState extends State<HomePage>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   bool _isRecording = false;
   double _level = 0;
   StreamSubscription<double>? _levelSub;
@@ -83,9 +87,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   // движок один — GigaAM v3, модель вложена в сборку.
   final String _engineLabel = 'Распознавание: на устройстве · модель внутри';
 
+  /// Task 056: расшифровка завершилась, пока приложение было в фоне —
+  /// при возврате показываем плашку «готово» (уведомление уже ушло в шторку).
+  bool _finishedInBackground = false;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Задача 036: подчищаем остатки прошлых прогонов (старые временные файлы).
     TranscribeKeepAlive.sweepOldTemp();
     _pulseController = AnimationController(
@@ -1031,6 +1040,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   .formatted;
           latest.decisions = SummaryService.getDecisions(fullText);
           await AudioService().updateRecording(latest);
+          // Task 054: трата минут фиксируется после УСПЕШНОЙ расшифровки.
+          await _recordTranscribeUsage(latest.durationMs as int? ?? 0);
+          // Task 056: готово в фоне → уведомление + плашка при возврате.
+          if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+            _finishedInBackground = true;
+          }
+          await LocalNotify.instance.showTranscriptionDone();
           _loadRecordings();
         }
       } catch (e) {
@@ -1225,6 +1241,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           : null;
       await AudioService().updateRecording(rec);
       await _recordTranscribeUsage(rec.durationMs as int? ?? 0);
+      // Task 056: готово в фоне → уведомление + плашка при возврате.
+      if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+        _finishedInBackground = true;
+      }
+      await LocalNotify.instance.showTranscriptionDone();
 
       _hideTranscribingDialog();
       _openDialogueEditor(rec);
@@ -1638,7 +1659,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   @override
+  /// Task 056: актуальный статус после возврата из фона.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _finishedInBackground) {
+      _finishedInBackground = false;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Расшифровка готова — текст сохранён в записи'),
+        ));
+        _loadRecordings();
+      }
+    }
+  }
+
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _levelSub?.cancel();
     _timer?.cancel();
     _pulseController.dispose();

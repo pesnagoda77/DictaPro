@@ -20,9 +20,22 @@ class TranscribeKeepAlive {
   /// и прямое открытие экрана батареи приложения.
   static const _ch = MethodChannel('dictapro/keepalive');
 
+  /// Task 056: iOS-фон для расшифровки (аудио-сессия + тишина + страховочный
+  /// background task). Android продолжает жить на foreground-службе.
+  static const _chIos = MethodChannel('dictapro/iosbg');
+  static bool _iosBgStarted = false;
+
   /// Поднимает службу (или обновляет уведомление, если она уже работает).
   static Future<void> start(String text) async {
     try {
+      // iOS: foreground-службы нет — держим живой аудиосеанс.
+      if (Platform.isIOS) {
+        await _iosBg('startSilence');
+        await _iosBg('beginTask');
+        _iosBgStarted = true;
+        await writeActiveMarker(text);
+        return;
+      }
       if (await FlutterForegroundTask.isRunningService) {
         await update(text);
         return;
@@ -153,8 +166,14 @@ class TranscribeKeepAlive {
   }
 
   /// Путь к папке приложения, куда пишутся временные файлы.
+  /// Task 056: на iOS getExternalStorageDirectory бросает → partial.txt
+  /// и active_job.txt никогда не писались, и «Продолжить с куска N» на iOS
+  /// молча не работало. Берём applicationSupportDirectory.
   static Future<Directory?> _filesDir() async {
     try {
+      if (Platform.isIOS) {
+        return await getApplicationSupportDirectory();
+      }
       return await getExternalStorageDirectory();
     } catch (_) {
       return null;
