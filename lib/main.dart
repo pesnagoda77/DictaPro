@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'audio_service.dart';
@@ -51,6 +52,26 @@ class DictaProApp extends StatelessWidget {
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),
         themeMode: mode,
+        // Task 060: без этого Flutter считал язык 'en' и новые строки
+        // (сплэш-слоган, предупреждение о длинной записи) выходили по-английски.
+        supportedLocales: const [
+          Locale('ru'),
+          Locale('en'),
+          Locale('de'),
+          Locale('it'),
+        ],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        localeResolutionCallback: (locale, supported) {
+          final code = locale?.languageCode;
+          for (final l in supported) {
+            if (l.languageCode == code) return l;
+          }
+          return const Locale('ru'); // по умолчанию русский
+        },
         home: const SplashWrapper(),
       ),
     );

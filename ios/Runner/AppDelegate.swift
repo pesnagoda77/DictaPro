@@ -8,6 +8,41 @@ import AVFoundation
   private var silencePath: String?
   private var bgTaskId: UIBackgroundTaskIdentifier = .invalid
   private var bgChannel: FlutterMethodChannel?
+  private var watchdog: Timer?
+  private var bgRenewCount = 0
+
+  /// Лог фонового режима в Documents — читается с телефона для диагностики.
+  private func bgLog(_ s: String) {
+    let dir = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
+    let path = dir + "/dictapro_bg.log"
+    let line = ISO8601DateFormatter().string(from: Date()) + " " + s + "\n"
+    if let h = FileHandle(forWritingAtPath: path) {
+      h.seekToEndOfFile()
+      if let d = line.data(using: .utf8) { h.write(d) }
+      h.closeFile()
+    } else {
+      try? line.write(toFile: path, atomically: true, encoding: .utf8)
+    }
+  }
+
+  /// Сторож: раз в 20 с продлевает background task и поднимает тишину,
+  /// если iOS её приостановила (иначе процесс засыпает и расшифровка «вылетает»).
+  private func startWatchdog() {
+    watchdog?.invalidate()
+    watchdog = Timer.scheduledTimer(withTimeInterval: 20.0, repeats: true) { [weak self] _ in
+      guard let self else { return }
+      self.endTask()
+      self.beginTask()
+      self.bgRenewCount += 1
+      if self.silencePlayer?.isPlaying != true {
+        self.bgLog("watchdog: тишина не играет -> перезапуск")
+        self.silencePlayer = nil
+        self.startSilence()
+      } else if self.bgRenewCount % 15 == 0 {
+        self.bgLog("watchdog: живой, продлений=\(self.bgRenewCount)")
+      }
+    }
+  }
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -145,25 +180,34 @@ import AVFoundation
   }
 
   private func startSilence() {
-    if silencePlayer?.isPlaying == true { return }
-    guard let p = ensureSilenceFile() else { return }
+    if silencePlayer?.isPlaying == true { startWatchdog(); return }
+    guard let p = ensureSilenceFile() else { bgLog("startSilence: нет файла тишины"); return }
     do {
+      // После записи плагин мог оставить категорию playAndRecord и погасить сессию —
+      // принудительно возвращаем playback и активируем.
+      let session = AVAudioSession.sharedInstance()
+      try session.setCategory(.playback, options: [.mixWithOthers])
+      try session.setActive(true)
       let player = try AVAudioPlayer(contentsOf: URL(fileURLWithPath: p))
-      player.numberOfLoops = -1 // бесконечный цикл
-      player.volume = 0.0        // тишина, не раздражает
+      player.numberOfLoops = -1
+      player.volume = 0.0
       player.prepareToPlay()
-      player.play()
+      let started = player.play()
       silencePlayer = player
-      NSLog("[iosbg] silence started")
+      bgLog("startSilence: play=\(started) isPlaying=\(player.isPlaying) cat=\(session.category.rawValue)")
+      startWatchdog()
     } catch {
-      NSLog("[iosbg] player: \(error.localizedDescription)")
+      bgLog("startSilence ОШИБКА: \(error.localizedDescription)")
     }
   }
 
   private func stopSilence() {
+    watchdog?.invalidate()
+    watchdog = nil
     silencePlayer?.stop()
     silencePlayer = nil
-    NSLog("[iosbg] silence stopped")
+    endTask()
+    bgLog("stopSilence: остановлено")
   }
 
   /// beginBackgroundTask как страховка (даёт ~30 с после сворачивания,
