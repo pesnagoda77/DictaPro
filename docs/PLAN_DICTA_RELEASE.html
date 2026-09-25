@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Дикта: план до релиза на двух платформах</title>
+<style>
+  body{margin:0;background:#0f1620;color:#EAF2F5;font:15px/1.55 "Segoe UI",system-ui,sans-serif;padding:30px 22px 50px;}
+  h1{font-size:26px;margin:0 0 6px;} h1 span{color:#8FE3D2;}
+  .lead{color:rgba(234,242,245,.66);margin:0 0 22px;}
+  h2{font-size:17px;margin:30px 0 10px;color:#8FE3D2;}
+  .grid{display:flex;gap:14px;flex-wrap:wrap;}
+  .card{flex:1 1 260px;background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.02));
+        border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:14px;}
+  .card b{display:block;font-size:13px;color:#8FE3D2;margin-bottom:6px;letter-spacing:.3px;}
+  .card ul{margin:0;padding-left:18px;} .card li{margin-bottom:4px;}
+  table{width:100%;border-collapse:collapse;background:rgba(255,255,255,.03);border-radius:12px;overflow:hidden;}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid rgba(255,255,255,.08);font-size:13.5px;vertical-align:top;}
+  th{color:rgba(234,242,245,.66);font-weight:600;}
+  .ok{color:#8FE3D2;font-weight:600;} .warn{color:#FFD166;font-weight:600;} .bad{color:#FF9B9B;font-weight:600;}
+  .step{display:flex;gap:12px;margin-bottom:10px;}
+  .num{width:26px;height:26px;flex:none;border-radius:50%;background:#8FE3D2;color:#0E2A26;font-weight:800;
+       display:flex;align-items:center;justify-content:center;font-size:13px;}
+  .foot{margin-top:26px;padding-top:14px;border-top:1px solid rgba(255,255,255,.10);color:rgba(234,242,245,.62);font-size:13px;}
+</style>
+</head>
+<body>
+  <h1>Дикта → <span>публикация на Android и iOS</span></h1>
+  <p class="lead">Фокус только на Дикте. Всё остальное заморожено до релиза. Цель — не «улучшать вечно», а выпустить в магазины.</p>
+
+  <h2>Где мы сейчас</h2>
+  <table>
+    <tr><th>Что</th><th>Android</th><th>iOS</th></tr>
+    <tr><td>Версия</td><td>1.4.2 (versionCode 64), targetSdk 36</td><td>1.4.2 (сборка CI)</td></tr>
+    <tr><td>Где лежит</td><td>внутренний трек Play + закрытое тестирование (черновик)</td><td>dev-сборка по кабелю</td></tr>
+    <tr><td>Для релиза не хватает</td><td class="bad">товары-подписки, проверка оплаты, локализация</td><td class="bad">записи в App Store Connect, APNs, IAP, TestFlight</td></tr>
+  </table>
+
+  <h2>Критический путь</h2>
+  <div class="grid">
+    <div class="card"><b>КОД — Итан</b><ul>
+      <li>локализация экранов (060)</li>
+      <li>подключить воркер онлайн-итогов</li>
+      <li>подписки + ИИ-часы (054/059)</li>
+      <li>предупреждение при отправке текста</li>
+    </ul></div>
+    <div class="card"><b>КОНСОЛИ — владелец</b><ul>
+      <li>3 подписки в Play (490 / 990 / 1990 ₽, месяц+год)</li>
+      <li>отправить релиз закрытого теста на проверку</li>
+      <li>App Store Connect: приложение, подписки, Sandbox</li>
+    </ul></div>
+    <div class="card"><b>ПУБЛИКАЦИЯ — главный агент</b><ul>
+      <li>проверка оплаты (лицензионный тестер / Sandbox)</li>
+      <li>тесты по чек-листу на двух платформах</li>
+      <li>сборки, заливка, релиз-ноты, скриншоты</li>
+    </ul></div>
+  </div>
+
+  <h2>Порядок и сроки</h2>
+  <div class="step"><div class="num">1</div><div><b>Локализация</b> — Итан, ~1 день</div></div>
+  <div class="step"><div class="num">2</div><div><b>Онлайн-итоги через воркер</b> — Итан, ~0,5 дня</div></div>
+  <div class="step"><div class="num">3</div><div><b>Подписки и ИИ-часы</b> — Итан, ~1 день</div></div>
+  <div class="step"><div class="num">4</div><div><b>Товары в Play + отправка релиза на проверку</b> — владелец, ~35 минут</div></div>
+  <div class="step"><div class="num">5</div><div><b>Тесты Android</b> — главный агент, ~0,5 дня</div></div>
+  <div class="step"><div class="num">6</div><div><b>App Store Connect: приложение, подписки, Sandbox</b> — владелец, ~40 минут</div></div>
+  <div class="step"><div class="num">7</div><div><b>Тесты iPhone</b> — главный агент, ~0,5 дня</div></div>
+  <div class="step"><div class="num">8</div><div><b>Публикация Android</b> и <b>iOS (TestFlight → ревью)</b> — главный агент</div></div>
+  <p class="lead" style="margin-top:10px">Итого: <b>5–6 рабочих дней</b> + время на проверки Google и Apple. Если Google потребует 14 дней закрытого теста тестерами — это отдельный срок.</p>
+
+  <h2>Чек-лист приёмки перед публикацией</h2>
+  <table>
+    <tr><th>Проверка</th><th>Android</th><th>iOS</th></tr>
+    <tr><td>Офлайн-расшифровка (авиарежим), 10 минут</td><td class="warn">todo</td><td class="warn">todo</td></tr>
+    <tr><td>Длинная запись (&gt;5 ч): предупреждение, экран гаснет — идёт</td><td class="warn">todo</td><td class="warn">todo</td></tr>
+    <tr><td>Итоги: локальные и онлайн</td><td class="warn">todo</td><td class="warn">todo</td></tr>
+    <tr><td>Покупка тестовым аккаунтом, лимиты снимаются</td><td class="warn">todo</td><td class="warn">todo</td></tr>
+    <tr><td>Экспорт TXT/PDF/HTML, поиск, теги</td><td class="warn">todo</td><td class="warn">todo</td></tr>
+    <tr><td>Языки: русский и английский без смеси</td><td class="warn">todo</td><td class="warn">todo</td></tr>
+  </table>
+
+  <h2>Новый дизайн — после релиза</h2>
+  <p class="lead">Дизайн-система v1 готова (тёмная тема, Onest + JetBrains Mono, 5 экранов). Внедряем поэтапно, по одной сборке за раз: тема → главная → карточка записи → текст/диалог → итоги → подписка.</p>
+
+  <div class="foot">Заморожено до релиза: Адвокат, Таблетница, Руна, Стенограф, сайты.
+  Внутренний трек Дикты и воркер онлайн-итогов уже готовы и проверены.</div>
+</body>
+</html>
