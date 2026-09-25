@@ -46,15 +46,15 @@ extension SortOptionExtension on SortOption {
   String get label {
     switch (this) {
       case SortOption.dateNewest:
-        return 'Дата (новые)';
+        return 'sort_date_newest';
       case SortOption.dateOldest:
-        return 'Дата (старые)';
+        return 'sort_date_oldest';
       case SortOption.nameAsc:
-        return 'Имя (А-Я)';
+        return 'sort_name_asc';
       case SortOption.durationLongest:
-        return 'Длительность (длинные)';
+        return 'sort_duration_longest';
       case SortOption.durationShortest:
-        return 'Длительность (короткие)';
+        return 'sort_duration_shortest';
     }
   }
 }
@@ -85,7 +85,7 @@ class _HomePageState extends State<HomePage>
   List<String> _recentHotwords = [];
   // Одна строка состояния распознавания (task 019, дизайн V3):
   // движок один — GigaAM v3, модель вложена в сборку.
-  final String _engineLabel = 'Распознавание: на устройстве · модель внутри';
+  String get _engineLabel => AppStrings.t('engine_label', context);
 
   /// Task 056: расшифровка завершилась, пока приложение было в фоне —
   /// при возврате показываем плашку «готово» (уведомление уже ушло в шторку).
@@ -177,15 +177,15 @@ class _HomePageState extends State<HomePage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Идёт расшифровка',
+                Text(AppStrings.t('transcribing_now', context),
                     style: TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
                 Text(
                   [
                     if (_liveStartedMs > 0)
-                      'идёт ${(((DateTime.now().millisecondsSinceEpoch - _liveStartedMs) / 60000).floor())} мин',
-                    'готово кусков: $_liveChunks',
-                    'символов: $_liveChars',
+                      AppStrings.tf('live_running_min', context, {'m': '${((DateTime.now().millisecondsSinceEpoch - _liveStartedMs) / 60000).floor()}'}),
+                    AppStrings.tf('live_chunks_done', context, {'n': '$_liveChunks'}),
+                    AppStrings.tf('live_chars', context, {'n': '$_liveChars'}),
                     if (shortName.isNotEmpty) shortName,
                   ].join(' · '),
                   style: Theme.of(context).textTheme.bodySmall,
@@ -242,9 +242,9 @@ class _HomePageState extends State<HomePage>
       } catch (_) {}
     }
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(
-            'Откройте ту же запись и запустите расшифровку — предложим продолжить с места обрыва.'),
+            AppStrings.t('recovery_resume_hint', context)),
       ));
     }
   }
@@ -262,7 +262,7 @@ class _HomePageState extends State<HomePage>
         createdAt: now,
         durationMs: 0,
         fileSize: 0,
-        title: 'Прерванная расшифровка',
+        title: AppStrings.t('recovery_saved_title', context),
         transcription: job.$2.trim(),
       );
       await AudioService().updateRecording(rec);
@@ -304,15 +304,15 @@ class _HomePageState extends State<HomePage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Расшифровка прервана',
+                    Text(AppStrings.t('recovery_interrupted', context),
                         style: TextStyle(
                             fontWeight: FontWeight.w600,
                             color: scheme.onErrorContainer)),
                     const SizedBox(height: 2),
                     Text(
                       [
-                        '$chars символов',
-                        if (chunks > 0) 'кусок $chunks',
+                        AppStrings.tf('recovery_chars', context, {'n': '$chars'}),
+                        if (chunks > 0) AppStrings.tf('recovery_chunk', context, {'n': '$chunks'}),
                       ].join(' · '),
                       style: Theme.of(context)
                           .textTheme
@@ -329,16 +329,16 @@ class _HomePageState extends State<HomePage>
             children: [
               TextButton(
                 onPressed: _showRecoveryText,
-                child: const Text('Показать текст'),
+                child: Text(AppStrings.t('recovery_show_text', context)),
               ),
               const Spacer(),
               FilledButton(
                 onPressed: _resumeRecoveryJob,
-                child: const Text('Продолжить'),
+                child: Text(AppStrings.t('long_transcribe_continue', context)),
               ),
               IconButton(
                 visualDensity: VisualDensity.compact,
-                tooltip: 'Удалить',
+                tooltip: AppStrings.t('btn_delete', context),
                 onPressed: _discardRecoveryJob,
                 icon: Icon(Icons.close, size: 18, color: scheme.onErrorContainer),
               ),
@@ -472,16 +472,15 @@ class _HomePageState extends State<HomePage>
             ),
             const SizedBox(height: 14),
             Text(
-              isSearch ? 'Ничего не нашлось' : 'Пока ни одной записи',
+              isSearch ? AppStrings.t('empty_search_title', context) : AppStrings.t('empty_rec_title', context),
               style: Theme.of(context).textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
               isSearch
-                  ? 'Попробуйте другое слово или очистите поиск.'
-                  : 'Нажмите большую кнопку «Начать запись» — или импортируйте '
-                      'готовый файл (mp3, m4a, wav) и расшифруйте его.',
+                  ? AppStrings.t('empty_search_body', context)
+                  : AppStrings.t('empty_rec_body', context),
               style: Theme.of(context).textTheme.bodySmall,
               textAlign: TextAlign.center,
             ),
@@ -508,28 +507,28 @@ class _HomePageState extends State<HomePage>
     final selected = await showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Таймер остановки'),
+        title: Text(AppStrings.t('timer_dialog_title', context)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
               leading: const Icon(Icons.timer_off),
-              title: const Text('Без таймера'),
+              title: Text(AppStrings.t('timer_none', context)),
               onTap: () => Navigator.pop(ctx, 0),
             ),
             ListTile(
               leading: const Icon(Icons.timer),
-              title: const Text('15 минут'),
+              title: Text(AppStrings.t('minutes_15', context)),
               onTap: () => Navigator.pop(ctx, 15),
             ),
             ListTile(
               leading: const Icon(Icons.timer),
-              title: const Text('30 минут'),
+              title: Text(AppStrings.t('minutes_30', context)),
               onTap: () => Navigator.pop(ctx, 30),
             ),
             ListTile(
               leading: const Icon(Icons.timer),
-              title: const Text('60 минут'),
+              title: Text(AppStrings.t('minutes_60', context)),
               onTap: () => Navigator.pop(ctx, 60),
             ),
           ],
@@ -557,7 +556,7 @@ class _HomePageState extends State<HomePage>
   bool _isTranscribing = false;
 
   // Task 034: этап операции для диалога прогресса (расшифровка → саммари).
-  final ValueNotifier<String> _opStage = ValueNotifier('Расшифровка…');
+  final ValueNotifier<String> _opStage = ValueNotifier('');
 
   // Живая плашка: показываем, что расшифровка идёт (даже если интерфейс
   // перезапускался и окно прогресса потерялось).
@@ -580,12 +579,12 @@ class _HomePageState extends State<HomePage>
     // не должен запускать вторую конвертацию и второй диалог.
     if (_isTranscribing) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Расшифровка уже идёт — дождитесь окончания')),
+        SnackBar(content: Text(AppStrings.t('transcribe_already', context))),
       );
       return;
     }
     _isTranscribing = true;
-    _opStage.value = 'Расшифровка…';
+    _opStage.value = AppStrings.t('op_transcribing', context);
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -644,15 +643,15 @@ class _HomePageState extends State<HomePage>
         await SttSettings.setConsent();
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Онлайн-распознавание…'), duration: Duration(seconds: 2)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(AppStrings.t('online_recognizing', context)), duration: Duration(seconds: 2)));
       }
       return await OnlineTranscribeService.transcribe(path,
           provider: provider, apiKey: key);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Онлайн не удался, остаёмся офлайн: $e'),
+            content: Text(AppStrings.tf('online_failed', context, {'e': '$e'})),
             duration: const Duration(seconds: 4)));
       }
       return null;
@@ -664,19 +663,17 @@ class _HomePageState extends State<HomePage>
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Вы выходите из офлайн-режима'),
+        title: Text(AppStrings.t('offline_warn_title', context)),
         content: Text(
-            'Обычно все записи остаются только на этом устройстве. '
-            'Для точного распознавания звук этой записи будет отправлен '
-            'на сервер ($providerTitle). Больше ничего не передаётся.',
+            AppStrings.tf('offline_warn_body', ctx, {'p': providerTitle}),
             style: const TextStyle(fontSize: 14, height: 1.4)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Остаться офлайн')),
+              child: Text(AppStrings.t('stay_offline', ctx))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Распознать онлайн')),
+              child: Text(AppStrings.t('recognize_online', ctx))),
         ],
       ),
     );
@@ -708,7 +705,7 @@ class _HomePageState extends State<HomePage>
           : await showDialog<bool>(
               context: context,
               builder: (ctx) => AlertDialog(
-                title: const Text('Незавершённая расшифровка'),
+                title: Text(AppStrings.t('unfinished_title', context)),
                 content: Text(
                     'В прошлый раз распознание оборвалось на куске ${partial.$1} '
                     '(${partial.$2.length} символов текста уже готово).\n\n'
@@ -716,7 +713,7 @@ class _HomePageState extends State<HomePage>
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('Начать заново'),
+                    child: Text(AppStrings.t('start_over', context)),
                   ),
                   FilledButton(
                     onPressed: () => Navigator.pop(ctx, true),
@@ -734,7 +731,7 @@ class _HomePageState extends State<HomePage>
     // иначе при выключенном экране система убивает процесс и результат теряется.
     var keepAliveStarted = false;
     try {
-      await TranscribeKeepAlive.start('Расшифровка: готовлю аудио…');
+      await TranscribeKeepAlive.start(AppStrings.t('keepalive_prep', context));
       keepAliveStarted = true;
     } catch (_) {}
     String? text;
@@ -748,13 +745,13 @@ class _HomePageState extends State<HomePage>
     // во время декодирования казалось, что ничего не происходит.
     final progress = ValueNotifier<(int, int)>((0, 0));
     final elapsed = ValueNotifier<int>(0);
-    final stage = ValueNotifier<String>('Готовим аудио (декодирование)…');
+    final stage = ValueNotifier<String>(AppStrings.t('stage_prep_audio', context));
     Timer? ticker;
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Расшифровка'),
+        title: Text(AppStrings.t('transcribing_now', context)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -772,11 +769,11 @@ class _HomePageState extends State<HomePage>
                     valueListenable: elapsed,
                     builder: (ctx, sec, _) {
                       final shown = v.$2 > 0
-                          ? 'Кусок ${v.$1} из ${v.$2} · ${((v.$1 / v.$2) * 100).round()}%'
+                          ? AppStrings.tf('chunk_progress', ctx, {'d': '${v.$1}', 'a': '${v.$2}'}) + ' · ${((v.$1 / v.$2) * 100).round()}%'
                           : stage.value;
                       final mm = sec ~/ 60;
                       final ss = (sec % 60).toString().padLeft(2, '0');
-                      return Text('$shown · прошло $mm:$ss',
+                      return Text(AppStrings.tf('elapsed', ctx, {'t': '$mm:$ss'}).replaceFirst('{t}', '$mm:$ss').isEmpty ? '$shown · $mm:$ss' : '$shown · ${AppStrings.tf('elapsed', ctx, {'t': '$mm:$ss'})}',
                           style: const TextStyle(fontSize: 13));
                     },
                   ),
@@ -784,7 +781,7 @@ class _HomePageState extends State<HomePage>
               ),
             ),
             const SizedBox(height: 4),
-            const Text('Считается на устройстве — можно не держать экран открытым',
+            Text(AppStrings.t('on_device_note', context),
                 style: TextStyle(fontSize: 12)),
           ],
         ),
@@ -794,8 +791,8 @@ class _HomePageState extends State<HomePage>
     try {
       wav16k = await AudioConvert.toWav16k(filePath);
       stage.value = skipChunks > 0
-          ? 'Продолжаем: пропускаем $skipChunks готовых кусков…'
-          : 'Расшифровка идёт…';
+          ? AppStrings.tf('stage_resume_skip', context, {'n': '$skipChunks'})
+          : AppStrings.t('stage_transcribing', context);
       text = await GigaamService.transcribeWithGlossary(
         wav16k,
         skipChunks: skipChunks,
@@ -803,7 +800,8 @@ class _HomePageState extends State<HomePage>
           progress.value = (done, all);
           // Задача 036: прогресс виден в уведомлении даже с погасшим экраном.
           final pct = all > 0 ? ((done / all) * 100).round() : 0;
-          TranscribeKeepAlive.update('Кусок $done из $all · $pct%');
+          TranscribeKeepAlive.update(
+              '${AppStrings.tf('chunk_progress', context, {'d': '$done', 'a': '$all'})} · $pct%');
         },
         onPartial: (done, all, partial) {
           // Задача 036: частичный результат сохраняем — при выгрузке не
@@ -933,7 +931,7 @@ class _HomePageState extends State<HomePage>
             setDialogState = setState;
             final pct = total > 0 ? (copied / total).clamp(0.0, 1.0) : 0.0;
             return AlertDialog(
-              title: const Text('Подготовка модели'),
+              title: Text(AppStrings.t('model_prep_title', context)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1034,14 +1032,14 @@ class _HomePageState extends State<HomePage>
           // Task 057: саммари ТОЛЬКО на устройстве (BYOK-облако отменено).
           // Никаких ключей, никакой отправки текста. Недоступно/пусто —
           // честная строка, а не молчание.
-          _opStage.value = 'Считаю саммари…';
+          _opStage.value = AppStrings.t('summary_computing', context);
           try {
             final local = (await EnhancedSummaryService.generateSummaryAsync(
                     fullText))
                 .formatted
                 .trim();
             latest.summary =
-                local.isEmpty ? 'Итоги: не удалось собрать' : local;
+                local.isEmpty ? AppStrings.t('summary_failed', context) : local;
           } catch (_) {
             latest.summary = 'Итоги: не удалось собрать';
           }
@@ -1060,7 +1058,7 @@ class _HomePageState extends State<HomePage>
         // Батч не удался — запись остаётся без транскрипции, сообщаем честно
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Расшифровка не удалась: $e')),
+            SnackBar(content: Text(AppStrings.tf('transcribe_failed', context, {'e': '$e'}))),
           );
         }
       } finally {
@@ -1197,7 +1195,7 @@ class _HomePageState extends State<HomePage>
     if (!await File(filePath).exists()) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Файл не найден: $filePath'),
+          content: Text(AppStrings.tf('file_not_found', context, {'p': filePath})),
           backgroundColor: Colors.red.shade900,
         ),
       );
@@ -1226,13 +1224,13 @@ class _HomePageState extends State<HomePage>
           : null;
       rec.tags = TagService.extractTags(punctuatedText);
       // Task 057: саммари ТОЛЬКО на устройстве (BYOK-облако отменено).
-      _opStage.value = 'Считаю саммари…';
+      _opStage.value = AppStrings.t('summary_computing', context);
       try {
         final local = (await EnhancedSummaryService.generateSummaryAsync(
                 punctuatedText))
             .formatted
             .trim();
-        rec.summary = local.isEmpty ? 'Итоги: не удалось собрать' : local;
+        rec.summary = local.isEmpty ? AppStrings.t('summary_failed', context) : local;
       } catch (_) {
         rec.summary = 'Итоги: не удалось собрать';
       }
@@ -1252,11 +1250,11 @@ class _HomePageState extends State<HomePage>
       _openDialogueEditor(rec);
     } on PlatformException catch (e) {
       _hideTranscribingDialog();
-      final msg = e.message ?? 'Ошибка платформы';
+      final msg = e.message ?? AppStrings.t('platform_error', context);
       final details = e.details?.toString() ?? '';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Ошибка: $msg${details.isNotEmpty ? " ($details)" : ""}'),
+          content: Text(AppStrings.tf('error_prefix', context, {'m': '$msg${details.isNotEmpty ? " ($details)" : ""}'})),
           backgroundColor: Colors.red.shade900,
           duration: const Duration(seconds: 5),
         ),
@@ -1265,7 +1263,7 @@ class _HomePageState extends State<HomePage>
       _hideTranscribingDialog();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Ошибка транскрибации: $e'),
+          content: Text(AppStrings.tf('transcribe_error', context, {'e': '$e'})),
           backgroundColor: Colors.red.shade900,
           duration: const Duration(seconds: 5),
         ),
@@ -1363,8 +1361,8 @@ class _HomePageState extends State<HomePage>
     _loadRecordings();
 
     if (mounted) {
-      String msg = 'Импортировано: $successCount';
-      if (failCount > 0) msg += ', ошибок: $failCount';
+      String msg = AppStrings.tf('imported', context, {'n': '$successCount'});
+      if (failCount > 0) msg = AppStrings.tf('imported_errors', context, {'n': '$successCount', 'e': '$failCount'});
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(msg)),
       );
@@ -1375,28 +1373,28 @@ class _HomePageState extends State<HomePage>
     showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Формат экспорта'),
+        title: Text(AppStrings.t('export_format_title', context)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
               leading: const Icon(Icons.text_snippet, color: Colors.green),
-              title: const Text('TXT — текст с таймкодами'),
+              title: Text(AppStrings.t('export_txt', context)),
               onTap: () => Navigator.pop(ctx, 'txt'),
             ),
             ListTile(
               leading: const Icon(Icons.code, color: Colors.blue),
-              title: const Text('HTML — красивый документ'),
+              title: Text(AppStrings.t('export_html', context)),
               onTap: () => Navigator.pop(ctx, 'html'),
             ),
             ListTile(
               leading: const Icon(Icons.content_copy),
-              title: const Text('Скопировать текст'),
+              title: Text(AppStrings.t('export_copy', context)),
               onTap: () => Navigator.pop(ctx, 'copy'),
             ),
             ListTile(
               leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
-              title: const Text('PDF — документ'),
+              title: Text(AppStrings.t('export_pdf', context)),
               onTap: () => Navigator.pop(ctx, 'pdf'),
             ),
           ],
@@ -1418,12 +1416,12 @@ class _HomePageState extends State<HomePage>
           _showExportingDialog();
           ExportService.exportAsPdf(rec).then((path) {
             _hideExportingDialog();
-            Share.shareXFiles([XFile(path)], text: 'Транскрипция записи в PDF');
+            Share.shareXFiles([XFile(path)], text: AppStrings.t('share_pdf_caption', context));
           }).catchError((e) {
             _hideExportingDialog();
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Ошибка PDF: $e')),
+                SnackBar(content: Text(AppStrings.tf('export_pdf_error', context, {'e': '$e'}))),
               );
             }
           });
@@ -1432,7 +1430,7 @@ class _HomePageState extends State<HomePage>
           ExportService.copyToClipboard(rec.transcription ?? '');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Текст скопирован')),
+              SnackBar(content: Text(AppStrings.t('text_copied', context))),
             );
           }
           break;
@@ -1444,19 +1442,19 @@ class _HomePageState extends State<HomePage>
     final choice = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Поделиться'),
+        title: Text(AppStrings.t('share_title', context)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (rec.transcription != null && rec.transcription!.isNotEmpty)
               ListTile(
                 leading: const Icon(Icons.text_snippet, color: Colors.blue),
-                title: const Text('Текст транскрипции'),
+                title: Text(AppStrings.t('share_transcript', context)),
                 onTap: () => Navigator.pop(ctx, 'text'),
               ),
             ListTile(
               leading: const Icon(Icons.audio_file, color: Colors.purple),
-              title: const Text('Аудиозапись'),
+              title: Text(AppStrings.t('share_audio', context)),
               onTap: () => Navigator.pop(ctx, 'audio'),
             ),
           ],
@@ -1469,28 +1467,28 @@ class _HomePageState extends State<HomePage>
       final format = await showDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Отправить текст'),
+          title: Text(AppStrings.t('send_text_title', context)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
                 leading: const Icon(Icons.text_snippet, color: Colors.green),
-                title: const Text('TXT — текст с таймкодами'),
+                title: Text(AppStrings.t('export_txt', context)),
                 onTap: () => Navigator.pop(ctx, 'txt'),
               ),
               ListTile(
                 leading: const Icon(Icons.code, color: Colors.blue),
-                title: const Text('HTML — красивый документ'),
+                title: Text(AppStrings.t('export_html', context)),
                 onTap: () => Navigator.pop(ctx, 'html'),
               ),
               ListTile(
                 leading: const Icon(Icons.content_copy),
-                title: const Text('Скопировать текст'),
+                title: Text(AppStrings.t('export_copy', context)),
                 onTap: () => Navigator.pop(ctx, 'copy'),
               ),
               ListTile(
                 leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
-                title: const Text('PDF — документ'),
+                title: Text(AppStrings.t('export_pdf', context)),
                 onTap: () => Navigator.pop(ctx, 'pdf'),
               ),
             ],
@@ -1513,12 +1511,12 @@ class _HomePageState extends State<HomePage>
           _showExportingDialog();
           ExportService.exportAsPdf(rec).then((path) {
             _hideExportingDialog();
-            Share.shareXFiles([XFile(path)], text: 'Транскрипция записи в PDF');
+            Share.shareXFiles([XFile(path)], text: AppStrings.t('share_pdf_caption', context));
           }).catchError((e) {
             _hideExportingDialog();
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Ошибка PDF: $e')),
+                SnackBar(content: Text(AppStrings.tf('export_pdf_error', context, {'e': '$e'}))),
               );
             }
           });
@@ -1527,7 +1525,7 @@ class _HomePageState extends State<HomePage>
           ExportService.copyToClipboard(rec.transcription ?? '');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Текст скопирован')),
+              SnackBar(content: Text(AppStrings.t('text_copied', context))),
             );
           }
           break;
@@ -1572,11 +1570,11 @@ class _HomePageState extends State<HomePage>
     final newTitle = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Переименовать'),
+        title: Text(AppStrings.t('rename_title', context)),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
-            hintText: 'Название записи...',
+          decoration: InputDecoration(
+            hintText: AppStrings.t('rename_hint', context),
             border: OutlineInputBorder(),
           ),
           autofocus: true,
@@ -1584,11 +1582,11 @@ class _HomePageState extends State<HomePage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Отмена'),
+            child: Text(AppStrings.t('long_transcribe_cancel', context)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Сохранить'),
+            child: Text(AppStrings.t('save', context)),
           ),
         ],
       ),
@@ -1673,8 +1671,8 @@ class _HomePageState extends State<HomePage>
     if (state == AppLifecycleState.resumed && _finishedInBackground) {
       _finishedInBackground = false;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Расшифровка готова — текст сохранён в записи'),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppStrings.t('transcription_done_bg', context)),
         ));
         _loadRecordings();
       }
@@ -1705,14 +1703,14 @@ class _HomePageState extends State<HomePage>
                 autofocus: true,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: 'Поиск по транскрипциям...',
+                  hintText: AppStrings.t('search_hint', context),
                   hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
                   border: InputBorder.none,
                 ),
                 onChanged: (value) => setState(() => _searchQuery = value),
               )
-            : const Center(
-                child: Text('ДиктаПро',
+            : Center(
+                child: Text(AppStrings.t('app_title', context),
                     style: TextStyle(fontWeight: FontWeight.bold))),
         centerTitle: !_isSearching,
         elevation: 0,
@@ -1732,7 +1730,7 @@ class _HomePageState extends State<HomePage>
           if (!_isSearching) ...[
             IconButton(
               icon: const Icon(Icons.settings, color: Colors.white),
-              tooltip: 'Настройки',
+              tooltip: AppStrings.t('settings_tooltip', context),
               onPressed: () async {
                 await Navigator.push(
                   context,
@@ -1767,7 +1765,7 @@ class _HomePageState extends State<HomePage>
             child: Column(
               children: [
                 Text(
-                  _isRecording ? '● Идет запись...' : 'Нажмите для записи',
+                  _isRecording ? AppStrings.t('recording_now', context) : AppStrings.t('tap_to_record', context),
                   style: TextStyle(
                     color: _isRecording ? Colors.red : Colors.white54,
                     fontSize: 14,
@@ -1854,7 +1852,7 @@ class _HomePageState extends State<HomePage>
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  _isRecording ? 'Остановить запись' : 'Начать запись',
+                  _isRecording ? AppStrings.t('stop_recording', context) : AppStrings.t('start_recording', context),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
@@ -1872,7 +1870,7 @@ class _HomePageState extends State<HomePage>
                 const SizedBox(height: 12),
                 if (AudioService().sleepDurationMinutes != null)
                   Text(
-                    'Таймер: ${AudioService().sleepDurationMinutes} мин',
+                    AppStrings.tf('timer_active', context, {'m': '${AudioService().sleepDurationMinutes}'}),
                     style: const TextStyle(color: Colors.amber, fontSize: 12),
                   ),
                 if (AudioService().sleepDurationMinutes != null)
@@ -1884,7 +1882,7 @@ class _HomePageState extends State<HomePage>
                     controller: _hotwordsController,
                     decoration: InputDecoration(
                       hintText:
-                          'Термины этой записи (имена, аббревиатуры — через запятую)',
+                          AppStrings.t('hotwords_hint', context),
                       hintStyle: TextStyle(
                           fontSize: 14,
                           color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -1956,8 +1954,8 @@ class _HomePageState extends State<HomePage>
                           const SizedBox(width: 4),
                           Text(
                             AudioService().sleepDurationMinutes != null
-                                ? '${AudioService().sleepDurationMinutes} мин'
-                                : 'Таймер сна',
+                                ? AppStrings.tf('timer_min', context, {'m': '${AudioService().sleepDurationMinutes}'})
+                                : AppStrings.t('sleep_timer', context),
                             style: const TextStyle(color: Colors.white54, fontSize: 12),
                           ),
                         ],
@@ -1991,8 +1989,8 @@ class _HomePageState extends State<HomePage>
                         const SizedBox(width: 8),
                         Text(
                           _searchQuery.isEmpty
-                              ? (_showFavoritesOnly ? 'Избранное (${filtered.length})' : 'Записи (${_recordings.length})')
-                              : 'Найдено: ${filtered.length}',
+                              ? (_showFavoritesOnly ? AppStrings.tf('favorites_count', context, {'n': '${filtered.length}'}) : AppStrings.tf('recordings_count', context, {'n': '${_recordings.length}'}))
+                              : AppStrings.tf('found_count', context, {'n': '${filtered.length}'}),
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             color: Colors.white70,
@@ -2001,7 +1999,7 @@ class _HomePageState extends State<HomePage>
                         const Spacer(),
                         PopupMenuButton<SortOption>(
                           icon: const Icon(Icons.sort, color: Colors.white54, size: 20),
-                          tooltip: 'Сортировка',
+                          tooltip: AppStrings.t('sort_tooltip', context),
                           onSelected: (option) {
                             setState(() => _sortOption = option);
                             _saveSortPreference(option);
@@ -2016,7 +2014,7 @@ class _HomePageState extends State<HomePage>
                                   else
                                     const SizedBox(width: 16),
                                   const SizedBox(width: 8),
-                                  Text(option.label),
+                                  Text(AppStrings.t(option.label, context)),
                                 ],
                               ),
                             );
@@ -2199,8 +2197,8 @@ class _HomePageState extends State<HomePage>
                                                 : Icons.transcribe,
                                             color: Colors.green,
                                             label: hasTranscription
-                                                ? 'Диалог'
-                                                : 'В текст',
+                                                ? AppStrings.t('btn_dialog', context)
+                                                : AppStrings.t('btn_to_text', context),
                                             onTap: () => hasTranscription
                                                 ? _openDialogueEditor(rec)
                                                 : _transcribeRecording(rec),
@@ -2210,25 +2208,25 @@ class _HomePageState extends State<HomePage>
                                             _ActionButton(
                                               icon: Icons.auto_awesome,
                                               color: Colors.cyan,
-                                              label: 'Суть',
+                                              label: AppStrings.t('btn_gist', context),
                                               onTap: () => _openSummaryPage(rec),
                                             ),
                                           _ActionButton(
                                             icon: Icons.share,
                                             color: Colors.blue,
-                                            label: 'Отправить',
+                                            label: AppStrings.t('btn_send', context),
                                             onTap: () => _showShareOptions(rec),
                                           ),
                                           _ActionButton(
                                             icon: Icons.play_arrow,
                                             color: Colors.white,
-                                            label: 'Слушать',
+                                            label: AppStrings.t('btn_listen', context),
                                             onTap: () => _playRecording(rec),
                                           ),
                                           _ActionButton(
                                             icon: Icons.delete_outline,
                                             color: Colors.red.withOpacity(0.7),
-                                            label: 'Удалить',
+                                            label: AppStrings.t('btn_delete', context),
                                             onTap: () =>
                                                 _deleteRecording(rec.id),
                                           ),

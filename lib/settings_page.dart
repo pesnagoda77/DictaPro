@@ -3,6 +3,7 @@ import 'package:hive/hive.dart';
 import 'services/keep_alive.dart';
 import 'services/stt_provider.dart';
 import 'theme/app_theme.dart';
+import 'app_strings.dart';
 
 class RecorderSettings {
   static const String boxName = 'settings';
@@ -77,7 +78,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (mounted) {
       final mb = (freed / 1024 / 1024).toStringAsFixed(1);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(freed > 0 ? 'Освобождено $mb МБ' : 'Временных файлов нет')),
+        SnackBar(content: Text(freed > 0 ? AppStrings.tf('freed_mb', context, {'m': mb}) : AppStrings.t('temp_none', context))),
       );
     }
   }
@@ -86,7 +87,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final id = await showDialog<String>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Провайдер онлайн-транскрипции'),
+        title: Text(AppStrings.t('provider_dialog_title', context)),
         children: [
           for (final pr in SttProvider.all)
             SimpleDialogOption(
@@ -111,28 +112,27 @@ class _SettingsPageState extends State<SettingsPage> {
     final res = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Ключ ${provider.title}'),
+        title: Text(AppStrings.tf('key_for', context, {'p': provider.title})),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-                'Ключ хранится только на устройстве. Без ключа онлайн-режим '
-                'выключен — расшифровка идёт офлайн, на устройстве.',
+                AppStrings.t('key_dialog_body', context),
                 style: TextStyle(fontSize: 12, color: Colors.white70)),
             const SizedBox(height: 12),
             TextField(
               controller: ctrl,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'Вставь API-ключ'),
+              decoration: InputDecoration(labelText: AppStrings.t('paste_api_key', context)),
             ),
           ],
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
+              onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.t('long_transcribe_cancel', context))),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: const Text('Сохранить'),
+            child: Text(AppStrings.t('save', context)),
           ),
         ],
       ),
@@ -141,7 +141,7 @@ class _SettingsPageState extends State<SettingsPage> {
       await SttSettings.setApiKey(provider.keyPrefsName, res);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(res.isEmpty ? 'Ключ удалён' : 'Ключ сохранён')));
+            content: Text(res.isEmpty ? AppStrings.t('key_removed', context) : AppStrings.t('key_saved', context))));
       }
     }
   }
@@ -181,7 +181,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Настройки'),
+        title: Text(AppStrings.t('settings_title', context)),
         actions: [
           IconButton(
             icon: const Icon(Icons.save),
@@ -189,7 +189,7 @@ class _SettingsPageState extends State<SettingsPage> {
               await _saveSettings();
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Сохранено')),
+                  SnackBar(content: Text(AppStrings.t('saved', context))),
                 );
               }
             },
@@ -199,11 +199,11 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          _group(context, 'Оформление', [
+          _group(context, AppStrings.t('group_appearance', context), [
             SwitchListTile(
               secondary: const Icon(Icons.brightness_6_outlined),
-              title: const Text('Светлая тема'),
-              subtitle: const Text('Дневное оформление приложения'),
+              title: Text(AppStrings.t('light_theme', context)),
+              subtitle: Text(AppStrings.t('light_theme_sub', context)),
               value: ThemeController.instance.isLight,
               onChanged: (v) async {
                 await ThemeController.instance
@@ -212,31 +212,31 @@ class _SettingsPageState extends State<SettingsPage> {
               },
             ),
           ]),
-          _group(context, 'Запись', [
+          _group(context, AppStrings.t('group_recording', context), [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildDropdown(
-                    label: 'Частота дискретизации (Hz)',
+                    label: AppStrings.t('sample_rate', context),
                     value: _settings.sampleRate,
                     items: _sampleRates,
                     onChanged: (val) => setState(() => _settings.sampleRate = val!),
                   ),
                   const SizedBox(height: 14),
                   _buildDropdown(
-                    label: 'Битрейт (bps)',
+                    label: AppStrings.t('bitrate', context),
                     value: _settings.bitRate,
                     items: _bitRates,
                     onChanged: (val) => setState(() => _settings.bitRate = val!),
                   ),
                   const SizedBox(height: 14),
                   _buildDropdown(
-                    label: 'Каналы',
+                    label: AppStrings.t('channels', context),
                     value: _settings.numChannels,
                     items: const [1, 2],
-                    itemLabel: (v) => v == 1 ? 'Моно (1)' : 'Стерео (2)',
+                    itemLabel: (v) => v == 1 ? AppStrings.t('mono', context) : AppStrings.t('stereo', context),
                     onChanged: (val) => setState(() => _settings.numChannels = val!),
                   ),
                 ],
@@ -251,26 +251,24 @@ class _SettingsPageState extends State<SettingsPage> {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: Colors.amber.withOpacity(0.30)),
                 ),
-                child: const Text(
-                  'Высокие настройки улучшают качество, но увеличивают размер файла. '
-                  'Для расшифровки достаточно 16 кГц, моно.',
+                child: Text(
+                  AppStrings.t('quality_note', context),
                   style: TextStyle(fontSize: 12.5, color: Colors.amber),
                 ),
               ),
             ),
           ]),
-          _group(context, 'Распознавание', [
-            const ListTile(
+          _group(context, AppStrings.t('group_recognition', context), [
+            ListTile(
               leading: Icon(Icons.auto_awesome),
-              title: Text('Движок: на устройстве, модель внутри'),
-              subtitle: Text('Точная модель GigaAM работает локально. '
-                  'Интернет не нужен, файлы не покидают телефон.'),
+              title: Text(AppStrings.t('engine_on_device', context)),
+              subtitle: Text(AppStrings.t('engine_on_device_sub', context)),
             ),
             const Divider(height: 1),
             SwitchListTile(
               secondary: const Icon(Icons.cloud_upload_outlined),
-              title: const Text('Онлайн-расшифровка'),
-              subtitle: const Text('Точнее локальной модели, но звук уходит на сервер провайдера'),
+              title: Text(AppStrings.t('online_transcribe', context)),
+              subtitle: Text(AppStrings.t('online_transcribe_sub', context)),
               value: _sttEnabled,
               onChanged: (v) async {
                 await SttSettings.setEnabled(v);
@@ -279,7 +277,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             ListTile(
               leading: const Icon(Icons.dns_outlined),
-              title: const Text('Провайдер'),
+              title: Text(AppStrings.t('provider', context)),
               subtitle: Text(_sttProviderTitle),
               trailing: const Icon(Icons.chevron_right),
               onTap: _pickSttProvider,
@@ -293,7 +291,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 onTap: () => _editSttKey(pr),
               ),
           ]),
-          _group(context, 'Фон и память', [
+          _group(context, AppStrings.t('group_background', context), [
             // Задача 036: MIUI убивает фоновые процессы без исключения —
             // без этого длинная расшифровка с выключенным экраном нежизнеспособна.
             // Задача 038: после системного запроса показываем ФАКТИЧЕСКОЕ
@@ -301,13 +299,14 @@ class _SettingsPageState extends State<SettingsPage> {
             // прямой выход на экран батареи приложения.
             ListTile(
               leading: const Icon(Icons.battery_saver_outlined),
-              title: const Text('Работа без ограничений (MIUI)'),
+              title: Text(AppStrings.t('miui_unrestricted', context)),
               subtitle: Text(
-                'Запросить исключение из оптимизации батареи. Без него '
-                'система может остановить длинную расшифровку в фоне.\n'
-                'Работа без ограничений: '
-                '${_batteryUnrestricted == null ? 'проверяю…' : (_batteryUnrestricted! ? 'включено' : 'не включено')}'
-                '${_batteryUnrestricted == false ? '\nMIUI: Сведения о батарее → Без ограничений' : ''}',
+                AppStrings.tf('miui_sub', context, {
+                  's': _batteryUnrestricted == null
+                      ? AppStrings.t('miui_checking', context)
+                      : (_batteryUnrestricted! ? AppStrings.t('miui_on', context) : AppStrings.t('miui_off', context)),
+                }) +
+                (_batteryUnrestricted == false ? '\n${AppStrings.t('miui_manual_path', context)}' : ''),
               ),
               trailing: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -320,7 +319,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       await Future.delayed(const Duration(seconds: 1));
                       await _refreshBatteryStatus();
                     },
-                    child: const Text('Включить'),
+                    child: Text(AppStrings.t('enable', context)),
                   ),
                   if (_batteryUnrestricted == false)
                     TextButton(
@@ -329,7 +328,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         await Future.delayed(const Duration(seconds: 1));
                         await _refreshBatteryStatus();
                       },
-                      child: const Text('Открыть настройки батареи'),
+                      child: Text(AppStrings.t('open_battery_settings', context)),
                     ),
                 ],
               ),
@@ -337,17 +336,17 @@ class _SettingsPageState extends State<SettingsPage> {
             const Divider(height: 1),
             ListTile(
               leading: const Icon(Icons.delete_sweep_outlined),
-              title: const Text('Временные файлы'),
+              title: Text(AppStrings.t('temp_files', context)),
               subtitle: Text(_tempBytes > 0
-                  ? 'Занято: ${(_tempBytes / 1024 / 1024).toStringAsFixed(1)} МБ. Обычно мусор удаляется сразу после расшифровки.'
-                  : 'Временных файлов нет — мусор удаляется сразу после расшифровки.'),
+                  ? AppStrings.tf('temp_occupied', context, {'m': '${(_tempBytes / 1024 / 1024).toStringAsFixed(1)}'})
+                  : AppStrings.t('temp_none', context)),
               trailing: TextButton(
                 onPressed: _tempBytes > 0 ? _clearTempNow : null,
-                child: const Text('Очистить'),
+                child: Text(AppStrings.t('clear', context)),
               ),
             ),
           ]),
-          _group(context, 'Данные', [
+          _group(context, AppStrings.t('group_data', context), [
             const ListTile(
               leading: Icon(Icons.lock_outline),
               title: Text('Всё хранится на устройстве'),

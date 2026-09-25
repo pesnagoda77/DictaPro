@@ -5,6 +5,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'audio_service.dart';
 import 'home_page.dart';
 import 'splash_screen.dart';
+import 'app_strings.dart';
 import 'theme/app_theme.dart';
 import 'services/purchase_service.dart';
 import 'services/local_notify.dart';
@@ -47,7 +48,7 @@ class DictaProApp extends StatelessWidget {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: ThemeController.instance.mode,
       builder: (context, mode, _) => MaterialApp(
-        title: 'ДиктаПро',
+        onGenerateTitle: (ctx) => AppStrings.t('app_title', ctx),
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),

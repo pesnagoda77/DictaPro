@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_strings.dart';
 import 'package:flutter/services.dart';
 import 'audio_service.dart';
 import 'export_service.dart';
@@ -203,13 +204,13 @@ class _DialogueEditorState extends State<DialogueEditor> {
               if (value == 'html') _exportHtml();
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'html',
                 child: Row(
                   children: [
                     Icon(Icons.code, size: 20),
                     SizedBox(width: 8),
-                    Text('Экспорт HTML'),
+                    Text(AppStrings.t('export_html', context)),
                   ],
                 ),
               ),
@@ -325,11 +326,11 @@ class _DialogueEditorState extends State<DialogueEditor> {
                     focusNode: _focusNodes[index],
                     maxLines: null,
                     style: const TextStyle(fontSize: 14, color: Colors.white),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       border: InputBorder.none,
                       isDense: true,
                       contentPadding: EdgeInsets.zero,
-                      hintText: 'Введите текст...',
+                      hintText: AppStrings.t('enter_text_hint', context),
                       hintStyle: TextStyle(color: Colors.white30),
                     ),
                   ),

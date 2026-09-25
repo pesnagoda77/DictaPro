@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_strings.dart';
 import 'package:just_audio/just_audio.dart';
 import 'audio_service.dart';
 
@@ -77,7 +78,7 @@ class _PlayerPageState extends State<PlayerPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Прослушивание'),
+        title: Text(AppStrings.t('player_title', context)),
         actions: [
           // Скорость
           PopupMenuButton<double>(
@@ -110,7 +111,7 @@ class _PlayerPageState extends State<PlayerPage> {
           children: [
             // Название
             Text(
-              'Запись ${widget.recording.createdAt.day}.${widget.recording.createdAt.month} ${widget.recording.createdAt.hour}:${widget.recording.createdAt.minute.toString().padLeft(2, '0')}',
+              AppStrings.tf('recording_of', context, {'d': '${widget.recording.createdAt.day}.${widget.recording.createdAt.month} ${widget.recording.createdAt.hour}:${widget.recording.createdAt.minute.toString().padLeft(2, '0')}'}),
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),

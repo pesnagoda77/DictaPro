@@ -63,15 +63,15 @@ class _SummaryPageState extends State<SummaryPage> {
         widget.recording.transcript!.isEmpty) return;
 
     setState(() => _isLoadingSummary = true);
-    _stage.value = 'Считаю саммари…';
+    _stage.value = AppStrings.t('summary_computing', context);
     try {
       final summary = await EnhancedSummaryService.generateSummaryAsync(
         widget.recording.transcript!,
         onProgress: (done, total) {
           // Промежуточный прогресс для длинных текстов (по частям).
           _stage.value = total > 1
-              ? 'Считаю саммари… часть $done из $total'
-              : 'Считаю саммари…';
+              ? AppStrings.tf('summary_part', context, {'d': '$done', 't': '$total'})
+              : AppStrings.t('summary_computing', context);
         },
       );
       // Экран могли закрыть, пока изолят считал — setState только если живы.
@@ -84,7 +84,7 @@ class _SummaryPageState extends State<SummaryPage> {
       if (!mounted) return;
       setState(() => _isLoadingSummary = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Не получилось посчитать саммари')),
+        SnackBar(content: Text(AppStrings.t('summary_failed_snack', context))),
       );
     }
   }
@@ -325,17 +325,17 @@ class _SummaryPageState extends State<SummaryPage> {
       // Fallback to original summary
       if (recording.summary != null && 
           recording.summary!.isNotEmpty &&
-          recording.summary != 'Нет доступного резюме') {
+          recording.summary != AppStrings.t('no_summary_yet', context)) {
         return _buildInfoCard(
           context,
-          title: 'Краткое содержание',
+          title: AppStrings.t('summary_card_title', context),
           content: recording.summary!,
         );
       }
       return _buildInfoCard(
         context,
-        title: 'Саммари',
-        content: 'Нажмите кнопку ниже для генерации саммари',
+        title: AppStrings.t('summary_title', context),
+        content: AppStrings.t('summary_press_button', context),
       );
     }
 
