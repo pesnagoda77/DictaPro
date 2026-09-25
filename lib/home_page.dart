@@ -293,46 +293,56 @@ class _HomePageState extends State<HomePage>
         color: scheme.errorContainer,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.warning_amber_rounded, color: scheme.onErrorContainer),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Расшифровка прервана',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: scheme.onErrorContainer)),
-                const SizedBox(height: 2),
-                Text(
-                  [
-                    '$chars символов',
-                    if (chunks > 0) 'кусок $chunks',
-                  ].join(' · '),
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: scheme.onErrorContainer),
+          Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: scheme.onErrorContainer),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Расшифровка прервана',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: scheme.onErrorContainer)),
+                    const SizedBox(height: 2),
+                    Text(
+                      [
+                        '$chars символов',
+                        if (chunks > 0) 'кусок $chunks',
+                      ].join(' · '),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: scheme.onErrorContainer),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: _showRecoveryText,
-            child: const Text('Показать текст'),
-          ),
-          const SizedBox(width: 4),
-          FilledButton(
-            onPressed: _resumeRecoveryJob,
-            child: const Text('Продолжить'),
-          ),
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            tooltip: 'Удалить',
-            onPressed: _discardRecoveryJob,
-            icon: Icon(Icons.close, size: 18, color: scheme.onErrorContainer),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              TextButton(
+                onPressed: _showRecoveryText,
+                child: const Text('Показать текст'),
+              ),
+              const Spacer(),
+              FilledButton(
+                onPressed: _resumeRecoveryJob,
+                child: const Text('Продолжить'),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Удалить',
+                onPressed: _discardRecoveryJob,
+                icon: Icon(Icons.close, size: 18, color: scheme.onErrorContainer),
+              ),
+            ],
           ),
         ],
       ),

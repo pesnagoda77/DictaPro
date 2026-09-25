@@ -32,6 +32,7 @@ class TranscribeKeepAlive {
       if (Platform.isIOS) {
         await _chIos.invokeMethod('startSilence');
         await _chIos.invokeMethod('beginTask');
+        await _chIos.invokeMethod('keepScreenOn');
         _iosBgStarted = true;
         await writeActiveMarker(text);
         return;
@@ -148,6 +149,11 @@ class TranscribeKeepAlive {
 
   static Future<void> stop() async {
     try {
+      if (Platform.isIOS && _iosBgStarted) {
+        await _chIos.invokeMethod('stopSilence');
+        await _chIos.invokeMethod('allowSleep');
+        _iosBgStarted = false;
+      }
       if (await FlutterForegroundTask.isRunningService) {
         await FlutterForegroundTask.stopService();
         _keepLog('stop: служба остановлена');

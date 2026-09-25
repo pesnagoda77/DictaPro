@@ -144,6 +144,14 @@ import AVFoundation
       case "endTask":
         self.endTask()
         result(true)
+      // Task 060: пока идёт расшифровка, экран не гаснет — иначе iOS
+      // приостанавливает приложение за высокую нагрузку CPU в фоне.
+      case "keepScreenOn":
+        DispatchQueue.main.async { UIApplication.shared.isIdleTimerDisabled = true }
+        result(true)
+      case "allowSleep":
+        DispatchQueue.main.async { UIApplication.shared.isIdleTimerDisabled = false }
+        result(true)
       default:
         result(FlutterMethodNotImplemented)
       }
