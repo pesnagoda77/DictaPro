@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Дикта: план паритета Android и iOS</title>
+<style>
+  body{margin:0;background:#0f1620;color:#EAF2F5;font:15px/1.55 "Segoe UI",system-ui,sans-serif;padding:30px 22px 50px;}
+  h1{font-size:25px;margin:0 0 6px;} h1 span{color:#8FE3D2;}
+  .lead{color:rgba(234,242,245,.66);margin:0 0 20px;}
+  h2{font-size:17px;margin:28px 0 10px;color:#8FE3D2;}
+  table{width:100%;border-collapse:collapse;background:rgba(255,255,255,.03);border-radius:12px;overflow:hidden;margin-bottom:6px;}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid rgba(255,255,255,.08);font-size:13.5px;vertical-align:top;}
+  th{color:rgba(234,242,245,.66);font-weight:600;}
+  .ok{color:#8FE3D2;font-weight:600;} .todo{color:#FFD166;font-weight:600;} .me{color:#9CC7FF;}
+  .grid{display:flex;gap:14px;flex-wrap:wrap;}
+  .card{flex:1 1 300px;background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.02));
+        border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:14px;}
+  .card b{display:block;font-size:13px;color:#8FE3D2;margin-bottom:6px;}
+  .card ul{margin:0;padding-left:18px;} .card li{margin-bottom:4px;}
+  .foot{margin-top:24px;padding-top:12px;border-top:1px solid rgba(255,255,255,.10);color:rgba(234,242,245,.62);font-size:13px;}
+</style>
+</head>
+<body>
+  <h1>Дикта → <span>Android и iOS в одинаковом состоянии</span></h1>
+  <p class="lead">Один код (Flutter), две сборки. «Идентичность» = закрыть платформенные различия и один раз прогнать обе сборки по одному чек-листу.</p>
+
+  <h2>Чем платформы различаются (и почему)</h2>
+  <table>
+    <tr><th>Тема</th><th>Android</th><th>iOS</th></tr>
+    <tr><td>Модель речи</td><td>asset-pack Play (222 МБ), качается при установке</td><td>внутри приложения (IPA 187 МБ)</td></tr>
+    <tr><td>Фон при расшифровке</td><td>foreground-сервис</td><td>аудиосессия + тишина + сторож</td></tr>
+    <tr><td>Экран</td><td>можно гасить</td><td>не гаснет, пока идёт расшифровка</td></tr>
+    <tr><td>Оплата</td><td>Google Play Billing</td><td>StoreKit (те же ID)</td></tr>
+    <tr><td>Тест оплаты</td><td>лицензионные тестеры</td><td>Sandbox-аккаунт</td></tr>
+  </table>
+
+  <h2>Общая часть (один раз на обе платформы)</h2>
+  <div class="grid">
+    <div class="card"><b>СДЕЛАНО</b><ul>
+      <li>локализация ru/en/de/it (060)</li>
+      <li>онлайн-итоги через наш воркер, ключ из секрета (064)</li>
+      <li>автопроверка секретов + analyze перед сборкой</li>
+      <li>iOS: фон, нерушимый экран, читаемая карточка восстановления</li>
+    </ul></div>
+    <div class="card"><b>ОСТАЛОСЬ ПО КОДУ</b><ul>
+      <li><span class="todo">экран «Подписка»</span> (065) — сейчас купить негде</li>
+      <li>проверка обоих языков на всех экранах</li>
+    </ul></div>
+    <div class="card"><b>ОСТАЛОСЬ ПО КОНСОЛЯМ (владелец)</b><ul>
+      <li>Play: подписки sub_diary / sub_assistant / sub_unlimited + пакеты pack_*</li>
+      <li>Play: лицензионные тестеры + отправка релиза закрытого теста</li>
+      <li>App Store Connect: приложение, те же товары, Sandbox-аккаунт</li>
+    </ul></div>
+  </div>
+
+  <h2>Чек-лист паритета — заполняем обе колонки, иначе релиз не выпускаем</h2>
+  <table>
+    <tr><th>Проверка</th><th>Android</th><th>iOS</th></tr>
+    <tr><td>Запись 10 мин → расшифровка офлайн (авиарежим)</td><td class="todo">☐</td><td class="todo">☐</td></tr>
+    <tr><td>Длинная запись (&gt;5 ч): предупреждение, не падает</td><td class="todo">☐</td><td class="todo">☐</td></tr>
+    <tr><td>Экран гаснет / сворачивание — расшифровка не теряется</td><td class="todo">☐</td><td class="todo">☐</td></tr>
+    <tr><td>Итоги локальные (офлайн) и онлайн (воркер)</td><td class="todo">☐</td><td class="todo">☐</td></tr>
+    <tr><td>Экспорт TXT/PDF/HTML, поиск, теги, переименование</td><td class="todo">☐</td><td class="todo">☐</td></tr>
+    <tr><td>Экран «Подписка»: тарифы и пакеты видны</td><td class="todo">☐</td><td class="todo">☐</td></tr>
+    <tr><td>Покупка тестовым аккаунтом → лимиты сняты; офлайн после покупки</td><td class="todo">☐</td><td class="todo">☐</td></tr>
+    <tr><td>Языки ru и en без «смеси»; холодный старт в авиарежиме</td><td class="todo">☐</td><td class="todo">☐</td></tr>
+    <tr><td>Версия и номер сборки совпадают</td><td class="todo">☐</td><td class="todo">☐</td></tr>
+  </table>
+
+  <h2>Порядок работ</h2>
+  <table>
+    <tr><th>Шаг</th><th>Что</th><th>Кто</th></tr>
+    <tr><td>1</td><td>Экран «Подписка» (065)</td><td>Фил</td></tr>
+    <tr><td>2</td><td>Товары в Play и App Store Connect, лицензионные тестеры, Sandbox</td><td class="me">Владелец</td></tr>
+    <tr><td>3</td><td>Отправка Android-релиза закрытого теста на проверку</td><td class="me">Владелец</td></tr>
+    <tr><td>4</td><td>Сборки APK/IPA и прогон чек-листа паритета</td><td>Главный агент</td></tr>
+    <tr><td>5</td><td>Публикация Android (продакшен)</td><td>Главный агент</td></tr>
+    <tr><td>6</td><td>TestFlight → ревью Apple → публикация iOS</td><td>Главный агент</td></tr>
+    <tr><td>7</td><td>Новый дизайн — только после релиза, по этапам</td><td>Фил + главный агент</td></tr>
+  </table>
+
+  <div class="foot">Правило паритета: функция работает на одной платформе и не работает на другой — это блокер релиза, пока не исправлено или явно не задокументировано как платформенное ограничение.</div>
+</body>
+</html>
