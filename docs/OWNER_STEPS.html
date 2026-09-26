@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Дикта: что нужно сделать владельцу — пошагово</title>
+<style>
+  body{margin:0;background:#0f1620;color:#EAF2F5;font:15px/1.6 "Segoe UI",system-ui,sans-serif;padding:30px 22px 50px;}
+  h1{font-size:24px;margin:0 0 4px;} h1 span{color:#8FE3D2;}
+  .lead{color:rgba(234,242,245,.66);margin:0 0 22px;}
+  h2{font-size:17px;margin:28px 0 10px;color:#8FE3D2;}
+  ol{padding-left:22px;} li{margin-bottom:9px;}
+  code{background:rgba(143,227,210,.12);border:1px solid rgba(143,227,210,.25);border-radius:6px;padding:1px 6px;font-size:13.5px;}
+  table{width:100%;border-collapse:collapse;background:rgba(255,255,255,.03);border-radius:12px;overflow:hidden;margin:8px 0 4px;}
+  th,td{text-align:left;padding:8px 11px;border-bottom:1px solid rgba(255,255,255,.08);font-size:13.5px;}
+  th{color:rgba(234,242,245,.66);font-weight:600;}
+  .ok{color:#8FE3D2;font-weight:600;} .todo{color:#FFD166;font-weight:600;}
+  .box{background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:14px;margin-bottom:10px;}
+  .foot{margin-top:24px;padding-top:12px;border-top:1px solid rgba(255,255,255,.10);color:rgba(234,242,245,.62);font-size:13px;}
+</style>
+</head>
+<body>
+  <h1>Дикта: <span>что нужно от владельца — пошагово</span></h1>
+  <p class="lead">Два блока: сначала Google Play (он держит релиз Android), затем App Store Connect (для iPhone). После каждого — напиши «готово», я проверю и продолжу.</p>
+
+  <h2>Блок A. Google Play (сейчас)</h2>
+  <div class="box">
+    <ol>
+      <li>Открой Play Console под аккаунтом <b>Albatech Group</b> → приложение <b>ДиктаПро</b>.</li>
+      <li><b>Монетизация → Продукты → Подписки</b> → «Создать подписку» — три штуки:</li>
+    </ol>
+    <table>
+      <tr><th>ID подписки</th><th>Название</th><th>План «месяц»</th><th>План «год»</th></tr>
+      <tr><td><code>sub_diary</code></td><td>Дневник</td><td>490 ₽</td><td>4 900 ₽</td></tr>
+      <tr><td><code>sub_assistant</code></td><td>Ассистент</td><td>990 ₽</td><td>9 900 ₽</td></tr>
+      <tr><td><code>sub_unlimited</code></td><td>Безлимит</td><td>1 990 ₽</td><td>17 910 ₽</td></tr>
+    </table>
+    <ol start="3">
+      <li>В каждой: «Создать базовый план» → <b>Месячный</b> → цена → Сохранить; затем добавить <b>Годовой</b> план. Итог: у каждой подписки два активных плана.</li>
+      <li><b>Монетизация → Продукты → Товары</b> (разовые) — четыре пакета: <code>pack_1h</code> 29 ₽ · <code>pack_10h</code> 249 ₽ · <code>pack_50h</code> 990 ₽ · <code>pack_200h</code> 3 490 ₽.</li>
+      <li><b>Настройки → Лицензионное тестирование</b>: убедись, что там есть твой Google-аккаунт.</li>
+      <li><b>Тестирование и выпуск → Тестирование → Закрытое тестирование</b> → у черновика релиза нажми <b>«Отправить на проверку»</b>.</li>
+      <li>Напиши мне <b>«готово»</b> — я проверю через API, что товары и релиз поднялись, и передам сборку тестерам.</li>
+    </ol>
+  </div>
+
+  <h2>Блок B. App Store Connect (после A или параллельно)</h2>
+  <div class="box">
+    <ol>
+      <li><b>appstoreconnect.apple.com → Мои приложения → «+» → Новое приложение</b>: платформа iOS, имя «ДиктаПро», язык русский, bundle ID <code>com.dictapro.app</code> (если его нет в списке — создать Bundle ID в developer.apple.com), SKU — любой, например <code>dictapro001</code>.</li>
+      <li>В приложении → <b>Подписки</b>: группа «Дикта» → три подписки с ID <code>sub_diary</code>, <code>sub_assistant</code>, <code>sub_unlimited</code> (период 1 месяц; затем добавить годовые планы 1 год; цены как в блоке A).</li>
+      <li><b>Покупки внутри приложения</b>: <code>pack_1h</code>, <code>pack_10h</code>, <code>pack_50h</code>, <code>pack_200h</code> — тип Consumable; <code>full_unlock</code> — Non-Consumable.</li>
+      <li><b>Пользователи и доступ → Sandbox → Testers</b>: создать тестовый Apple ID (e-mail, пароль, страна).</li>
+      <li>На iPhone: <b>Настройки → App Store → Аккаунт песочницы</b> → войти этим тестовым Apple ID (основной аккаунт не трогать).</li>
+      <li>Напиши <b>«готово»</b> — я залью сборку в TestFlight и проверим покупку.</li>
+    </ol>
+  </div>
+
+  <h2>Что делаю я (не ты)</h2>
+  <table>
+    <tr><th>Шаг</th><th>Статус</th></tr>
+    <tr><td>Сборки APK/IPA, установка на устройства</td><td class="ok">готово</td></tr>
+    <tr><td>Проверка товаров и релиза через API, публикация Android</td><td class="todo">жду твой блок A</td></tr>
+    <tr><td>TestFlight, ревью Apple, публикация iOS</td><td class="todo">жду твой блок B</td></tr>
+    <tr><td>Прогон чек-листа паритета на двух платформах</td><td class="todo">после сборок</td></tr>
+  </table>
+
+  <div class="foot">Позже (не сейчас): APNs-ключ Apple для пушей; UDID юриста и тестеров — для их iphone-сборок.</div>
+</body>
+</html>
