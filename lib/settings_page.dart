@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'services/keep_alive.dart';
+import 'services/purchase_service.dart';
 import 'services/stt_provider.dart';
+import 'subscription_page.dart';
 import 'theme/app_theme.dart';
 import 'app_strings.dart';
 
@@ -209,6 +211,38 @@ class _SettingsPageState extends State<SettingsPage> {
                 await ThemeController.instance
                     .setTheme(v ? ThemeMode.light : ThemeMode.dark);
                 if (mounted) setState(() {});
+              },
+            ),
+          ]),
+          // Task 065: вход на экран «Подписка» — виден всегда, а не только
+          // при исчерпании лимита.
+          _group(context, AppStrings.t('sub_title', context), [
+            ValueListenableBuilder<SubscriptionTier>(
+              valueListenable: PurchaseService.instance.tier,
+              builder: (context, tier, _) {
+                final subtitle = tier == SubscriptionTier.none
+                    ? AppStrings.t('sub_status_none', context)
+                    : AppStrings.tf('sub_status_tier', context, {
+                        't': switch (tier) {
+                          SubscriptionTier.diary =>
+                            AppStrings.t('sub_tier_diary', context),
+                          SubscriptionTier.assistant =>
+                            AppStrings.t('sub_tier_assistant', context),
+                          SubscriptionTier.unlimited =>
+                            AppStrings.t('sub_tier_unlimited', context),
+                          SubscriptionTier.none => '',
+                        },
+                      });
+                return ListTile(
+                  leading: const Icon(Icons.workspace_premium_outlined),
+                  title: Text(AppStrings.t('sub_settings_sub', context)),
+                  subtitle: Text(subtitle),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const SubscriptionPage()),
+                  ),
+                );
               },
             ),
           ]),

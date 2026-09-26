@@ -825,6 +825,161 @@ class AppStrings {
       'ru': 'Введите текст...', 'en': 'Enter text...',
       'de': 'Text eingeben...', 'it': 'Inserisci testo...',
     },
+    // ---------- Task 065: экран «Подписка» ----------
+    'sub_settings_item': {
+      'ru': 'Подписка', 'en': 'Subscription',
+      'de': 'Abo', 'it': 'Abbonamento',
+    },
+    'sub_all_plans': {
+      'ru': 'Все тарифы и пакеты', 'en': 'All plans and packs',
+      'de': 'Alle Tarife und Pakete', 'it': 'Tutti i piani e i pacchetti',
+    },
+    'sub_settings_sub': {
+      'ru': 'Тарифы, ИИ-часы, пакеты',
+      'en': 'Plans, AI hours, packs',
+      'de': 'Tarife, KI-Stunden, Pakete',
+      'it': 'Piani, ore AI, pacchetti',
+    },
+    'sub_title': {
+      'ru': 'Подписка', 'en': 'Subscription',
+      'de': 'Abo', 'it': 'Abbonamento',
+    },
+    'sub_status_none': {
+      'ru': 'Активной подписки нет — доступен бесплатный режим',
+      'en': 'No active subscription — free mode available',
+      'de': 'Kein aktives Abo — Gratismodus verfügbar',
+      'it': 'Nessun abbonamento attivo — disponibile la modalità gratuita',
+    },
+    'sub_status_tier': {
+      'ru': 'Тариф: {t}', 'en': 'Plan: {t}',
+      'de': 'Tarif: {t}', 'it': 'Piano: {t}',
+    },
+    'sub_status_balance': {
+      'ru': 'ИИ-часы: {h} ч', 'en': 'AI hours: {h} h',
+      'de': 'KI-Stunden: {h} h', 'it': 'Ore AI: {h} h',
+    },
+    'sub_status_next': {
+      'ru': 'Списание и продление — в магазине приложений',
+      'en': 'Billing and renewal are handled by the app store',
+      'de': 'Abrechnung und Verlängerung über den App-Store',
+      'it': 'Addebito e rinnovo gestiti dall\'app store',
+    },
+    'sub_full_unlock_status': {
+      'ru': 'Полная версия куплена — дневной лимит расшифровки снят',
+      'en': 'Full version purchased — daily transcription limit removed',
+      'de': 'Vollversion gekauft — tägliches Transkriptionslimit aufgehoben',
+      'it': 'Versione completa acquistata — limite giornaliero rimosso',
+    },
+    'sub_period_month': {
+      'ru': 'Месяц', 'en': 'Month',
+      'de': 'Monat', 'it': 'Mese',
+    },
+    'sub_period_year': {
+      'ru': 'Год', 'en': 'Year',
+      'de': 'Jahr', 'it': 'Anno',
+    },
+    'sub_tier_diary': {
+      'ru': 'Дневник', 'en': 'Diary',
+      'de': 'Tagebuch', 'it': 'Diario',
+    },
+    'sub_tier_assistant': {
+      'ru': 'Ассистент', 'en': 'Assistant',
+      'de': 'Assistent', 'it': 'Assistente',
+    },
+    'sub_tier_unlimited': {
+      'ru': 'Безлимит', 'en': 'Unlimited',
+      'de': 'Unbegrenzt', 'it': 'Illimitato',
+    },
+    'sub_tier_diary_desc': {
+      'ru': '10 ИИ-часов в месяц для онлайн-итогов',
+      'en': '10 AI hours per month for online summaries',
+      'de': '10 KI-Stunden pro Monat für Online-Zusammenfassungen',
+      'it': '10 ore AI al mese per riepiloghi online',
+    },
+    'sub_tier_assistant_desc': {
+      'ru': '20 ИИ-часов в месяц для онлайн-итогов',
+      'en': '20 AI hours per month for online summaries',
+      'de': '20 KI-Stunden pro Monat für Online-Zusammenfassungen',
+      'it': '20 ore AI al mese per riepiloghi online',
+    },
+    'sub_tier_unlimited_desc': {
+      'ru': '40 ИИ-часов в месяц для онлайн-итогов',
+      'en': '40 AI hours per month for online summaries',
+      'de': '40 KI-Stunden pro Monat für Online-Zusammenfassungen',
+      'it': '40 ore AI al mese per riepiloghi online',
+    },
+    'sub_current_badge': {
+      'ru': 'Текущий тариф', 'en': 'Current plan',
+      'de': 'Aktueller Tarif', 'it': 'Piano attuale',
+    },
+    'sub_price_pending': {
+      'ru': 'Цена появится после запуска в магазине',
+      'en': 'Price will appear once the app is live in the store',
+      'de': 'Preis erscheint nach dem Start im Store',
+      'it': 'Il prezzo apparirà dopo il lancio sullo store',
+    },
+    'sub_store_banner': {
+      'ru': 'Покупки станут доступны после публикации приложения в магазине. Тарифы уже видны — цены подтянутся автоматически.',
+      'en': 'Purchases will become available once the app is published in the store. Plans are already listed — prices will load automatically.',
+      'de': 'Käufe werden nach Veröffentlichung der App im Store verfügbar. Tarife sind bereits sichtbar — Preise werden automatisch geladen.',
+      'it': 'Gli acquisti saranno disponibili dopo la pubblicazione dell\'app sullo store. I piani sono già visibili — i prezzi verranno caricati automaticamente.',
+    },
+    'sub_packs_title': {
+      'ru': 'Пакеты ИИ-часов', 'en': 'AI hour packs',
+      'de': 'KI-Stundenpakete', 'it': 'Pacchetti di ore AI',
+    },
+    'sub_packs_note': {
+      'ru': 'Не сгорают. Тратятся после включённых часов подписки.',
+      'en': 'Never expire. Spent after the subscription\'s included hours.',
+      'de': 'Verfallen nicht. Werden nach den Abo-Stunden verbraucht.',
+      'it': 'Non scadono. Utilizzate dopo le ore incluse nell\'abbonamento.',
+    },
+    'sub_pack_hours': {
+      'ru': '{n} ИИ-часов', 'en': '{n} AI hours',
+      'de': '{n} KI-Stunden', 'it': '{n} ore AI',
+    },
+    'sub_buy': {
+      'ru': 'Оформить', 'en': 'Subscribe',
+      'de': 'Abschließen', 'it': 'Attiva',
+    },
+    'sub_buy_pack': {
+      'ru': 'Купить', 'en': 'Buy',
+      'de': 'Kaufen', 'it': 'Acquista',
+    },
+    'sub_restore': {
+      'ru': 'Восстановить покупку', 'en': 'Restore purchase',
+      'de': 'Kauf wiederherstellen', 'it': 'Ripristina acquisto',
+    },
+    'sub_promo': {
+      'ru': 'Ввести промокод', 'en': 'Enter promo code',
+      'de': 'Promocode eingeben', 'it': 'Inserisci codice promo',
+    },
+    'sub_promo_title': {
+      'ru': 'Промокод', 'en': 'Promo code',
+      'de': 'Promocode', 'it': 'Codice promo',
+    },
+    'sub_promo_hint': {
+      'ru': 'Код из письма или поста', 'en': 'Code from an email or post',
+      'de': 'Code aus E-Mail oder Beitrag', 'it': 'Codice da email o post',
+    },
+    'sub_promo_pending': {
+      'ru': 'Промокоды заработают после публикации приложения.',
+      'en': 'Promo codes will work once the app is published.',
+      'de': 'Promocodes funktionieren nach Veröffentlichung der App.',
+      'it': 'I codici promo funzioneranno dopo la pubblicazione dell\'app.',
+    },
+    'sub_purchased': {
+      'ru': 'Готово! Покупка применена.', 'en': 'Done! Purchase applied.',
+      'de': 'Fertig! Kauf angewendet.', 'it': 'Fatto! Acquisto applicato.',
+    },
+    'sub_year_hint': {
+      'ru': 'год', 'en': 'year',
+      'de': 'Jahr', 'it': 'anno',
+    },
+    'sub_month_hint': {
+      'ru': 'мес', 'en': 'mo',
+      'de': 'Mon.', 'it': 'mese',
+    },
   };
 
   static String _langCode(BuildContext context) {

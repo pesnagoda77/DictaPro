@@ -32,6 +32,14 @@ class PurchaseService {
   static const subDiaryId = 'sub_diary';
   static const subAssistantId = 'sub_assistant';
   static const subUnlimitedId = 'sub_unlimited';
+
+  /// Task 065: годовые варианты тех же тарифов.
+  /// iOS: год — отдельный продукт. Play: год — второй базовый план под тем же
+  /// ID (дубль в запросе безвреден), цена берётся из оффера.
+  static const subDiaryYearId = 'sub_diary_year';
+  static const subAssistantYearId = 'sub_assistant_year';
+  static const subUnlimitedYearId = 'sub_unlimited_year';
+
   static const packIds = {
     'pack_1h': 1.0,
     'pack_10h': 10.0,
@@ -79,6 +87,9 @@ class PurchaseService {
           subDiaryId,
           subAssistantId,
           subUnlimitedId,
+          subDiaryYearId,
+          subAssistantYearId,
+          subUnlimitedYearId,
           ...packIds.keys,
         });
         _products = response.productDetails;
@@ -98,14 +109,19 @@ class PurchaseService {
     return _buy(fullUnlockId);
   }
 
-  Future<bool> buySubscription(SubscriptionTier t) {
+  Future<bool> buySubscription(SubscriptionTier t, {bool yearly = false}) {
     final id = switch (t) {
-      SubscriptionTier.diary => subDiaryId,
-      SubscriptionTier.assistant => subAssistantId,
-      SubscriptionTier.unlimited => subUnlimitedId,
+      SubscriptionTier.diary =>
+        yearly ? subDiaryYearId : subDiaryId,
+      SubscriptionTier.assistant =>
+        yearly ? subAssistantYearId : subAssistantId,
+      SubscriptionTier.unlimited =>
+        yearly ? subUnlimitedYearId : subUnlimitedId,
       SubscriptionTier.none => '',
     };
     if (id.isEmpty) return Future.value(false);
+    // Годовой ID может быть не создан в консоли — тогда честно падаем
+    // на «товар не загружен», а не молча продаём месяц вместо года.
     return _buy(id);
   }
 
@@ -184,9 +200,9 @@ class PurchaseService {
   }
 
   SubscriptionTier _tierOfProduct(String productId) => switch (productId) {
-        subDiaryId => SubscriptionTier.diary,
-        subAssistantId => SubscriptionTier.assistant,
-        subUnlimitedId => SubscriptionTier.unlimited,
+        subDiaryId || subDiaryYearId => SubscriptionTier.diary,
+        subAssistantId || subAssistantYearId => SubscriptionTier.assistant,
+        subUnlimitedId || subUnlimitedYearId => SubscriptionTier.unlimited,
         _ => SubscriptionTier.none,
       };
 

@@ -9,6 +9,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:hive/hive.dart';
 import 'audio_service.dart' hide DialogueSegment;
+import 'subscription_page.dart';
 import 'theme/app_theme.dart';
 import 'models/transcription.dart';
 
@@ -1115,6 +1116,16 @@ class _HomePageState extends State<HomePage>
         content: Text(AppStrings.limitReachedBody(ctx,
             used: used, limit: UsageLimitService.dailyMinutesLimit)),
         actions: [
+          // Task 065: ссылка на полный экран подписки (тарифы и пакеты).
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SubscriptionPage()),
+              );
+            },
+            child: Text(AppStrings.t('sub_all_plans', ctx)),
+          ),
           TextButton(
             onPressed: () {
               PurchaseService.instance.restore();
