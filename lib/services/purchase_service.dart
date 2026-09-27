@@ -45,10 +45,11 @@ class PurchaseService {
   static const subAssistantId = 'sub_assistant';
   static const subUnlimitedId = 'sub_unlimited';
 
-  /// Task 066: базовые планы Google Play. В консоли Play год может получить
-  /// ID, отличный от 'yearly' (например 'annual') — менять ТОЛЬКО здесь.
+  /// Task 066: базовые планы Google Play (подтверждено скриншотом консоли
+  /// 27.09.2026): месяц — 'monthly', год — 'annual'. ID планов для всех
+  /// трёх подписок одинаковые. Менять только здесь.
   static const monthlyBasePlanId = 'monthly';
-  static const yearlyBasePlanId = 'yearly';
+  static const yearlyBasePlanId = 'annual';
 
   /// Task 065: годовые варианты — только App Store (отдельные продукты).
   /// На Android эти ID не существуют и в запрос не включаются (task 066).
