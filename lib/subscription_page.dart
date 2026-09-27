@@ -36,25 +36,10 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
   }
 
   /// Р¦РµРЅР° С‚РѕРІР°СЂР° РёР· СЃС‚РѕСЂР°; null вЂ” С‚РѕРІР°СЂР° РЅРµС‚ (РєРѕРЅСЃРѕР»СЊ РЅРµ РЅР°СЃС‚СЂРѕРµРЅР°).
-  String? _priceOf(String productId) {
-    for (final p in _purchases.products) {
-      if (p.id == productId) return p.price;
-    }
-    return null;
-  }
-
-  String _tierProductId(SubscriptionTier t, {required bool yearly}) =>
-      switch (t) {
-        SubscriptionTier.diary =>
-          yearly ? PurchaseService.subDiaryYearId : PurchaseService.subDiaryId,
-        SubscriptionTier.assistant => yearly
-            ? PurchaseService.subAssistantYearId
-            : PurchaseService.subAssistantId,
-        SubscriptionTier.unlimited => yearly
-            ? PurchaseService.subUnlimitedYearId
-            : PurchaseService.subUnlimitedId,
-        SubscriptionTier.none => '',
-      };
+  /// Task 066: цена тарифа из сервиса (Play — по базовому плану внутри
+  /// подписки; App Store — год отдельным продуктом).
+  String? _tierPrice(SubscriptionTier t) =>
+      _purchases.priceOfSubscription(t, yearly: _yearly);
 
   String _tierName(BuildContext context, SubscriptionTier t) => switch (t) {
         SubscriptionTier.diary => AppStrings.t('sub_tier_diary', context),
@@ -284,8 +269,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
   Widget _tierCard(BuildContext context, SubscriptionTier t,
       {required bool current}) {
     final cs = Theme.of(context).colorScheme;
-    final productId = _tierProductId(t, yearly: _yearly);
-    final price = _priceOf(productId);
+    final price = _tierPrice(t);
     final periodHint =
         _yearly ? AppStrings.t('sub_year_hint', context) : AppStrings.t('sub_month_hint', context);
     return Card(
@@ -380,7 +364,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                   leading: const Icon(Icons.bolt_outlined),
                   title: Text('${e.value.toStringAsFixed(0)} '
                       '${AppStrings.t('sub_packs_title', context).split(' ').first}'),
-                  subtitle: Text(_priceOf(e.key) ??
+                  subtitle: Text(_purchases.priceOf(e.key) ??
                       AppStrings.t('sub_price_pending', context)),
                   trailing: FilledButton.tonal(
                     onPressed: _busy ? null : () => _buyPack(e.key),
