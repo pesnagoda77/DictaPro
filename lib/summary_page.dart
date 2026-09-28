@@ -255,7 +255,7 @@ class _SummaryPageState extends State<SummaryPage> {
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               Text(
-                'конспект из текста записи',
+                AppStrings.t('summary_subtitle', context),
                 style: TextStyle(
                   fontSize: 10.5,
                   fontWeight: FontWeight.w500,
@@ -317,8 +317,10 @@ class _SummaryPageState extends State<SummaryPage> {
       ),
       child: Row(
         children: [
-          _toggleSeg(context, index: 0, label: 'Локально', sub: 'без интернета'),
-          _toggleSeg(context, index: 1, label: 'Онлайн', sub: 'точнее · ИИ-часы'),
+          _toggleSeg(context, index: 0, label: AppStrings.t('summary_mode_local', context),
+              sub: AppStrings.t('summary_mode_local_sub', context)),
+          _toggleSeg(context, index: 1, label: AppStrings.t('summary_mode_online', context),
+              sub: AppStrings.t('summary_mode_online_sub', context)),
         ],
       ),
     );
@@ -550,21 +552,21 @@ class _SummaryPageState extends State<SummaryPage> {
     if (agreed.isNotEmpty) {
       blocks.add(_blk(
         context,
-        title: 'О ЧЁМ ДОГОВОРИЛИСЬ',
+        title: AppStrings.t('summary_block_deal', context),
         lines: [for (final t in agreed) _richLi(context, t)],
       ));
     }
     if (tasks.isNotEmpty) {
       blocks.add(_blk(
         context,
-        title: 'ЗАДАЧИ',
+        title: AppStrings.t('summary_block_tasks', context),
         lines: [for (final t in tasks) _taskLi(context, t)],
       ));
     }
     if (numbers.isNotEmpty) {
       blocks.add(_blk(
         context,
-        title: 'ЦИФРЫ И ДАТЫ',
+        title: AppStrings.t('summary_block_figures', context),
         lines: [for (final t in numbers) _monoLi(context, t)],
       ));
     }
@@ -774,21 +776,9 @@ class _SummaryPageState extends State<SummaryPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text.rich(
-            TextSpan(
-              style: base.copyWith(color: tk.ink2),
-              children: [
-                const TextSpan(
-                  text:
-                      'Онлайн-итоги считаются на сервере за ИИ-часы и кэшируются: повторный показ — ',
-                ),
-                TextSpan(
-                  text: 'бесплатно',
-                  style: base.copyWith(color: tk.ink, fontWeight: FontWeight.w600),
-                ),
-                const TextSpan(text: '. Локальные итоги не используют интернет.'),
-              ],
-            ),
+          Text(
+            AppStrings.t('summary_note', context),
+            style: base.copyWith(color: tk.ink2),
           ),
           if (_hoursLabel.isNotEmpty) ...[
             const SizedBox(height: 6),
@@ -840,7 +830,7 @@ class _SummaryPageState extends State<SummaryPage> {
               children: [
                 Expanded(
                   child: Text(
-                    'Полный текст',
+                    AppStrings.t('summary_full_text', context),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),

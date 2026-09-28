@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_strings.dart';
 import 'package:just_audio/just_audio.dart';
 import 'audio_service.dart';
 import 'theme/app_theme.dart';
@@ -19,6 +20,12 @@ class _PlayerPageState extends State<PlayerPage> {
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   late List<DialogueSegment> _segments;
+
+  /// Высоты полосок волны (как в макете — фиксированный узор).
+  static const List<double> _waveHeights = [
+    10, 22, 34, 48, 30, 16, 24, 40, 52, 34, 20, 12,
+    26, 42, 30, 18, 10, 28, 44, 32, 16, 24, 38, 20, 12,
+  ];
 
   @override
   void initState() {
@@ -54,13 +61,6 @@ class _PlayerPageState extends State<PlayerPage> {
     final m = d.inMinutes.toString().padLeft(2, '0');
     final s = (d.inSeconds % 60).toString().padLeft(2, '0');
     return '$m:$s';
-  }
-
-  String _fmtSize(int bytes) {
-    if (bytes < 1024 * 1024) {
-      return '${(bytes / 1024).round()} КБ';
-    }
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1).replaceAll('.', ',')} МБ';
   }
 
   String _defaultName() {
@@ -167,6 +167,13 @@ class _PlayerPageState extends State<PlayerPage> {
         ? _duration
         : Duration(milliseconds: widget.recording.durationMs);
 
+    final subText = _segments.isEmpty
+        ? _fmtDuration(totalDur)
+        : '${_fmtDuration(totalDur)} · ${AppStrings.tf('player_segment_of', context, {
+            'i': '${active < 0 ? 1 : active + 1}',
+            'n': '${_segments.length}',
+          })}';
+
     return DictaBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -189,7 +196,7 @@ class _PlayerPageState extends State<PlayerPage> {
               ),
               const SizedBox(height: 2),
               Text(
-                '${_fmtDuration(totalDur)} · ${_fmtSize(widget.recording.fileSize)}',
+                subText,
                 style: tk.mono(10.5, FontWeight.w500, tk.mint),
               ),
             ],
@@ -254,15 +261,28 @@ class _PlayerPageState extends State<PlayerPage> {
                       const SizedBox(height: 16),
                       Row(
                         children: [
-                          Text('Текст и переход к месту',
+                          Expanded(
+                            child: Text(
+                              AppStrings.t('player_seek_section', context),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
-                                  color: tk.ink)),
-                          const Spacer(),
-                          Text('нажмите строку — плеер прыгнет',
+                                  color: tk.ink),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              AppStrings.t('player_seek_hint', context),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.right,
                               style: TextStyle(
-                                  fontSize: 11.5, color: tk.mint)),
+                                  fontSize: 11.5, color: tk.mint),
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -297,36 +317,31 @@ class _PlayerPageState extends State<PlayerPage> {
         onTapDown: (d) => seekTo(d.localPosition.dx),
         onHorizontalDragUpdate: (d) => seekTo(d.localPosition.dx),
         child: SizedBox(
-          height: 36,
-          child: Center(
-            child: SizedBox(
-              height: 6,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: tk.line,
-                        borderRadius: BorderRadius.circular(99),
-                      ),
+          height: 64,
+          child: Row(
+            children: [
+              for (var i = 0; i < _waveHeights.length; i++) ...[
+                if (i > 0) const SizedBox(width: 3),
+                Expanded(
+                  child: Container(
+                    height: _waveHeights[i],
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(99),
+                      color: (i + 1) / _waveHeights.length <= progress
+                          ? null
+                          : tk.line,
+                      gradient: (i + 1) / _waveHeights.length <= progress
+                          ? LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [tk.mint, AppColors.mint2],
+                            )
+                          : null,
                     ),
                   ),
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: width * progress.clamp(0.0, 1.0),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient:
-                            LinearGradient(colors: [AppColors.mint2, tk.mint]),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                ),
+              ],
+            ],
           ),
         ),
       );
@@ -398,10 +413,10 @@ class _PlayerPageState extends State<PlayerPage> {
         ),
         child: Text(
           '${value.toStringAsFixed(1)}×',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-            color: isActive ? AppColors.mintInk : tk.ink2,
+          style: tk.mono(
+            12,
+            isActive ? FontWeight.w700 : FontWeight.w500,
+            isActive ? AppColors.mintInk : tk.ink2,
           ),
         ),
       ),
@@ -435,7 +450,7 @@ class _PlayerPageState extends State<PlayerPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '$timecode · ГОВОРЯЩИЙ ${speakerNo[segment.speaker] ?? 1}',
+              '$timecode · ${AppStrings.tf('dialogue_speaker', context, {'n': '${speakerNo[segment.speaker] ?? 1}'})}',
               style: tk.mono(10.5, FontWeight.w700, tk.mint),
             ),
             const SizedBox(height: 3),

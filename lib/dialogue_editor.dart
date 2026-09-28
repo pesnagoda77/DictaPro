@@ -169,7 +169,7 @@ class _DialogueEditorState extends State<DialogueEditor> {
     final text = _segments.map((s) => _segments.map((x) => x.speaker).toSet().length > 1 ? '${s.speaker}: ${s.text}' : s.text).join('\n');
     ExportService.copyToClipboard(text);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Скопировано в буфер обмена')),
+      SnackBar(content: Text(AppStrings.t('copied_to_clipboard', context))),
     );
   }
 
@@ -184,7 +184,7 @@ class _DialogueEditorState extends State<DialogueEditor> {
     final path = await ExportService.saveAsTxt(html, fileName);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('HTML сохранён: $path')),
+      SnackBar(content: Text(AppStrings.tf('html_saved', context, {'p': path}))),
     );
   }
 
@@ -197,14 +197,6 @@ class _DialogueEditorState extends State<DialogueEditor> {
       f.dispose();
     }
     super.dispose();
-  }
-
-  String _plural(int n, String one, String few, String many) {
-    final m10 = n % 10;
-    final m100 = n % 100;
-    if (m10 == 1 && m100 != 11) return one;
-    if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
-    return many;
   }
 
   int get _active {
@@ -221,10 +213,10 @@ class _DialogueEditorState extends State<DialogueEditor> {
     for (final s in _segments) {
       speakerNo.putIfAbsent(s.speaker, () => speakerNo.length + 1);
     }
-    final replics = _plural(_segments.length, 'реплика', 'реплики', 'реплик');
-    final spk = _plural(speakerNo.length, 'говорящий', 'говорящих', 'говорящих');
-    final subtitle =
-        '${_segments.length} $replics · ${speakerNo.length} $spk · разметка вручную';
+    final subtitle = AppStrings.tf('dialogue_subtitle', context, {
+      'n': '${_segments.length}',
+      's': '${speakerNo.length}',
+    });
 
     return DictaBackground(
       child: Scaffold(
@@ -240,7 +232,8 @@ class _DialogueEditorState extends State<DialogueEditor> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Диалог', style: Theme.of(context).textTheme.titleMedium),
+              Text(AppStrings.t('dialogue_title', context),
+                  style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 2),
               Text(
                 subtitle,
@@ -258,7 +251,7 @@ class _DialogueEditorState extends State<DialogueEditor> {
               icon: const Icon(Icons.copy_rounded),
               iconSize: 18,
               color: tk.ink2,
-              tooltip: 'Копировать текст',
+              tooltip: AppStrings.t('export_copy', context),
               onPressed: _copyToClipboard,
             ),
             Padding(
@@ -274,7 +267,7 @@ class _DialogueEditorState extends State<DialogueEditor> {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    'Поделиться',
+                    AppStrings.t('share_title', context),
                     style: TextStyle(
                       fontSize: 10.5,
                       color: tk.ink2,
@@ -306,7 +299,7 @@ class _DialogueEditorState extends State<DialogueEditor> {
               icon: const Icon(Icons.save_rounded),
               iconSize: 18,
               color: tk.ink2,
-              tooltip: 'Сохранить',
+              tooltip: AppStrings.t('save', context),
               onPressed: _save,
             ),
             const SizedBox(width: 8),
@@ -320,9 +313,12 @@ class _DialogueEditorState extends State<DialogueEditor> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _tool(tk, 'Поменять говорящего', () => _toggleSpeaker(_active)),
-                  _tool(tk, 'Разделить реплику', () => _splitAtCursor(_active)),
-                  _tool(tk, 'Объединить', () => _mergeWithPrevious(_active)),
+                  _tool(tk, AppStrings.t('dialogue_tool_speaker', context),
+                      () => _toggleSpeaker(_active)),
+                  _tool(tk, AppStrings.t('dialogue_tool_split', context),
+                      () => _splitAtCursor(_active)),
+                  _tool(tk, AppStrings.t('dialogue_tool_merge', context),
+                      () => _mergeWithPrevious(_active)),
                 ],
               ),
             ),
@@ -375,7 +371,8 @@ class _DialogueEditorState extends State<DialogueEditor> {
           Row(
             children: [
               Text(
-                'ГОВОРЯЩИЙ ${speakerNo[segment.speaker] ?? 1}',
+                AppStrings.tf('dialogue_speaker', context,
+                    {'n': '${speakerNo[segment.speaker] ?? 1}'}),
                 style: TextStyle(
                   fontSize: 10.5,
                   fontWeight: FontWeight.w700,
@@ -389,7 +386,7 @@ class _DialogueEditorState extends State<DialogueEditor> {
                   icon: const Icon(Icons.delete_outline_rounded),
                   iconSize: 15,
                   color: tk.ink3,
-                  tooltip: 'Удалить',
+                  tooltip: AppStrings.t('btn_delete', context),
                   onPressed: () => _deleteSegment(index),
                   padding: EdgeInsets.zero,
                   constraints:
@@ -426,7 +423,7 @@ class _DialogueEditorState extends State<DialogueEditor> {
         border: Border(top: BorderSide(color: tk.line)),
       ),
       child: Text(
-        'Разметка хранится только на устройстве. Экспорт может включать или не включать подписи говорящих.',
+        AppStrings.t('dialogue_footnote', context),
         style: TextStyle(fontSize: 10.5, height: 1.5, color: tk.ink3),
       ),
     );

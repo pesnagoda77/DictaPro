@@ -1051,6 +1051,10 @@ class AppStrings {
       'de': 'Volltext', 'it': 'Testo completo',
     },
     // ---------- Task 068: экран «Диалог» ----------
+    'dialogue_title': {
+      'ru': 'Диалог', 'en': 'Dialogue',
+      'de': 'Dialog', 'it': 'Dialogo',
+    },
     'dialogue_subtitle': {
       'ru': 'Реплик: {n} · говорящих: {s} · разметка вручную',
       'en': '{n} lines · {s} speakers · manual markup',
