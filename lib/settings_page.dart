@@ -599,7 +599,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final tk = DictaTokens.of(context);
     final String subText = _tempBytes > 0
         ? AppStrings.tf('temp_occupied', context, {
-            'm': '${(_tempBytes / 1024 / 1024).toStringAsFixed(1)}',
+            'm': (_tempBytes / 1024 / 1024).toStringAsFixed(1),
           })
         : AppStrings.t('temp_none', context);
     return Container(

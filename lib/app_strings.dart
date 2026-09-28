@@ -1001,6 +1001,98 @@ class AppStrings {
       'ru': 'мес', 'en': 'mo',
       'de': 'Mon.', 'it': 'mese',
     },
+    // ---------- Task 068: экран «Итоги» (V3-редизайн) ----------
+    'summary_subtitle': {
+      'ru': 'конспект из текста записи', 'en': 'digest of the recording text',
+      'de': 'Konspekt aus dem Aufnahmetext', 'it': 'sintesi dal testo della registrazione',
+    },
+    'summary_mode_local': {
+      'ru': 'Локально', 'en': 'On-device',
+      'de': 'Lokal', 'it': 'Locale',
+    },
+    'summary_mode_local_sub': {
+      'ru': 'без интернета', 'en': 'no internet',
+      'de': 'ohne Internet', 'it': 'senza internet',
+    },
+    'summary_mode_online': {
+      'ru': 'Онлайн', 'en': 'Online',
+      'de': 'Online', 'it': 'Online',
+    },
+    'summary_mode_online_sub': {
+      'ru': 'точнее · ИИ-часы', 'en': 'smarter · AI hours',
+      'de': 'genauer · KI-Stunden', 'it': 'più preciso · ore AI',
+    },
+    'summary_block_deal': {
+      'ru': 'О ЧЁМ ДОГОВОРИЛИСЬ', 'en': 'WHAT WAS AGREED',
+      'de': 'WAS VEREINBART WURDE', 'it': 'COSA È STATO CONCORDATO',
+    },
+    'summary_block_tasks': {
+      'ru': 'ЗАДАЧИ', 'en': 'TASKS',
+      'de': 'AUFGABEN', 'it': 'ATTIVITÀ',
+    },
+    'summary_block_figures': {
+      'ru': 'ЦИФРЫ И ДАТЫ', 'en': 'NUMBERS & DATES',
+      'de': 'ZAHLEN & DATEN', 'it': 'NUMERI E DATE',
+    },
+    'summary_note': {
+      'ru': 'Онлайн-итоги считаются на сервере за ИИ-часы и кэшируются: повторный показ — бесплатно. Локальные итоги работают без интернета.',
+      'en': 'Online summaries run on the server against AI hours and are cached: showing them again is free. On-device summaries work without internet.',
+      'de': 'Online-Zusammenfassungen laufen auf dem Server für KI-Stunden und werden gecacht: erneutes Anzeigen ist kostenlos. Lokale Zusammenfassungen funktionieren ohne Internet.',
+      'it': 'I riepiloghi online vengono elaborati sul server in cambio di ore AI e sono memorizzati in cache: rivederli è gratuito. I riepiloghi locali funzionano senza internet.',
+    },
+    'online_summary_not_yet': {
+      'ru': 'Онлайн-итоги ещё не собраны. Нажмите «Обновить», чтобы запросить их.',
+      'en': 'Online summaries are not ready yet. Tap "Refresh" to request them.',
+      'de': 'Online-Zusammenfassungen fehlen noch. Tippen Sie auf „Aktualisieren“, um sie anzufordern.',
+      'it': 'I riepiloghi online non sono ancora pronti. Tocca "Aggiorna" per richiederli.',
+    },
+    'summary_full_text': {
+      'ru': 'Полный текст', 'en': 'Full text',
+      'de': 'Volltext', 'it': 'Testo completo',
+    },
+    // ---------- Task 068: экран «Диалог» ----------
+    'dialogue_subtitle': {
+      'ru': 'Реплик: {n} · говорящих: {s} · разметка вручную',
+      'en': '{n} lines · {s} speakers · manual markup',
+      'de': '{n} Zeilen · {s} Sprecher · manuelle Markierung',
+      'it': '{n} righe · {s} parlanti · annotazione manuale',
+    },
+    'dialogue_speaker': {
+      'ru': 'ГОВОРЯЩИЙ {n}', 'en': 'SPEAKER {n}',
+      'de': 'SPRECHER {n}', 'it': 'PARLANTE {n}',
+    },
+    'dialogue_tool_speaker': {
+      'ru': 'Поменять говорящего', 'en': 'Change speaker',
+      'de': 'Sprecher wechseln', 'it': 'Cambia parlante',
+    },
+    'dialogue_tool_split': {
+      'ru': 'Разделить', 'en': 'Split',
+      'de': 'Teilen', 'it': 'Dividi',
+    },
+    'dialogue_tool_merge': {
+      'ru': 'Объединить', 'en': 'Merge',
+      'de': 'Zusammenführen', 'it': 'Unisci',
+    },
+    'dialogue_footnote': {
+      'ru': 'Разметка хранится только в телефоне. Экспорт может включать или не включать подписи говорящих.',
+      'en': 'Markup is stored on your phone only. Exports may include speaker labels or not.',
+      'de': 'Die Markierung bleibt nur auf dem Telefon. Exporte können Sprecherbezeichnungen enthalten oder auch nicht.',
+      'it': 'Le annotazioni restano solo sul telefono. Le esportazioni possono includere o meno le etichette dei parlanti.',
+    },
+    // ---------- Task 068: экран «Прослушивание» ----------
+    'player_seek_section': {
+      'ru': 'Текст и переход к месту', 'en': 'Text and jump to position',
+      'de': 'Text und Sprung zur Stelle', 'it': 'Testo e salto al punto',
+    },
+    'player_seek_hint': {
+      'ru': 'нажмите строку — плеер прыгнет', 'en': 'tap a line — the player jumps',
+      'de': 'Zeile antippen — der Player springt', 'it': 'tocca una riga — il player salta',
+    },
+    'player_segment_of': {
+      'ru': 'реплика {i} из {n}', 'en': 'segment {i} of {n}',
+      'de': 'Abschnitt {i} von {n}', 'it': 'segmento {i} di {n}',
+    },
+
   };
 
   static String _langCode(BuildContext context) {
