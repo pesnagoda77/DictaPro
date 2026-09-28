@@ -15,7 +15,9 @@ class UsageLimitService {
   static final UsageLimitService instance = UsageLimitService._();
 
   /// Дневной лимит бесплатной расшифровки в минутах аудио.
-  static const int dailyMinutesLimit = 15;
+  // TEST-ONLY (ветка test/unlock-transcription): лимит снят для тестов.
+  // В релизной ветке здесь снова 15.
+  static const int dailyMinutesLimit = 99999;
 
   static const _kDay = 'usage_day_v1'; // 'YYYY-MM-DD' последней траты
   static const _kMinutes = 'usage_minutes_v1'; // минут за _kDay
