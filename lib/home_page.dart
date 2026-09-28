@@ -1947,12 +1947,15 @@ class _HomePageState extends State<HomePage>
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(14),
+                                  color: DictaTokens.of(context).surface2,
+                                  borderRadius: BorderRadius.circular(99),
+                                  border: Border.all(
+                                      color: DictaTokens.of(context).line),
                                 ),
                                 child: Text(w,
-                                    style: const TextStyle(
-                                        fontSize: 12, color: Colors.white54)),
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: DictaTokens.of(context).ink2)),
                               ),
                             ),
                         ],
@@ -1964,26 +1967,35 @@ class _HomePageState extends State<HomePage>
                 // (нижняя кнопка записи убрана — одна большая кнопка выше)
                 const SizedBox(height: 8),
                 if (!_isRecording)
-                  GestureDetector(
-                    onTap: _showSleepTimerDialog,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.timer, size: 16, color: Colors.white54),
-                          const SizedBox(width: 4),
-                          Text(
-                            AudioService().sleepDurationMinutes != null
-                                ? AppStrings.tf('timer_min', context, {'m': '${AudioService().sleepDurationMinutes}'})
-                                : AppStrings.t('sleep_timer', context),
-                            style: const TextStyle(color: Colors.white54, fontSize: 12),
-                          ),
-                        ],
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: GestureDetector(
+                      onTap: _showSleepTimerDialog,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: DictaTokens.of(context).surface2,
+                          borderRadius: BorderRadius.circular(99),
+                          border: Border.all(
+                              color: DictaTokens.of(context).line),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.timer_outlined,
+                                size: 14, color: DictaTokens.of(context).ink3),
+                            const SizedBox(width: 5),
+                            Text(
+                              AudioService().sleepDurationMinutes != null
+                                  ? AppStrings.tf('timer_min', context, {'m': '${AudioService().sleepDurationMinutes}'})
+                                  : AppStrings.t('sleep_timer', context),
+                              style: TextStyle(
+                                  color: DictaTokens.of(context).ink2,
+                                  fontSize: 12),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -2132,7 +2144,7 @@ class _HomePageState extends State<HomePage>
                                                   : Icons.star_border,
                                               size: 20,
                                               color: rec.isFavorite
-                                                  ? Colors.amber
+                                                  ? AppColors.gold
                                                   : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.35),
                                             ),
                                           ),
@@ -2165,18 +2177,18 @@ class _HomePageState extends State<HomePage>
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                               decoration: BoxDecoration(
-                                                color: Colors.amber.withOpacity(0.15),
-                                                borderRadius: BorderRadius.circular(12),
+                                                color: DictaTokens.of(context).surface2,
+                                                borderRadius: BorderRadius.circular(99),
                                                 border: Border.all(
-                                                  color: Colors.amber.withOpacity(0.3),
+                                                  color: DictaTokens.of(context).line,
                                                   width: 1,
                                                 ),
                                               ),
                                               child: Text(
                                                 '#$tag',
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                   fontSize: 10,
-                                                  color: Colors.amber,
+                                                  color: DictaTokens.of(context).ink3,
                                                   fontWeight: FontWeight.w500,
                                                 ),
                                               ),
@@ -2192,14 +2204,14 @@ class _HomePageState extends State<HomePage>
                                           margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                                           padding: const EdgeInsets.all(10),
                                           decoration: BoxDecoration(
-                                            color: Colors.cyan.withOpacity(0.08),
-                                            borderRadius: BorderRadius.circular(10),
-                                            border: Border.all(color: Colors.cyan.withOpacity(0.2)),
+                                            color: DictaTokens.of(context).mint.withValues(alpha: 0.07),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(color: DictaTokens.of(context).mint.withValues(alpha: 0.24)),
                                           ),
                                           child: Row(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              const Icon(Icons.auto_awesome, size: 14, color: Colors.cyan),
+                                              Icon(Icons.auto_awesome, size: 14, color: DictaTokens.of(context).mint),
                                               const SizedBox(width: 6),
                                               Expanded(
                                                 child: Text(
@@ -2208,10 +2220,10 @@ class _HomePageState extends State<HomePage>
                                                       : (rec.transcription!.length > 100
                                                           ? '${rec.transcription!.substring(0, 100)}...'
                                                           : rec.transcription!),
-                                                  style: const TextStyle(
-                                                    color: Colors.white60,
+                                                  style: TextStyle(
+                                                    color: DictaTokens.of(context).ink2,
                                                     fontSize: 12,
-                                                    height: 1.3,
+                                                    height: 1.35,
                                                   ),
                                                   maxLines: 2,
                                                   overflow: TextOverflow.ellipsis,
@@ -2233,7 +2245,7 @@ class _HomePageState extends State<HomePage>
                                             icon: hasTranscription
                                                 ? Icons.text_snippet
                                                 : Icons.transcribe,
-                                            color: Colors.green,
+                                            color: DictaTokens.of(context).ink2,
                                             label: hasTranscription
                                                 ? AppStrings.t('btn_dialog', context)
                                                 : AppStrings.t('btn_to_text', context),
@@ -2245,19 +2257,19 @@ class _HomePageState extends State<HomePage>
                                               (rec.transcription?.split(' ').length ?? 0) >= 100)
                                             _ActionButton(
                                               icon: Icons.auto_awesome,
-                                              color: Colors.cyan,
+                                              color: DictaTokens.of(context).mint,
                                               label: AppStrings.t('btn_gist', context),
                                               onTap: () => _openSummaryPage(rec),
                                             ),
                                           _ActionButton(
                                             icon: Icons.share,
-                                            color: Colors.blue,
+                                            color: DictaTokens.of(context).ink2,
                                             label: AppStrings.t('btn_send', context),
                                             onTap: () => _showShareOptions(rec),
                                           ),
                                           _ActionButton(
                                             icon: Icons.play_arrow,
-                                            color: Colors.white,
+                                            color: DictaTokens.of(context).ink2,
                                             label: AppStrings.t('btn_listen', context),
                                             onTap: () => _playRecording(rec),
                                           ),
