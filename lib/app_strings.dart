@@ -420,8 +420,17 @@ class AppStrings {
       'it': 'Funziona sul dispositivo — puoi spegnere lo schermo',
     },
     'model_prep_title': {
-      'ru': 'Подготовка модели', 'en': 'Preparing model',
-      'de': 'Modell wird vorbereitet', 'it': 'Preparazione del modello',
+      'ru': 'Подготовка модели',
+      'en': 'Preparing model',
+      'de': 'Modell wird vorbereitet',
+      'it': 'Preparazione del modello',
+    },
+    // Task 067: fast-follow — Play догружает пакет модели после установки.
+    'model_prep_download': {
+      'ru': 'Загружается модель распознавания…',
+      'en': 'Downloading speech model…',
+      'de': 'Sprachmodell wird heruntergeladen…',
+      'it': 'Download del modello vocale…',
     },
     'summary_computing': {
       'ru': 'Считаю саммари…', 'en': 'Computing summary…',

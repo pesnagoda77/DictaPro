@@ -124,6 +124,43 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     }
                 }
+                // Task 067: fast-follow — пакет догружается Play ПОСЛЕ установки.
+                // Отдаём статус доставки и прогресс, чтобы UI показывал
+                // «модель загружается» и не падал на первом запуске.
+                // Task 067: fast-follow — пакет догружается Play ПОСЛЕ установки.
+                // Отдаём два факта: доступен ли пакет на диске и ставилось ли
+                // приложение из Play (для APK-раздачи пакета не будет вовсе).
+                "getGigaamPackState" -> {
+                    try {
+                        val pm: AssetPackManager = AssetPackManagerFactory.getInstance(this)
+                        val loc: AssetPackLocation? = pm.getPackLocation(PACK_NAME)
+                        val available = loc?.assetsPath() != null
+                        val installer = if (Build.VERSION.SDK_INT >= 30) {
+                            packageManager.getInstallSourceInfo(packageName).installingPackageName
+                        } else {
+                            @Suppress("DEPRECATION")
+                            packageManager.getInstallerPackageName(packageName)
+                        }
+                        val m = hashMapOf<String, Any>(
+                            "available" to available,
+                            "fromPlay" to (installer == "com.android.vending")
+                        )
+                        result.success(m)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "pack state unavailable: ${e.message}")
+                        result.success(null)
+                    }
+                }
+                "requestGigaamPack" -> {
+                    try {
+                        val pm: AssetPackManager = AssetPackManagerFactory.getInstance(this)
+                        pm.fetch(listOf(PACK_NAME))
+                        result.success(true)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "pack fetch failed: ${e.message}")
+                        result.success(false)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

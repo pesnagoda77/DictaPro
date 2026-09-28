@@ -41,6 +41,11 @@ class GigaamService {
   /// true — модель уже в рабочей директории (или подготовка идёт/завершена).
   /// Используется UI, чтобы показать «Подготовка модели» только при первом
   /// запуске, а не перед каждой транскрибацией.
+  /// Текущая фаза подготовки модели (task 067): null — ничего не идёт,
+  /// 'download' — Play догружает fast-follow пакет, 'copy' — копируем
+  /// модель в рабочую директорию. UI показывает по ней разные подписи.
+  static String? phase;
+
   static bool get isPrepared => _prepared;
 
   /// Директория рабочей копии модели во внутреннем хранилище.
@@ -69,17 +74,47 @@ class GigaamService {
       return;
     }
 
-    // 1) Play install-time asset pack (AAB): обычные файлы — копируем
-    //    потоково с точным прогрессом по байтам.
-    final packDir = await _assetPackDir();
+    // 1) Play asset pack (AAB). Task 067: пакет стал fast-follow — Play
+    //    догружает его ПОСЛЕ установки. Если файлов ещё нет, ждём появления
+    //    с прогрессом, а не падаем на первом запуске.
+    var packDir = await _assetPackDir();
     if (packDir != null) {
       final src = Directory('$packDir/models/gigaam_v3_punct');
       if (_allPresent(src)) {
+        phase = 'copy';
         await _copyFrom(src, dir, onProgress);
+        phase = null;
         _prepared = true;
         debugPrint('[gigaam] model prepared from asset pack');
         return;
       }
+    } else if (Platform.isAndroid) {
+      // Пакета на диске нет. Либо он ещё догружается (fast-follow),
+      // либо это APK-раздача без пакета — разберёмся по статусу.
+      final info = await _packInfo();
+      if (info.status == GigaamPackStatus.downloading) {
+        debugPrint('[gigaam] pack not on disk yet (status=${info.status}), waiting');
+        phase = 'download';
+        await _waitForPack(onProgress);
+        phase = null;
+        packDir = await _assetPackDir();
+        if (packDir != null) {
+          final src = Directory('$packDir/models/gigaam_v3_punct');
+          if (_allPresent(src)) {
+            phase = 'copy';
+            await _copyFrom(src, dir, onProgress);
+            phase = null;
+            _prepared = true;
+            debugPrint('[gigaam] model prepared after fast-follow delivery');
+            return;
+          }
+        }
+        // Догрузился, но модели в нём нет — нештатно, идём к bundle assets.
+        debugPrint('[gigaam] pack arrived without complete model');
+      } else if (info.status == GigaamPackStatus.failed) {
+        debugPrint('[gigaam] pack delivery failed (code=${info.errorCode})');
+      }
+      // unknown/completed-пусто: APK-раздача — bundle assets ниже.
     }
 
     // 2) Flutter assets (APK, прямая раздача): bundle читается целиком
@@ -171,6 +206,79 @@ class GigaamService {
     }
   }
 
+  // ---------- Task 067: fast-follow доставка пакета ----------
+
+  /// Коды AssetPackStatus из Play Core (стабильные значения API).
+  static const _psUnknown = 0;
+  static const _psPending = 1;
+  static const _psDownloading = 2;
+  static const _psTransferring = 3;
+  static const _psCompleted = 4;
+  static const _psFailed = 5;
+  static const _psCanceled = 6;
+  static const _psWaitingForWifi = 7;
+  static const _psNotInstalled = 8;
+
+  /// Статус доставки пакета из Play Core (getGigaamPackState).
+  static Future<GigaamPackInfo> _packInfo() async {
+    if (!Platform.isAndroid) {
+      return const GigaamPackInfo(GigaamPackStatus.unknown, 0, 0, null);
+    }
+    try {
+      final m = await _channel
+          .invokeMethod<Map<dynamic, dynamic>>('getGigaamPackState');
+      if (m == null) {
+        return const GigaamPackInfo(GigaamPackStatus.unknown, 0, 0, null);
+      }
+      final available = m['available'] == true;
+      final fromPlay = m['fromPlay'] == true;
+      if (available) {
+        return const GigaamPackInfo(GigaamPackStatus.completed, 0, 0, null);
+      }
+      // Из Play — пакет ещё догружается (fast-follow). Не из Play (APK) —
+      // пакета не будет вовсе, идём к bundle-ассетам без ожидания.
+      return fromPlay
+          ? const GigaamPackInfo(GigaamPackStatus.downloading, 0, 0, null)
+          : const GigaamPackInfo(GigaamPackStatus.notInstalled, 0, 0, null);
+    } catch (_) {
+      return const GigaamPackInfo(GigaamPackStatus.unknown, 0, 0, null);
+    }
+  }
+
+  /// Ждём завершения доставки fast-follow пакета. Опрос статуса раз в 2 с,
+  /// прогресс в байтах. Таймаут 15 минут — дальше бросаем StateError,
+  /// вызывающий код покажет понятный статус (это не падение приложения).
+  static Future<void> _waitForPack(
+      void Function(int copied, int total)? onProgress) async {
+    // На случай отложенного старта явно запрашиваем доставку.
+    try {
+      await _channel.invokeMethod<bool>('requestGigaamPack');
+    } catch (_) {}
+    const timeout = Duration(minutes: 15);
+    final start = DateTime.now();
+    while (true) {
+      final info = await _packInfo();
+      if (info.status == GigaamPackStatus.completed) return;
+      if (info.status == GigaamPackStatus.failed) {
+        throw StateError(
+            'Не удалось загрузить модель распознавания (Play, код ${info.errorCode}). '
+            'Проверьте сеть и повторите.');
+      }
+      if (info.totalBytes > 0) {
+        onProgress?.call(info.bytesDownloaded, info.totalBytes);
+      } else {
+        // Размер ещё неизвестен — крутим индетерминированный прогресс.
+        onProgress?.call(0, 0);
+      }
+      if (DateTime.now().difference(start) > timeout) {
+        throw StateError(
+            'Модель распознавания не загрузилась за 15 минут. '
+            'Проверьте сеть и повторите.');
+      }
+      await Future<void>.delayed(const Duration(seconds: 2));
+    }
+  }
+
   // ---------- Распознавание ----------
 
   /// Транскрибирует WAV (моно 16 кГц) через GigaAM v3.
@@ -258,6 +366,36 @@ class GigaamService {
     }
     return out;
   }
+}
+
+/// Task 067: статус доставки fast-follow пакета (Play Asset Delivery).
+enum GigaamPackStatus {
+  /// пакет на диске, можно копировать модель
+  completed,
+
+  /// пакет скачивается/переносится (pending/downloading/transferring/wifi)
+  downloading,
+
+  /// пакет не установлен или статус неизвестен (APK-раздача)
+  notInstalled,
+
+  /// доставка завершилась с ошибкой
+  failed,
+
+  /// статус недоступен (не Android / нет Play Core)
+  unknown,
+}
+
+/// Снимок статуса пакета: статус + байтовый прогресс доставки.
+class GigaamPackInfo {
+  final GigaamPackStatus status;
+  final int bytesDownloaded;
+  final int totalBytes;
+
+  /// Код ошибки Play Core (только при status == failed).
+  final int? errorCode;
+  const GigaamPackInfo(
+      this.status, this.bytesDownloaded, this.totalBytes, this.errorCode);
 }
 
 class _GigaamJob {
