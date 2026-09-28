@@ -1911,8 +1911,8 @@ class _HomePageState extends State<HomePage>
                         borderRadius: BorderRadius.circular(10),
                         borderSide: BorderSide.none,
                       ),
-                      prefixIcon: const Icon(Icons.spellcheck,
-                          size: 18, color: Colors.white38),
+                      prefixIcon: Icon(Icons.spellcheck,
+                          size: 18, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45)),
                     ),
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
@@ -2061,7 +2061,7 @@ class _HomePageState extends State<HomePage>
                                 margin: const EdgeInsets.only(bottom: 12),
                                 decoration: BoxDecoration(
                                   color: Theme.of(context).colorScheme.surface,
-                                  borderRadius: BorderRadius.circular(18),
+                                  borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
                                     color: Theme.of(context).dividerColor,
                                     width: 1,
@@ -2113,14 +2113,14 @@ class _HomePageState extends State<HomePage>
                                               size: 20,
                                               color: rec.isFavorite
                                                   ? Colors.amber
-                                                  : Colors.white30,
+                                                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.35),
                                             ),
                                           ),
                                           const Spacer(),
                                           Text(
                                             '${_fmtDuration(rec.durationMs)} • ${_fmtSize(rec.fileSize)}',
-                                            style: const TextStyle(
-                                              color: Colors.white38,
+                                            style: TextStyle(
+                                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45),
                                               fontSize: 11,
                                             ),
                                           ),
