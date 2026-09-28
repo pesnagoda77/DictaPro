@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ДиктаПро — бесконечный холст V1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#10161d;--bg-subtle:#161e27;--surface:#1b242f;--surface-raised:#212c39;
+    --border:rgba(255,255,255,.07);--border-hover:rgba(255,255,255,.14);
+    --accent:#8FE3D2;--accent-dim:rgba(143,227,210,.15);
+    --text:#EAF2F5;--text-secondary:rgba(234,242,245,.66);--text-tertiary:rgba(234,242,245,.40);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.3);--shadow-md:0 4px 16px rgba(0,0,0,.35);--shadow-lg:0 12px 40px rgba(0,0,0,.45);
+    --shadow-drag:0 20px 60px rgba(0,0,0,.5),0 0 0 1.5px var(--accent);
+    --radius-sm:8px;--radius-md:12px;--radius-lg:16px;--radius-xl:22px;
+    --font-sans:"Onest",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --font-mono:"JetBrains Mono",monospace;
+    --note-bg:#232a24;--note-border:rgba(143,227,210,.22);
+    --t-fast:120ms cubic-bezier(.25,.1,.25,1);--t:200ms cubic-bezier(.25,.1,.25,1);
+    /* --- токены приложения (из DESIGN_SYSTEM.md) --- */
+    --d-bg0:#111A24;--d-bg1:#182532;--d-bg2:#1F2E3D;
+    --d-surf:rgba(255,255,255,.055);--d-surf2:rgba(255,255,255,.03);
+    --d-line:rgba(255,255,255,.09);--d-line2:rgba(255,255,255,.16);
+    --d-ink:#EAF2F5;--d-ink2:rgba(234,242,245,.66);--d-ink3:rgba(234,242,245,.42);
+    --d-mint:#8FE3D2;--d-mint2:#4FB3A5;--d-red:#FF6B6B;--d-gold:#FFD166;
+    --d-r:14px;
+  }
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-sans);
+    user-select:none;-webkit-user-select:none;-webkit-font-smoothing:antialiased}
+  body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;opacity:.035;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size:512px 512px}
+  .canvas-viewport{position:fixed;inset:0;overflow:hidden;cursor:grab;--grid-color:rgba(255,255,255,.04)}
+  .canvas-viewport.panning{cursor:grabbing}
+  .canvas-world{position:absolute;left:0;top:0;width:26000px;height:16000px;transform-origin:0 0;will-change:transform}
+  .canvas-el{position:absolute;cursor:grab;transition:box-shadow var(--t),transform var(--t-fast)}
+  .canvas-el:hover{z-index:10}
+  .canvas-el.dragging{cursor:grabbing;z-index:999;box-shadow:var(--shadow-drag)!important;transform:scale(1.01);transition:none}
+  .section-header{position:absolute;pointer-events:none;display:flex;align-items:center;gap:16px;white-space:nowrap}
+  .section-header .section-num{font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.08em;color:var(--accent);opacity:.8}
+  .section-header .section-label{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--text-tertiary)}
+  .section-header .section-line{flex:none;width:48px;height:1px;background:linear-gradient(90deg,var(--accent),transparent);opacity:.3}
+  .canvas-title{position:absolute;pointer-events:none;font-weight:700;line-height:1.1;letter-spacing:-.025em;color:var(--text)}
+  .canvas-text{position:absolute;line-height:1.7;color:var(--text-secondary);min-width:200px;max-width:600px;white-space:pre-wrap;word-break:break-word}
+  .canvas-tag{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:100px;font-size:12px;font-weight:500;
+    color:var(--text-secondary);background:var(--surface);border:1px solid var(--border);white-space:nowrap}
+  .canvas-tag .tag-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);flex-shrink:0}
+  .context-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);overflow:hidden;min-width:220px}
+  .context-card .card-head{padding:16px 20px 10px;display:flex;align-items:center;gap:10px}
+  .context-card .card-head .head-indicator{width:3px;height:16px;border-radius:2px;background:var(--accent)}
+  .context-card .card-head h3{font-size:13px;font-weight:600}
+  .context-card .card-content{padding:0 20px 20px;font-size:12.5px;line-height:1.7;color:var(--text-secondary)}
+  .context-card .card-content ul{list-style:none}
+  .context-card .card-content li{padding:4px 0 4px 12px;position:relative}
+  .context-card .card-content li::before{content:'';position:absolute;left:0;top:11px;width:4px;height:4px;border-radius:50%;background:var(--text-tertiary)}
+  .ds-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);overflow:hidden}
+  .ds-card .ds-head{padding:16px 20px 12px;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-tertiary)}
+  .ds-card .ds-body{padding:0 20px 20px}
+  .color-swatch-group{display:flex;flex-wrap:wrap;gap:18px}
+  .swatch-item{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .swatch-circle{width:52px;height:52px;border-radius:50%;box-shadow:var(--shadow-sm),inset 0 1px 0 rgba(255,255,255,.08)}
+  .swatch-name{font-size:10px;color:var(--text-secondary);text-align:center}
+  .swatch-hex{font-family:var(--font-mono);font-size:9px;color:var(--text-tertiary)}
+  .canvas-note{background:var(--note-bg);border:1px solid var(--note-border);border-radius:var(--radius-md);padding:16px 18px;min-width:200px;max-width:320px;box-shadow:var(--shadow-sm)}
+  .canvas-note .note-tag{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);opacity:.75;margin-bottom:8px}
+  .canvas-note .note-body{font-size:12.5px;line-height:1.65;color:var(--text-secondary)}
+  .design-page{background:#000;border-radius:var(--radius-md);overflow:hidden;box-shadow:var(--shadow-lg)}
+  .design-page .page-content{width:100%;height:100%;overflow:hidden}
+  .page-label{position:absolute;bottom:-30px;left:0;font-size:11px;font-weight:500;color:var(--text-tertiary);white-space:nowrap;display:flex;align-items:center;gap:8px}
+  .page-label .label-num{font-family:var(--font-mono);font-size:10px;color:var(--accent);opacity:.6}
+  .canvas-diagram{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-sm)}
+  .canvas-diagram .diagram-content{width:100%;height:100%;padding:20px}
+  .zoom-controls{position:fixed;bottom:24px;right:24px;display:flex;align-items:center;gap:1px;z-index:100;background:var(--bg-subtle);
+    border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;box-shadow:var(--shadow-md)}
+  .zoom-btn{width:36px;height:36px;background:transparent;border:none;color:var(--text-secondary);font-size:15px;cursor:pointer}
+  .zoom-btn:hover{background:rgba(255,255,255,.06);color:var(--text)}
+  .zoom-label{min-width:52px;height:36px;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);border-left:1px solid var(--border);border-right:1px solid var(--border)}
+  .coord-indicator{position:fixed;bottom:28px;left:24px;font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary);z-index:100;
+    padding:4px 10px;background:rgba(16,22,29,.85);border:1px solid var(--border);border-radius:var(--radius-sm)}
+  .kbd-hint{position:fixed;top:20px;right:24px;z-index:100;font-size:10px;color:var(--text-tertiary);display:flex;gap:12px;opacity:0;transition:opacity .4s;pointer-events:none}
+  .canvas-viewport:hover~.kbd-hint{opacity:1}
+  .kbd-hint kbd{font-family:var(--font-mono);padding:2px 6px;background:var(--surface);border:1px solid var(--border);border-radius:4px;font-size:10px}
+
+  /* ══════════════ ЭКРАНЫ ПРИЛОЖЕНИЯ (Row 3) ══════════════ */
+  .scr{width:390px;height:844px;position:relative;overflow:hidden;font-family:var(--font-sans);color:var(--d-ink);
+    background:radial-gradient(120% 60% at 50% -10%,rgba(143,227,210,.13),transparent 60%),
+               radial-gradient(90% 50% at 110% 112%,rgba(255,107,107,.10),transparent 60%),
+               linear-gradient(180deg,var(--d-bg1),var(--d-bg0))}
+  .scr.light{background:radial-gradient(120% 60% at 50% -10%,rgba(79,179,165,.12),transparent 60%),linear-gradient(180deg,#F4F7F9,#E6EDF2);color:#16222E}
+  .scr::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.05;
+    background-image:radial-gradient(rgba(255,255,255,.9) .5px,transparent .5px);background-size:3px 3px}
+  .sc{padding:14px 16px 16px;position:relative;z-index:2;height:100%;display:flex;flex-direction:column}
+  .sbar{display:flex;justify-content:space-between;font-size:10.5px;color:var(--d-ink3);font-family:var(--font-mono);margin-bottom:12px}
+  .hd{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .mark{width:34px;height:34px;border-radius:10px;background:linear-gradient(160deg,var(--d-mint),var(--d-mint2));display:flex;align-items:center;justify-content:center;flex:none}
+  .mark svg{width:18px;height:18px}
+  .brand{font-weight:700;font-size:15.5px;line-height:1.15}
+  .brand span{display:block;font-weight:500;font-size:10.5px;color:var(--d-mint);margin-top:2px}
+  .hd .r{margin-left:auto;display:flex;align-items:center;gap:9px;color:var(--d-ink3)}
+  .icn{width:16px;height:16px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .air{border:1px solid var(--d-line);border-radius:99px;padding:3px 9px;font-size:10px;color:var(--d-ink2);white-space:nowrap}
+  .ttl{font-size:20px;font-weight:800;line-height:1.22;margin-bottom:6px}
+  .ttl em{font-style:normal;color:var(--d-mint)}
+  .lead{font-size:12.5px;color:var(--d-ink2);line-height:1.5;margin-bottom:12px}
+  .search{display:flex;gap:8px;align-items:center;background:var(--d-surf);border:1px solid var(--d-line);border-radius:10px;padding:10px 11px;font-size:12.5px;color:var(--d-ink3);margin-bottom:11px}
+  .hero{border-radius:20px;padding:15px;text-align:center;margin-bottom:12px;
+    background:linear-gradient(180deg,rgba(143,227,210,.10),rgba(143,227,210,.02));border:1px solid rgba(143,227,210,.22)}
+  .hero .cap2{font-size:11.5px;color:var(--d-ink2);margin-bottom:11px}
+  .mic{width:86px;height:86px;border-radius:50%;margin:0 auto;background:linear-gradient(180deg,#FF7E7E,var(--d-red));
+    display:flex;align-items:center;justify-content:center;box-shadow:0 14px 30px rgba(255,107,107,.32)}
+  .mono{font-family:var(--font-mono)}
+  .timer{font-size:25px;font-weight:700;letter-spacing:1px;margin-top:11px}
+  .recstate{font-size:12px;color:var(--d-mint);font-weight:600;margin-top:3px}
+  .chips{display:flex;gap:7px;margin-bottom:11px}
+  .chip{font-size:12px;padding:6px 11px;border-radius:99px;border:1px solid var(--d-line);color:var(--d-ink2);white-space:nowrap}
+  .chip.on{background:var(--d-mint);color:#0E2A26;border-color:var(--d-mint);font-weight:700}
+  .sec{display:flex;align-items:baseline;margin:2px 0 8px}
+  .sec b{font-size:13px;font-weight:700}
+  .sec span{margin-left:auto;font-size:11.5px;color:var(--d-mint)}
+  .item{border:1px solid var(--d-line);border-radius:var(--d-req,14px);padding:12px;margin-bottom:9px;
+    background:linear-gradient(180deg,var(--d-surf),var(--d-surf2))}
+  .item.lead1{border-color:rgba(143,227,210,.24);background:linear-gradient(180deg,rgba(143,227,210,.08),rgba(143,227,210,.02))}
+  .ihead{display:flex;gap:10px;align-items:center}
+  .ibox{width:34px;height:34px;border-radius:10px;background:rgba(143,227,210,.13);border:1px solid rgba(143,227,210,.24);display:flex;align-items:center;justify-content:center;flex:none}
+  .ibox svg{width:15px;height:15px;stroke:var(--d-mint);stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .name{font-size:13.5px;font-weight:700}
+  .sub{font-size:11px;color:var(--d-ink3);margin-top:2px}
+  .tag{display:inline-block;margin-top:6px;font-size:10px;font-weight:700;border-radius:99px;padding:2px 8px;background:var(--d-mint);color:#0E2A26}
+  .tag.g{background:rgba(255,255,255,.12);color:var(--d-ink2);font-weight:600}
+  .tag.r{background:rgba(255,107,107,.18);color:#FFB3B3}
+  .tag.gold{background:rgba(255,209,102,.18);color:var(--d-gold)}
+  .acts{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:11px}
+  .act{border:1px solid var(--d-line);border-radius:11px;padding:9px 4px;text-align:center;font-size:10px;color:var(--d-ink2);background:rgba(255,255,255,.03)}
+  .act b{display:block;font-weight:600;font-size:11px;color:var(--d-ink);margin-bottom:3px}
+  .act.off{opacity:.45}
+  .cta{background:linear-gradient(180deg,#FF7E7E,var(--d-red));border-radius:14px;text-align:center;padding:13px;font-weight:800;font-size:14.5px;color:#2A0E0E;box-shadow:0 12px 26px rgba(255,107,107,.25)}
+  .cta small{display:block;font-weight:600;font-size:11px;opacity:.9;margin-top:2px}
+  .btn{border:1px solid var(--d-line2);border-radius:12px;text-align:center;padding:12px;font-weight:700;font-size:13.5px;color:var(--d-ink)}
+  .btn.mint{background:var(--d-mint);color:#0E2A26;border-color:var(--d-mint)}
+  .btn.ghost{color:var(--d-ink2)}
+  .links{display:flex;justify-content:space-between;margin-top:11px;font-size:12px;color:var(--d-ink2)}
+  .links u{color:var(--d-mint);text-decoration:none;border-bottom:1px dashed rgba(143,227,210,.45)}
+  .nav{display:flex;margin-top:auto;padding-top:10px;border-top:1px solid var(--d-line);font-size:10.5px;color:var(--d-ink3)}
+  .nav div{flex:1;text-align:center}
+  .nav .on{color:var(--d-mint);font-weight:700}
+  .foot{margin-top:10px;padding-top:10px;border-top:1px solid var(--d-line);font-size:10.5px;color:var(--d-ink3);line-height:1.5}
+  .foot b{color:var(--d-ink2)}
+  .prog{border:1px solid rgba(143,227,210,.24);background:rgba(143,227,210,.07);border-radius:14px;padding:11px;margin-bottom:9px}
+  .bar{height:5px;border-radius:99px;background:rgba(255,255,255,.10);margin-top:8px;overflow:hidden}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--d-mint2),var(--d-mint));border-radius:99px}
+  .seg{border-left:2px solid rgba(143,227,210,.35);padding:0 0 0 10px;margin-bottom:11px}
+  .who{font-size:10.5px;color:var(--d-mint);font-weight:700;letter-spacing:.3px}
+  .txt{font-size:12.5px;line-height:1.5;margin-top:3px}
+  .toolrow{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap}
+  .tool{border:1px solid var(--d-line);border-radius:10px;padding:8px 10px;font-size:11px;color:var(--d-ink2)}
+  .blk{border:1px solid var(--d-line);border-radius:14px;padding:12px;margin-bottom:9px;background:linear-gradient(180deg,var(--d-surf),var(--d-surf2))}
+  .blk h4{margin:0 0 7px;font-size:12px;font-weight:700;color:var(--d-mint);letter-spacing:.2px}
+  .li{display:flex;gap:8px;font-size:12px;line-height:1.5;color:var(--d-ink2);margin-bottom:5px}
+  .li b{color:var(--d-ink);font-weight:600}
+  .box{width:13px;height:13px;border-radius:4px;border:1.5px solid var(--d-mint);margin-top:2px;flex:none}
+  .box.on{background:var(--d-mint);border-color:var(--d-mint)}
+  .toggle{display:flex;background:var(--d-bg2);border:1px solid var(--d-line);border-radius:12px;padding:4px;margin-bottom:12px}
+  .toggle div{flex:1;text-align:center;padding:9px 0;border-radius:9px;font-size:13px;font-weight:600;color:var(--d-ink3)}
+  .toggle .on{background:var(--d-mint);color:#0E2A26}
+  .toggle .on small{display:block;font-weight:700;font-size:10.5px;opacity:.85}
+  .card{position:relative;border:1px solid var(--d-line);border-radius:14px;padding:13px;margin-bottom:10px;background:linear-gradient(180deg,var(--d-surf),var(--d-surf2))}
+  .card.best{border-color:var(--d-gold);background:linear-gradient(180deg,rgba(255,209,102,.13),rgba(255,209,102,.03))}
+  .card.cur{border-color:rgba(143,227,210,.45)}
+  .badge{position:absolute;top:-9px;right:11px;background:var(--d-gold);color:#3A2C00;font-size:10px;font-weight:800;padding:3px 8px;border-radius:99px}
+  .crow{display:flex;align-items:baseline;gap:9px}
+  .tier{font-size:15.5px;font-weight:800}
+  .tier small{display:block;font-weight:500;font-size:10.5px;color:var(--d-ink3);margin-top:2px}
+  .price{margin-left:auto;text-align:right}
+  .price b{font-size:20px}
+  .price s{display:block;color:var(--d-ink3);font-size:10.5px;text-decoration:none}
+  .vol{margin-top:9px;font-size:13px;font-weight:600}
+  .bonus{margin-top:4px;font-size:12px;font-weight:700;color:var(--d-mint)}
+  .rowl{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--d-line)}
+  .rowl .k{font-size:12.5px;font-weight:600}
+  .rowl .v{margin-left:auto;font-size:12px;color:var(--d-ink3)}
+  .rowl .v.mono{font-family:var(--font-mono)}
+  .grp{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--d-mint);margin:14px 0 2px}
+  .sw{width:38px;height:22px;border-radius:99px;background:rgba(255,255,255,.12);position:relative;flex:none;margin-left:auto}
+  .sw i{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;display:block}
+  .sw.on{background:var(--d-mint)}
+  .sw.on i{left:18px}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,#1C2A38,#141E29);border-radius:22px 22px 0 0;
+    border-top:1px solid var(--d-line2);padding:14px 16px 18px;box-shadow:0 -18px 40px rgba(0,0,0,.5);z-index:5}
+  .grab{width:38px;height:4px;border-radius:99px;background:rgba(255,255,255,.22);margin:0 auto 12px}
+  .dim{position:absolute;inset:0;background:rgba(6,10,15,.55);z-index:4}
+  .packs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .pack{border:1px solid var(--d-line);border-radius:12px;padding:10px;background:rgba(255,255,255,.03)}
+  .pack b{display:block;font-size:13px;font-weight:700}
+  .pack .p{font-family:var(--font-mono);font-size:12.5px;color:var(--d-mint);margin-top:3px}
+  .wave{display:flex;align-items:center;gap:3px;height:64px;margin:6px 0 14px}
+  .wave i{flex:1;background:linear-gradient(180deg,var(--d-mint),var(--d-mint2));border-radius:99px;opacity:.85}
+  .pf{display:flex;align-items:center;justify-content:center;gap:18px;margin:6px 0 14px;color:var(--d-ink)}
+  .pbtn{width:64px;height:64px;border-radius:50%;background:linear-gradient(180deg,#FF7E7E,var(--d-red));display:flex;align-items:center;justify-content:center;box-shadow:0 12px 26px rgba(255,107,107,.28)}
+  .pbtn svg{width:24px;height:24px;fill:#2A0E0E;stroke:none}
+  .pmini{width:44px;height:44px;border-radius:50%;border:1px solid var(--d-line2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+  .cnt{text-align:center;padding:40px 0}
+  .cnt .big{font-size:19px;font-weight:800;margin-bottom:6px}
+  .cnt .sm{font-size:12.5px;color:var(--d-ink2);line-height:1.55;margin-bottom:16px}
+  .lvl{display:flex;align-items:center;justify-content:center;gap:3px;height:26px;margin-top:10px}
+  .lvl i{width:4px;background:var(--d-mint);border-radius:2px;opacity:.8}
+  .note-r{border:1px dashed rgba(143,227,210,.3);border-radius:12px;padding:10px 11px;font-size:11.5px;color:var(--d-ink2);line-height:1.5;margin-bottom:10px}
+  .kbdcta{display:flex;gap:8px}
+  .kbdcta .btn{flex:1}
+  .stat{display:flex;gap:8px;margin-bottom:10px}
+  .stat div{flex:1;border:1px solid var(--d-line);border-radius:12px;padding:9px;text-align:center;background:rgba(255,255,255,.03)}
+  .stat b{display:block;font-family:var(--font-mono);font-size:15px}
+  .stat span{font-size:10px;color:var(--d-ink3)}
+</style>
+</head>
+<body>
+<div class="canvas-viewport" id="viewport"><div class="canvas-world" id="world"></div></div>
+<div class="zoom-controls">
+  <button class="zoom-btn" id="zoomOut" aria-label="Уменьшить">&#8722;</button>
+  <div class="zoom-label" id="zoomLabel">100%</div>
+  <button class="zoom-btn" id="zoomIn" aria-label="Увеличить">+</button>
+  <button class="zoom-btn" id="zoomReset" aria-label="Сбросить вид">&#8962;</button>
+</div>
+<div class="coord-indicator" id="coordIndicator">0, 0</div>
+<div class="kbd-hint" id="kbdHint"></div>
+<script>
+(() => {
+  document.title = "ДиктаПро — бесконечный холст V1";
+  document.getElementById('kbdHint').innerHTML =
+    [["Прокрутка","перемещение"],["Ctrl+прокрутка","масштаб"],["Ctrl+Z","отменить"]]
+      .map(([k,a])=>`<span><kbd>${k}</kbd> ${a}</span>`).join('');
+
+  const viewport=document.getElementById('viewport'),world=document.getElementById('world'),
+        zoomLabel=document.getElementById('zoomLabel'),coordIndicator=document.getElementById('coordIndicator');
+  let panX=0,panY=0,zoom=1;const MIN_ZOOM=.05,MAX_ZOOM=8;
+  function updateTransform(){world.style.transform=`translate(${panX}px,${panY}px) scale(${zoom})`;zoomLabel.textContent=Math.round(zoom*100)+'%';updateGrid();}
+  function updateGrid(){const g=40*zoom;viewport.style.backgroundImage=`radial-gradient(circle, var(--grid-color) .8px, transparent .8px)`;viewport.style.backgroundSize=`${g}px ${g}px`;viewport.style.backgroundPosition=`${panX%g}px ${panY%g}px`;}
+  let isPanning=false,panSX,panSY;
+  viewport.addEventListener('pointerdown',e=>{if(e.target===viewport||e.target===world){isPanning=true;panSX=e.clientX-panX;panSY=e.clientY-panY;viewport.classList.add('panning');viewport.setPointerCapture(e.pointerId);e.preventDefault();}});
+  viewport.addEventListener('pointermove',e=>{if(!isPanning)return;panX=e.clientX-panSX;panY=e.clientY-panSY;updateTransform();});
+  viewport.addEventListener('pointerup',()=>{isPanning=false;viewport.classList.remove('panning');});
+  viewport.addEventListener('wheel',e=>{e.preventDefault();const rect=viewport.getBoundingClientRect();
+    if(e.ctrlKey||e.metaKey){const mx=e.clientX-rect.left,my=e.clientY-rect.top,wx=(mx-panX)/zoom,wy=(my-panY)/zoom;
+      zoom=Math.min(MAX_ZOOM,Math.max(MIN_ZOOM,zoom*(e.deltaY>0?.95:1.05)));panX=mx-wx*zoom;panY=my-wy*zoom;}
+    else{if(Math.abs(e.deltaX)>Math.abs(e.deltaY)*.3){panX-=e.deltaX;panY-=e.deltaY;}
+      else{const mx=e.clientX-rect.left,my=e.clientY-rect.top,wx=(mx-panX)/zoom,wy=(my-panY)/zoom;
+        zoom=Math.min(MAX_ZOOM,Math.max(MIN_ZOOM,zoom*(e.deltaY>0?.95:1.05)));panX=mx-wx*zoom;panY=my-wy*zoom;}}
+    updateTransform();},{passive:false});
+  function zoomAt(f){const r=viewport.getBoundingClientRect(),cx=r.width/2,cy=r.height/2,wx=(cx-panX)/zoom,wy=(cy-panY)/zoom;
+    zoom=Math.min(MAX_ZOOM,Math.max(MIN_ZOOM,zoom*f));panX=cx-wx*zoom;panY=cy-wy*zoom;updateTransform();}
+  document.getElementById('zoomIn').onclick=()=>zoomAt(1.25);
+  document.getElementById('zoomOut').onclick=()=>zoomAt(.8);
+  document.getElementById('zoomReset').onclick=()=>{zoom=1;panX=0;panY=0;updateTransform();};
+  viewport.addEventListener('pointermove',e=>{if(isPanning)return;const r=viewport.getBoundingClientRect();
+    coordIndicator.textContent=`${Math.round((e.clientX-r.left-panX)/zoom)}, ${Math.round((e.clientY-r.top-panY)/zoom)}`;});
+  let lastPinchDist=null,lastPinchCenter=null;
+  viewport.addEventListener('touchstart',e=>{if(e.touches.length===2){const t0=e.touches[0],t1=e.touches[1];
+    lastPinchDist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+    lastPinchCenter={x:(t0.clientX+t1.clientX)/2,y:(t0.clientY+t1.clientY)/2};e.preventDefault();}},{passive:false});
+  viewport.addEventListener('touchmove',e=>{if(e.touches.length!==2)return;e.preventDefault();const t0=e.touches[0],t1=e.touches[1];
+    const dist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY),center={x:(t0.clientX+t1.clientX)/2,y:(t0.clientY+t1.clientY)/2};
+    if(lastPinchDist>0){const r=viewport.getBoundingClientRect(),mx=center.x-r.left,my=center.y-r.top,wx=(mx-panX)/zoom,wy=(my-panY)/zoom;
+      zoom=Math.min(MAX_ZOOM,Math.max(MIN_ZOOM,zoom*Math.pow(dist/lastPinchDist,.6)));panX=mx-wx*zoom;panY=my-wy*zoom;}
+    if(lastPinchCenter){panX+=center.x-lastPinchCenter.x;panY+=center.y-lastPinchCenter.y;}
+    lastPinchDist=dist;lastPinchCenter=center;updateTransform();},{passive:false});
+  viewport.addEventListener('touchend',e=>{if(e.touches.length<2){lastPinchDist=null;lastPinchCenter=null;}});
+  const undoStack=[];
+  function saveUndo(){const s=[];world.querySelectorAll('.canvas-el').forEach(el=>s.push({id:el.id,left:el.style.left,top:el.style.top}));
+    undoStack.push({panX,panY,zoom,assets:s});if(undoStack.length>60)undoStack.shift();}
+  function undo(){if(!undoStack.length)return;const st=undoStack.pop();panX=st.panX;panY=st.panY;zoom=st.zoom;
+    st.assets.forEach(a=>{const el=document.getElementById(a.id);if(el){el.style.left=a.left;el.style.top=a.top;}});updateTransform();}
+  document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();undo();}});
+  function makeDraggable(el){let dragging=false,sx,sy,ox,oy;
+    el.addEventListener('pointerdown',e=>{if(e.button!==0)return;dragging=true;el.classList.add('dragging');saveUndo();
+      sx=e.clientX;sy=e.clientY;ox=parseFloat(el.style.left);oy=parseFloat(el.style.top);el.setPointerCapture(e.pointerId);e.stopPropagation();});
+    el.addEventListener('pointermove',e=>{if(!dragging)return;el.style.left=(ox+(e.clientX-sx)/zoom)+'px';el.style.top=(oy+(e.clientY-sy)/zoom)+'px';});
+    el.addEventListener('pointerup',()=>{if(dragging){dragging=false;el.classList.remove('dragging');}});}
+  let _id=0;const uid=p=>(p||'el')+'-'+(++_id);
+
+  function addSection(rowY,label){const parts=label.split(' '),num=parts[0]||'',rest=parts.slice(1).join(' ');
+    const el=document.createElement('div');el.className='section-header';el.style.left='60px';el.style.top=rowY+'px';
+    el.innerHTML=`<span class="section-line"></span><span class="section-num">${num}</span><span class="section-label">${rest}</span>`;
+    world.appendChild(el);return rowY;}
+  function addTitle(x,y,text,o={}){const el=document.createElement('div');el.className='canvas-title';el.id=uid('title');
+    el.style.left=x+'px';el.style.top=y+'px';el.style.fontSize=(o.fontSize||48)+'px';
+    if(o.fontWeight)el.style.fontWeight=o.fontWeight;if(o.color)el.style.color=o.color;if(o.maxWidth)el.style.maxWidth=o.maxWidth+'px';
+    el.textContent=text;world.appendChild(el);return el;}
+  function addText(x,y,text,o={}){const el=document.createElement('div');el.className='canvas-text canvas-el';el.id=uid('text');
+    el.style.left=x+'px';el.style.top=y+'px';el.style.fontSize=(o.fontSize||14)+'px';
+    if(o.color)el.style.color=o.color;if(o.maxWidth)el.style.maxWidth=o.maxWidth+'px';el.textContent=text;
+    world.appendChild(el);makeDraggable(el);return el;}
+  function addTag(x,y,label,o={}){const el=document.createElement('div');el.className='canvas-el';el.id=uid('tag');
+    el.style.left=x+'px';el.style.top=y+'px';const c=o.color||'var(--accent)';
+    el.innerHTML=`<div class="canvas-tag"><span class="tag-dot" style="background:${c}"></span>${label}</div>`;
+    world.appendChild(el);makeDraggable(el);return el;}
+  function addContextCard(x,y,w,h,title,content){const el=document.createElement('div');el.className='canvas-el';el.id=uid('ctx');
+    el.style.left=x+'px';el.style.top=y+'px';el.style.width=w+'px';if(h)el.style.height=h+'px';
+    el.innerHTML=`<div class="context-card" style="width:100%;${h?'height:100%':''}"><div class="card-head"><div class="head-indicator"></div><h3>${title}</h3></div><div class="card-content">${content}</div></div>`;
+    world.appendChild(el);makeDraggable(el);return el;}
+  function addDesignSystemCard(x,y,w,h,type,data){const el=document.createElement('div');el.className='canvas-el';el.id=uid('ds');
+    el.style.left=x+'px';el.style.top=y+'px';el.style.width=w+'px';if(h)el.style.height=h+'px';
+    let body='';
+    if(type==='color'&&Array.isArray(data.colors)){body=`<div class="color-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:14px">${data.colors.map(c=>`<div class="color-chip" style="aspect-ratio:1;border-radius:8px;background:${c.hex};position:relative"><span style="position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-family:var(--font-mono);font-size:9px;color:var(--text-tertiary);white-space:nowrap">${c.name||c.hex}</span></div>`).join('')}</div>`;}
+    else if(type==='typography'&&Array.isArray(data.samples)){body=`<div style="display:flex;flex-direction:column;gap:12px">${data.samples.map(s=>`<div style="display:flex;align-items:baseline;gap:16px"><span style="font-family:var(--font-mono);font-size:9px;color:var(--text-tertiary);min-width:44px;text-transform:uppercase">${s.label}</span><span style="font-size:${s.size}px;font-weight:${s.weight||400};color:var(--text);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${s.font?'font-family:'+s.font:''}">${s.text||'Aa'}</span></div>`).join('')}</div>`;}
+    else if(typeof data.html==='string'){body=data.html;}
+    el.innerHTML=`<div class="ds-card" style="width:100%;${h?'height:100%':''}"><div class="ds-head">${data.title||type}</div><div class="ds-body">${body}</div></div>`;
+    world.appendChild(el);makeDraggable(el);return el;}
+  function addColorSwatch(x,y,colors){const el=document.createElement('div');el.className='canvas-el';el.id=uid('swatch');
+    el.style.left=x+'px';el.style.top=y+'px';
+    el.innerHTML=`<div class="color-swatch-group">${colors.map(c=>`<div class="swatch-item"><div class="swatch-circle" style="background:${c.hex}"></div><div class="swatch-name">${c.name||''}</div><div class="swatch-hex">${c.hex}</div></div>`).join('')}</div>`;
+    world.appendChild(el);makeDraggable(el);return el;}
+  function addTypeSample(x,y,samples){const el=document.createElement('div');el.className='canvas-el';el.id=uid('typesample');
+    el.style.left=x+'px';el.style.top=y+'px';
+    el.innerHTML=`<div class="type-sample-group" style="display:flex;flex-direction:column;gap:18px;min-width:380px">${samples.map(s=>`<div style="display:flex;align-items:baseline;gap:20px"><span style="font-family:var(--font-mono);font-size:9px;color:var(--text-tertiary);min-width:52px">${s.label}<br>${s.size}px</span><span style="font-size:${s.size}px;font-weight:${s.weight||400};color:var(--text);line-height:1.25;${s.font?'font-family:'+s.font:''}">${s.text||'The quick brown fox'}</span></div>`).join('')}</div>`;
+    world.appendChild(el);makeDraggable(el);return el;}
+  let _pageNum=0;
+  function addPage(x,y,w,h,label,htmlContent){_pageNum++;const el=document.createElement('div');el.className='canvas-el';el.id=uid('page');
+    el.style.left=x+'px';el.style.top=y+'px';el.style.width=w+'px';el.style.height=(h+40)+'px';
+    el.innerHTML=`<div class="design-page" style="width:${w}px;height:${h}px"><div class="page-content">${htmlContent}</div></div><div class="page-label"><span class="label-num">${String(_pageNum).padStart(2,'0')}</span>${label}</div>`;
+    world.appendChild(el);makeDraggable(el);return el;}
+  function addNote(x,y,tag,text){const el=document.createElement('div');el.className='canvas-el';el.id=uid('note');
+    el.style.left=x+'px';el.style.top=y+'px';
+    el.innerHTML=`<div class="canvas-note"><div class="note-tag">${tag}</div><div class="note-body">${text}</div></div>`;
+    world.appendChild(el);makeDraggable(el);return el;}
+  function addDiagram(x,y,w,h,htmlContent){const el=document.createElement('div');el.className='canvas-el';el.id=uid('diagram');
+    el.style.left=x+'px';el.style.top=y+'px';el.style.width=w+'px';el.style.height=h+'px';
+    el.innerHTML=`<div class="canvas-diagram" style="width:100%;height:100%"><div class="diagram-content">${htmlContent}</div></div>`;
+    world.appendChild(el);makeDraggable(el);return el;}
+  const below=(el,g=20)=>parseFloat(el.style.top)+el.offsetHeight+g;
+  const rightOf=(el,g=20)=>parseFloat(el.style.left)+el.offsetWidth+g;
+  const maxY=(els,g=20)=>Math.max(...els.map(e=>parseFloat(e.style.top)+e.offsetHeight))+g;
+  window.canvas={addSection,addTitle,addText,addTag,addContextCard,addDesignSystemCard,addColorSwatch,addTypeSample,addPage,addNote,addDiagram,below,rightOf,maxY};
+
+  /* ────────────────────────── ИКОНКИ ────────────────────────── */
+  const I={
+    mic:'<svg class="icn" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+    search:'<svg class="icn" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>',
+    sort:'<svg class="icn" viewBox="0 0 24 24"><path d="M3 6h13M3 12h9M3 18h5"/><path d="M18 9v10M15 16l3 3 3-3"/></svg>',
+    gear:'<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>',
+    play:'<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
+    plus:'<svg class="icn" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    upload:'<svg class="icn" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>',
+    doc:'<svg class="icn" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
+    share:'<svg class="icn" viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>',
+    copy:'<svg class="icn" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>',
+    tag:'<svg class="icn" viewBox="0 0 24 24"><path d="M3 12V4h8l9 9-8 8z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg>',
+    clock:'<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    text:'<svg class="icn" viewBox="0 0 24 24"><path d="M4 6h16M4 12h12M4 18h8"/></svg>',
+    dialog:'<svg class="icn" viewBox="0 0 24 24"><path d="M4 5h16v10H9l-5 4z"/></svg>',
+    gist:'<svg class="icn" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h5"/></svg>',
+    edit:'<svg class="icn" viewBox="0 0 24 24"><path d="M4 20h4l10-10-4-4L4 16z"/><path d="M13 5l4 4"/></svg>',
+    trash:'<svg class="icn" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>',
+    resume:'<svg class="icn" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2"/><path d="M4 5v5h5"/></svg>',
+    key:'<svg class="icn" viewBox="0 0 24 24"><circle cx="8" cy="12" r="4"/><path d="M12 12h9M18 12v3"/></svg>',
+    wifi:'<svg class="icn" viewBox="0 0 24 24"><path d="M5 12a10 10 0 0 1 14 0M8 15a6 6 0 0 1 8 0"/><circle cx="12" cy="18" r="1"/></svg>',
+    phone:'<svg class="icn" viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="2"/><path d="M11 18h2"/></svg>'
+  };
+  const sc=(inner)=>`<div class="sc">${inner}</div>`;
+  const hd=(brand,sub,right='')=>`<div class="hd"><div class="mark">${I.mic}</div><div class="brand">${brand}${sub?`<span>${sub}</span>`:''}</div><div class="r">${right}</div></div>`;
+
+  /* ═════════════ ROW 1 · ПРОЕКТ ═════════════ */
+  function row1(){
+    addSection(40,'01 КОНТЕКСТ ПРОЕКТА');
+    const t=addTitle(100,88,'ДиктаПро — полный редизайн',{fontSize:50,fontWeight:700,maxWidth:820});
+    const d=addText(100,below(t,12),'Диктофон, который превращает речь в текст прямо на телефоне — без интернета и без отправки данных.\nЗадача этого холста: перенести ВСЮ функциональность приложения (5 месяцев работы) в новый визуальный язык — без потерь.',{fontSize:15,maxWidth:620});
+    const ty=below(d,16);
+    const g1=addTag(100,ty,'Полный экран-инвентарь');
+    const g2=addTag(rightOf(g1,8),ty,'Офлайн · приватность');
+    const g3=addTag(rightOf(g2,8),ty,'Android → потом iOS');
+    const g4=addTag(rightOf(g3,8),ty,'18 экранов и состояний');
+    const cy=below(g1,26);
+    const c1=addContextCard(100,cy,320,null,'Для кого',
+      '<ul><li>Диктует по работе: юристы, врачи, журналисты, аграрии</li><li>Студенты — лекции в конспект</li><li>Все, кому важны и текст, и приватность</li></ul>');
+    const c2=addContextCard(440,cy,320,null,'Что решаем',
+      '<ul><li>Запись и расшифровка не покидают телефон</li><li>Онлайн-функции — только по решению пользователя</li><li>Бесплатно: базовый режим; сверх — подписка и пакеты часов</li></ul>');
+    const c3=addContextCard(780,cy,300,null,'Что меняем в дизайне',
+      '<ul><li>Тихий «инструмент-ноутбук»: графит + мята</li><li>Красный — только главное действие</li><li>Цифры — моно, иконки — линейные</li></ul>');
+    const ny=maxY([c1,c2,c3],26);
+    const n1=addNote(100,ny,'Главное требование',
+      'Ни одна функция не теряется: каждая из текущего приложения получает своё место. Импорт внешних файлов, таймер сна, термины, теги, экспорт, онлайн-режимы, кэш итогов, MIUI-настройки — всё нарисовано.');
+    const n2=addNote(rightOf(n1,20),ny,'Порядок работы',
+      'Сначала Android целиком (тема + все экраны + прогон), приёмка на телефоне, потом iOS. Не делаем две платформы одновременно.');
+    const n3=addNote(rightOf(n2,20),ny,'Что за кадром',
+      'Скриншоты для карточки магазина снимаем только после переезда — чтобы не переделывать дважды.');
+    const n4=addNote(rightOf(n3,20),ny,'iOS — что отличается',
+      'Дизайн тот же (Flutter, один код). Системное: выбор файлов — iOS Files; покупка — нативный StoreKit-шит (обязательна кнопка «Восстановить покупку»); «Поделиться» — системный share-sheet; safe area и свайп-назад; разрешения микрофона и фона; пуши — APNs.');
+    return maxY([c1,c2,c3,n1,n2,n3,n4],90);
+  }
+
+  /* ═════════════ ROW 2 · ДИЗАЙН-СИСТЕМА ═════════════ */
+  function row2(y){
+    addSection(y,'02 ДИЗАЙН-СИСТЕМА');
+    const dsY=y+58;
+    const cs=addDesignSystemCard(100,dsY,520,null,'color',{title:'Палитра (токены)',colors:[
+      {name:'bg0',hex:'#111A24'},{name:'bg1',hex:'#182532'},{name:'bg2',hex:'#1F2E3D'},
+      {name:'surface',hex:'#2A3644'},{name:'line',hex:'#3A4757'},{name:'ink',hex:'#EAF2F5'},
+      {name:'ink2',hex:'#9FAAB4'},{name:'mint',hex:'#8FE3D2'},{name:'mint2',hex:'#4FB3A5'},
+      {name:'red',hex:'#FF6B6B'},{name:'gold',hex:'#FFD166'},{name:'light',hex:'#E6EDF2'}]});
+    const ts=addDesignSystemCard(640,dsY,430,null,'typography',{title:'Типографика',html:`
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div><div style="font-family:var(--font-mono);font-size:9px;color:var(--text-tertiary);margin-bottom:4px">ONEST · ЗАГОЛОВОК 20/800</div>
+          <div style="font-size:20px;font-weight:800">Текст готов · <span style="color:var(--accent)">Итоги собраны</span></div></div>
+        <div><div style="font-family:var(--font-mono);font-size:9px;color:var(--text-tertiary);margin-bottom:4px">ONEST · КАРТОЧКА 13.5/700</div>
+          <div style="font-size:13.5px;font-weight:700">Встреча по договору</div></div>
+        <div><div style="font-family:var(--font-mono);font-size:9px;color:var(--text-tertiary);margin-bottom:4px">ONEST · ТЕЛО 12.5/400</div>
+          <div style="font-size:12.5px;color:var(--text-secondary)">Расшифровано на устройстве за 2 мин 10 с.</div></div>
+        <div><div style="font-family:var(--font-mono);font-size:9px;color:var(--text-tertiary);margin-bottom:4px">JETBRAINS MONO · ЦИФРЫ 11</div>
+          <div style="font-family:var(--font-mono);font-size:11px">22 сен · 04:31 · 8,1 МБ</div></div>
+      </div>`});
+    const com=addDesignSystemCard(1090,dsY,330,null,'components',{title:'Компоненты',html:`
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="background:linear-gradient(180deg,#FF7E7E,#FF6B6B);color:#2A0E0E;border-radius:12px;text-align:center;padding:11px;font-weight:800;font-size:13.5px">Оформить · 1 999 ₽</div>
+        <div style="border:1px solid rgba(255,255,255,.16);border-radius:12px;text-align:center;padding:11px;font-weight:700;font-size:13px">Импортировать файл</div>
+        <div style="border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:10px;font-size:12.5px;color:rgba(234,242,245,.42)">Поиск по записям и текстам</div>
+        <div style="display:flex;gap:7px"><span style="background:#8FE3D2;color:#0E2A26;border-radius:99px;padding:5px 11px;font-size:12px;font-weight:700">Все</span>
+          <span style="border:1px solid rgba(255,255,255,.09);color:rgba(234,242,245,.66);border-radius:99px;padding:5px 11px;font-size:12px">Сегодня</span></div>
+        <div><span style="background:#8FE3D2;color:#0E2A26;border-radius:99px;padding:2px 8px;font-size:10px;font-weight:700">Расшифровано</span>
+          <span style="background:rgba(255,255,255,.12);color:rgba(234,242,245,.66);border-radius:99px;padding:2px 8px;font-size:10px;font-weight:600">В очереди</span>
+          <span style="background:rgba(255,107,107,.18);color:#FFB3B3;border-radius:99px;padding:2px 8px;font-size:10px;font-weight:700">Ошибка</span></div>
+      </div>`});
+    const st=addDesignSystemCard(1460,dsY,340,null,'custom',{title:'Состояния и правила',html:`
+      <ul style="list-style:none;font-size:12.5px;line-height:1.65;color:var(--text-secondary)">
+        <li style="padding:3px 0">• Кнопки и поля: обычное / нажатое / недоступное</li>
+        <li style="padding:3px 0">• Списки: пусто / загрузка / ошибка / готово</li>
+        <li style="padding:3px 0">• Касание ≥ 44×44 pt</li>
+        <li style="padding:3px 0">• Без наведения (только касание)</li>
+        <li style="padding:3px 0">• Контраст: ink/bg1 ≈ 13:1, мята ≈ 8:1</li>
+        <li style="padding:3px 0">• Без эмодзи — линейные иконки 1.8px</li>
+      </ul>`});
+    return maxY([cs,ts,com,st],90);
+  }
+
+  /* ═════════════ ROW 3 · ЭКРАНЫ ═════════════ */
+  const P=[];
+  function page(label,html){P.push({label,html});}
+  function buildPages(y){
+    addSection(y,'03 ЭКРАНЫ — ВСЯ ФУНКЦИОНАЛЬНОСТЬ');
+    const W=390,H=844,GX=60,GY=150,PER=5;
+    let yy=y+56;
+    for(let i=0;i<P.length;i++){
+      const col=i%PER,row=Math.floor(i/PER);
+      addPage(100+col*(W+GX),yy+row*(H+GY),W,H,P[i].label,P[i].html);
+    }
+    return yy+Math.ceil(P.length/PER)*(H+GY);
+  }
+
+  /* ---------- 1. SPLASH ---------- */
+  page('Splash · запуск',sc(`<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+    <div style="font-size:27px;font-weight:800;letter-spacing:-.5px">ДиктаПро</div>
+    <div style="font-size:14.5px;font-weight:600;color:var(--d-mint);margin-top:13px">Голос → Текст</div>
+    <div style="font-size:14.5px;font-weight:600;color:var(--d-ink2);margin-top:9px">Не покидая телефон</div>
+    <div style="font-size:11px;color:var(--d-ink3);margin-top:64px">модель внутри · интернет не нужен</div>
+  </div>`));
+
+  /* ---------- 2. ГЛАВНАЯ · ПУСТО ---------- */
+  page('Главная · пусто',sc(`${hd('ДиктаПро','Не покидая телефон')}
+    <div class="search">${I.search} Поиск по записям и текстам</div>
+    <div class="hero"><div class="cap2">Распознавание: <b style="color:#fff">на устройстве · модель внутри</b></div>
+      <div class="mic">${I.mic.replace('class="icn"','width="32" height="32" stroke="#2A0E0E" stroke-width="2"')}</div>
+      <div class="timer mono">00:00</div><div class="recstate">Начать запись · всё останется в телефоне</div></div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+      <div class="btn ghost" style="flex:1">${I.upload} Импорт аудио</div>
+      <div class="chip">${I.clock} Таймер сна: 30 мин</div>
+    </div>
+    <div class="chips"><div class="chip on">Все</div><div class="chip">Сегодня</div><div class="chip">В очереди</div></div>
+    <div class="item" style="text-align:center;padding:22px 12px">
+      <div style="font-size:13.5px;font-weight:700;margin-bottom:6px">Пока ни одной записи</div>
+      <div style="font-size:12px;color:var(--d-ink2);line-height:1.55">Нажмите «Начать запись» — или импортируйте готовый файл (mp3, m4a, wav) и расшифруйте его.</div>
+    </div>
+    <div class="nav"><div class="on">Записи</div><div>Тексты</div><div>Итоги</div><div>Ещё</div></div>`));
+
+  /* ---------- 3. ГЛАВНАЯ · СПИСОК ---------- */
+  page('Главная · список записей',sc(`${hd('ДиктаПро','Не покидая телефон',I.sort)}
+    <div class="search">${I.search} Поиск по записям и текстам</div>
+    <div style="display:flex;align-items:center;gap:10px;border:1px solid rgba(143,227,210,.24);background:linear-gradient(180deg,rgba(143,227,210,.08),rgba(143,227,210,.02));border-radius:14px;padding:9px 11px;margin-bottom:10px">
+      <div class="mic" style="width:46px;height:46px;margin:0;box-shadow:0 8px 18px rgba(255,107,107,.28)">${I.mic.replace('class="icn"','width="20" height="20" stroke="#2A0E0E" stroke-width="2"')}</div>
+      <div style="flex:1"><div class="name">Начать запись</div><div class="sub">на устройстве · модель внутри</div></div>
+      <div class="air">Импорт</div>
+    </div>
+    <div class="chips"><div class="chip on">Все</div><div class="chip">Сегодня</div><div class="chip">В очереди</div></div>
+    <div class="prog"><div class="name">Расшифровка · «Лекция: неврология»</div>
+      <div class="sub">идёт 3 мин · готово 12 кусков · 46%</div><div class="bar"><i style="width:46%"></i></div></div>
+    <div class="item lead1"><div class="ihead"><div class="ibox">${I.play.replace('<svg','<svg style="fill:#8FE3D2;stroke:none"')}</div>
+      <div style="flex:1"><div class="name">Встреча по договору</div><div class="sub mono">22 сен · 04:31 · 8,1 МБ</div></div></div>
+      <span class="tag">Расшифровано · итоги готовы</span></div>
+    <div class="item"><div class="ihead"><div class="ibox">${I.clock}</div>
+      <div style="flex:1"><div class="name">Импорт: интервью.mp3</div><div class="sub mono">22 сен · 12:04 · 24,6 МБ</div></div></div>
+      <span class="tag g">В очереди · 2-й в расшифровке</span></div>
+    <div class="item"><div class="ihead"><div class="ibox">${I.text}</div>
+      <div style="flex:1"><div class="name">Заметка: идеи для приложения</div><div class="sub mono">22 сен · 00:34 · 1,2 МБ</div></div></div>
+      <span class="tag g">Без текста · нажмите «В текст»</span></div>
+    <div class="item"><div class="ihead"><div class="ibox">${I.edit}</div>
+      <div style="flex:1"><div class="name">Совещание · отдел продаж</div><div class="sub mono">21 сен · 41:12 · 63,4 МБ</div></div></div>
+      <span class="tag r">Расшифровка прервана · продолжить</span></div>
+    <div class="foot"><b>На устройстве:</b> запись, расшифровка, поиск и итоги считаются в телефоне.</div>
+    <div class="nav"><div class="on">Записи</div><div>Тексты</div><div>Итоги</div><div>Ещё</div></div>`));
+
+  /* ---------- 4. ИДЁТ ЗАПИСЬ ---------- */
+  page('Главная · идёт запись',sc(`${hd('ДиктаПро','Не покидая телефон')}
+    <div class="hero" style="border-color:rgba(255,107,107,.35);background:linear-gradient(180deg,rgba(255,107,107,.10),rgba(255,107,107,.02))">
+      <div class="cap2">Идёт запись · <b style="color:#FFB3B3">на устройстве · модель внутри</b></div>
+      <div class="mic">${I.mic.replace('class="icn"','width="30" height="30" stroke="#2A0E0E" stroke-width="2"')}</div>
+      <div class="timer mono">12:38</div>
+      <div class="lvl">${[8,16,24,12,20,28,14,22,10,18,26,12].map(h=>`<i style="height:${h}px"></i>`).join('')}</div>
+      <div class="recstate">Пишем · можно свернуть приложение — продолжит в фоне</div></div>
+    <div class="chips"><div class="chip on">${I.clock} Таймер сна: 30 мин</div><div class="chip">Без таймера</div><div class="chip">60 мин</div></div>
+    <div class="kbdcta" style="margin:4px 0 12px"><div class="btn ghost">Пауза</div><div class="btn">Остановить и расшифровать</div></div>
+    <div class="note-r">Расшифровка запустится автоматически после остановки. Модель уже в телефоне — интернет не потребуется.</div>
+    <div class="item"><div class="ihead"><div class="ibox">${I.text}</div><div style="flex:1"><div class="name">Встреча по договору</div>
+      <div class="sub mono">идёт · 12:38 · 3,4 МБ</div></div></div><span class="tag g">Пишется сейчас</span></div>
+    <div class="nav"><div class="on">Записи</div><div>Тексты</div><div>Итоги</div><div>Ещё</div></div>`));
+
+  /* ---------- 5. ИМПОРТ ---------- */
+  page('Импорт внешних файлов',`<div class="scr">${sc(`<div class="dim"></div>
+    ${hd('Интервью: подкаст',null,I.upload)}
+    <div class="ttl">Импорт аудио</div><div class="lead">Выберите готовые файлы — приложение расшифрует их на устройстве.</div>
+    <div class="sheet" style="position:absolute;left:0;right:0;bottom:0">
+      <div class="grab"></div>
+      <div style="font-size:15px;font-weight:800;margin-bottom:4px">Выбрать файлы</div>
+      <div style="font-size:11.5px;color:var(--d-ink3);line-height:1.5;margin-bottom:12px">Поддерживаются: wav · mp3 · m4a · aac · ogg · flac · wma · можно выбрать несколько сразу</div>
+      <div class="btn mint" style="margin-bottom:12px">${I.upload} Открыть проводник</div>
+      <div class="sec"><b>Выбрано · 3 файла</b><span>2 из 3 готовы</span></div>
+      <div class="item" style="margin-bottom:7px"><div class="ihead"><div class="ibox">${I.doc}</div><div style="flex:1"><div class="name">интервью_финал.mp3</div><div class="sub mono">24,6 МБ · 12:04</div></div></div>
+        <span class="tag">Импортирован · 12:04</span></div>
+      <div class="item" style="margin-bottom:7px"><div class="ihead"><div class="ibox">${I.doc}</div><div style="flex:1"><div class="name">лекция_неврология.mp3</div><div class="sub mono">38,2 МБ · 46:20</div></div></div>
+        <span class="tag">Импортирован · 46:20</span></div>
+      <div class="item" style="margin-bottom:7px"><div class="ihead"><div class="ibox">${I.doc}</div><div style="flex:1"><div class="name">запись_звонка.m4a</div><div class="sub mono">5,1 МБ</div></div></div>
+        <span class="tag g">Копирую… определилась длительность</span>
+        <div class="bar" style="margin-top:8px"><i style="width:38%"></i></div></div>
+      <div class="rowl" style="border-bottom:none"><div class="k">Расшифровать сразу после импорта</div><div class="sw on"><i></i></div></div>
+      <div class="note-r" style="margin-top:8px">Неподходящий формат просто пропускается: в конце скажем, сколько файлов импортировано и сколько не удалось.</div>
+      <div class="btn" style="margin-top:4px">Готово</div>
+    </div>`,)}</div>`);
+
+  /* ---------- 6. ПОИСК И СОРТИРОВКА ---------- */
+  page('Поиск и сортировка',sc(`${hd('ДиктаПро','Не покидая телефон')}
+    <div class="search" style="border-color:rgba(143,227,210,.4);color:var(--d-ink)">${I.search} договор<span style="margin-left:auto;color:var(--d-mint)">✕</span></div>
+    <div class="chips"><div class="chip on">Все</div><div class="chip">Сегодня</div><div class="chip">В очереди</div></div>
+    <div class="sec"><b>Нашлось: 2 записи</b><span>поиск идёт по текстам расшифровок</span></div>
+    <div class="item lead1"><div class="ihead"><div class="ibox">${I.text}</div><div style="flex:1"><div class="name">Встреча по договору</div>
+      <div class="sub mono">22 сен · 04:31</div></div></div><span class="tag">…сроки <b>договора</b> сдвигаются на две недели…</span></div>
+    <div class="item"><div class="ihead"><div class="ibox">${I.text}</div><div style="flex:1"><div class="name">Звонок клиенту</div>
+      <div class="sub mono">19 сен · 07:02</div></div></div><span class="tag">…подписали <b>договор</b>, копию юристу…</span></div>
+    <div class="grp">Сортировка</div>
+    <div class="rowl"><div class="k">Дата · сначала новые</div><div class="v" style="color:var(--d-mint);font-weight:700">выбрано</div></div>
+    <div class="rowl"><div class="k">Дата · сначала старые</div><div class="v"></div></div>
+    <div class="rowl"><div class="k">Имя · А-Я</div><div class="v"></div></div>
+    <div class="rowl"><div class="k">Длительность · сначала длинные</div><div class="v"></div></div>
+    <div class="rowl"><div class="k">Длительность · сначала короткие</div><div class="v"></div></div>`));
+
+  /* ---------- 7. КАРТОЧКА ЗАПИСИ ---------- */
+  page('Карточка записи · 12 действий',sc(`<div class="hd"><div class="mark">${I.mic}</div>
+      <div class="brand">Встреча по договору<span>22 сентября · 04:31 · 8,1 МБ</span></div>
+      <div class="r"><span class="air">Всё локально</span></div></div>
+    <div class="ttl">Текст готов · <em>Итоги собраны</em></div>
+    <div class="lead">Расшифровано на устройстве за 2 мин 10 с. Разбито на 4 реплики по говорящим.</div>
+    <div class="item lead1" style="margin-bottom:12px"><div class="ihead"><div class="ibox">${I.play.replace('<svg','<svg style="fill:#8FE3D2;stroke:none"')}</div>
+      <div style="flex:1"><div class="name">Прослушать</div><div class="sub">скорость 0.5× … 2.0× · переход по репликам</div></div></div></div>
+    <div class="acts">
+      <div class="act"><b>В текст</b>офлайн</div>
+      <div class="act"><b>Итоги</b>конспект</div>
+      <div class="act"><b>Диалог</b>говорящие</div>
+      <div class="act"><b>Термины</b>глоссарий</div>
+      <div class="act"><b>Экспорт</b>TXT·PDF·HTML</div>
+      <div class="act"><b>Отправить</b>поделиться</div>
+      <div class="act"><b>Копировать</b>весь текст</div>
+      <div class="act"><b>Переименовать</b></div>
+      <div class="act off"><b>Продолжить</b>нет обрыва</div>
+      <div class="act"><b>Удалить</b></div>
+    </div>
+    <div class="foot" style="margin-top:12px"><b>Почему безопасно:</b> запись, расшифровка, итоги и поиск идут на устройстве — данные не уходят в интернет.</div>
+    <div class="nav"><div class="on">Записи</div><div>Тексты</div><div>Итоги</div><div>Ещё</div></div>`));
+
+  /* ---------- 8. РАСШИФРОВКА ---------- */
+  page('Расшифровка · прогресс и очередь',sc(`${hd('Расшифровка','на устройстве · модель внутри')}
+    <div class="prog" style="padding:14px">
+      <div class="name" style="font-size:14px">Идёт расшифровка</div>
+      <div class="sub mono" style="margin-top:4px">лекция_неврология.mp3 · 46:20</div>
+      <div class="timer mono" style="font-size:22px;margin-top:8px">03:12</div>
+      <div class="bar" style="margin-top:10px"><i style="width:46%"></i></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--d-ink3);margin-top:7px"><span>готово 12 кусков</span><span class="mono">46%</span></div>
+    </div>
+    <div class="stat"><div><b>1 из 2</b><span>в очереди</span></div><div><b>≈ 12 мин</b><span>осталось</span></div><div><b>0 МБ</b><span>ушло в сеть</span></div></div>
+    <div class="note-r">Стадии: готовим аудио (декодирование) → распознаём → собираем текст. Можно свернуть — расшифровка продолжится в фоне.</div>
+    <div class="sec"><b>Очередь</b><span>обрабатывается по одному</span></div>
+    <div class="item"><div class="ihead"><div class="ibox">${I.clock}</div><div style="flex:1"><div class="name">интервью_финал.mp3</div><div class="sub mono">12:04</div></div></div><span class="tag g">В очереди · следующий</span></div>
+    <div style="margin-top:auto"><div class="btn ghost">Отменить текущую расшифровку</div></div>`));
+
+  /* ---------- 9. ТЕКСТ ---------- */
+  page('Текст · просмотр и правка',sc(`<div class="hd"><div class="brand">Встреча по договору<span class="mono">04:31 · 4 реплики</span></div>
+      <div class="r"><span class="air">Копировать</span><span class="air">Поделиться</span></div></div>
+    <div class="search">${I.search} Поиск текста…</div>
+    <div class="toolrow"><div class="tool">Правка</div><div class="tool">Таймкоды</div><div class="tool">Поменять говорящего</div></div>
+    <div class="blk" style="flex:1;overflow:hidden">
+      <div class="txt">…по договору сроки сдвигаются на две недели, если согласование придёт <b style="color:var(--d-mint)">до пятницы</b>. Тогда допсоглашение готовим без штрафов.</div>
+      <div class="txt" style="margin-top:9px;color:var(--d-ink2)">Понял, тогда я готовлю допсоглашение и отправляю копию юристу.</div>
+      <div class="txt" style="margin-top:9px">Да, и не забудь про акт — он нужен к концу месяца.</div>
+      <div class="txt" style="margin-top:9px;color:var(--d-ink2)">Хорошо. Ещё вопрос по объёмам: первая партия — 400 единиц?</div>
+      <div class="txt" style="margin-top:9px">470, если успеваем до 30-го. Иначе 400.</div>
+    </div>
+    <div class="foot">Правки сохраняются локально. Офлайн-движок больше не переписывает ваш текст.</div>
+    <div class="kbdcta" style="margin-top:10px"><div class="btn ghost">Отменить правки</div><div class="btn">Сохранить</div></div>`));
+
+  /* ---------- 10. ДИАЛОГ ---------- */
+  page('Диалог · говорящие',sc(`<div class="hd"><div class="brand">Диалог<span>4 реплики · 2 говорящих · разметка вручную</span></div>
+      <div class="r"><span class="air">Поделиться</span></div></div>
+    <div class="toolrow"><div class="tool">Поменять говорящего</div><div class="tool">Разделить реплику</div><div class="tool">Объединить</div></div>
+    <div class="seg"><div class="who">ГОВОРЯЩИЙ 1</div><div class="txt">…по договору сроки сдвигаются на две недели, если согласование придёт до пятницы.</div></div>
+    <div class="seg" style="border-color:rgba(255,209,102,.5)"><div class="who" style="color:var(--d-gold)">ГОВОРЯЩИЙ 2</div><div class="txt">Понял, тогда я готовлю допсоглашение и отправляю копию юристу.</div></div>
+    <div class="seg"><div class="who">ГОВОРЯЩИЙ 1</div><div class="txt">Да, и не забудь про акт — он нужен к концу месяца.</div></div>
+    <div class="seg" style="border-color:rgba(255,209,102,.5)"><div class="who" style="color:var(--d-gold)">ГОВОРЯЩИЙ 2</div><div class="txt">Хорошо. Ещё вопрос по объёмам: первая партия — 400 единиц?</div></div>
+    <div class="foot">Разметка хранится только в телефоне. Экспорт может включать или не включать подписи говорящих.</div>
+    <div class="nav"><div>Записи</div><div class="on">Тексты</div><div>Итоги</div><div>Ещё</div></div>`));
+
+  /* ---------- 11. ИТОГИ ---------- */
+  page('Итоги · локально и онлайн',sc(`<div class="hd"><div class="brand">Итоги встречи<span>конспект из текста записи</span></div>
+      <div class="r"><span class="air">Экспорт</span></div></div>
+    <div class="toggle"><div class="on">Локально<small>без интернета</small></div><div>Онлайн<small>точнее · ИИ-часы</small></div></div>
+    <div class="blk"><h4>О ЧЁМ ДОГОВОРИЛИСЬ</h4>
+      <div class="li"><b>Сроки:</b> сдвиг на 2 недели при согласовании до пятницы</div>
+      <div class="li"><b>Документы:</b> допсоглашение + копия юристу</div></div>
+    <div class="blk"><h4>ЗАДАЧИ</h4>
+      <div class="li"><div class="box on"></div><div><b>Допсоглашение</b> — до 26 сентября</div></div>
+      <div class="li"><div class="box"></div><div><b>Акт</b> — к концу месяца</div></div>
+      <div class="li"><div class="box"></div><div><b>Объёмы партии</b> — уточнить до 30-го</div></div></div>
+    <div class="blk"><h4>ЦИФРЫ И ДАТЫ</h4>
+      <div class="li">сроки — 2 недели · пятница — крайний день · партия 400–470 · акт — конец месяца</div></div>
+    <div class="note-r">Онлайн-итоги считаются на сервере за ИИ-часы и кэшируются: повторный показ — <b>бесплатно</b>. Локальные итоги не используют интернет.<br>ИИ-часы: подписка даёт 10 / 20 / 40 ч в месяц, пакеты — сверх.</div>
+    <div class="kbdcta"><div class="btn ghost">${I.wifi} Онлайн-итоги</div><div class="btn">${I.gist} Обновить локально</div></div>`));
+
+  /* ---------- 12. ПЛЕЕР ---------- */
+  page('Прослушивание',sc(`<div class="hd"><div class="brand">Встреча по договору<span class="mono">04:31 · реплика 3 из 4</span></div>
+      <div class="r"><span class="air">Текст</span></div></div>
+    <div class="wave">${[10,22,34,48,30,16,24,40,52,34,20,12,26,42,30,18,10,28,44,32,16,24,38,20,12].map(h=>`<i style="height:${h}px"></i>`).join('')}</div>
+    <div class="pf"><div class="pmini">−15</div><div class="pbtn">${I.play}</div><div class="pmini">+30</div></div>
+    <div class="chips" style="justify-content:center"><div class="chip">0.5×</div><div class="chip">1.0×</div><div class="chip on">1.5×</div><div class="chip">2.0×</div></div>
+    <div class="sec"><b>Текст и переход к месту</b><span>нажмите строку — плеер прыгнет</span></div>
+    <div class="seg"><div class="who mono">00:42 · ГОВОРЯЩИЙ 1</div><div class="txt">…по договору сроки сдвигаются на две недели…</div></div>
+    <div class="seg" style="border-color:rgba(143,227,210,.9)"><div class="who mono">01:58 · ГОВОРЯЩИЙ 2</div><div class="txt">Понял, тогда я готовлю допсоглашение и отправляю копию юристу.</div></div>
+    <div class="seg"><div class="who mono">03:10 · ГОВОРЯЩИЙ 1</div><div class="txt">Да, и не забудь про акт — он нужен к концу месяца.</div></div>
+    <div class="nav"><div>Записи</div><div class="on">Тексты</div><div>Итоги</div><div>Ещё</div></div>`));
+
+  /* ---------- 13. НАСТРОЙКИ ---------- */
+  page('Настройки · все группы',sc(`${hd('Настройки',null)}
+    <div class="grp">Оформление</div>
+    <div class="rowl"><div><div class="k">Светлая тема</div><div class="sub">дневное оформление приложения</div></div><div class="sw"><i></i></div></div>
+    <div class="grp">Запись</div>
+    <div class="rowl"><div class="k">Частота дискретизации</div><div class="v mono">16 000 Гц</div></div>
+    <div class="rowl"><div class="k">Битрейт</div><div class="v mono">128 kbps</div></div>
+    <div class="rowl"><div class="k">Каналы</div><div class="v">Моно (1)</div></div>
+    <div class="note-r">Для расшифровки достаточно 16 кГц, моно. Выше — лучше звук, но больше файл.</div>
+    <div class="grp">Распознавание</div>
+    <div class="rowl"><div><div class="k">Движок: на устройстве</div><div class="sub">модель внутри · интернет не нужен</div></div></div>
+    <div class="rowl"><div><div class="k">Онлайн-расшифровка</div><div class="sub">точнее, но звук уходит на сервер провайдера</div></div><div class="sw"><i></i></div></div>
+    <div class="rowl"><div class="k">Провайдер и ключ</div><div class="v">${I.key} не задан</div></div>
+    <div class="grp">Фон и память</div>
+    <div class="rowl"><div><div class="k">Работа без ограничений (MIUI)</div><div class="sub">иначе система выгружает запись</div></div><div class="v">включено</div></div>
+    <div class="rowl"><div class="k">Временные файлы</div><div class="v">нет — удаляются сразу</div></div>
+    <div class="grp">Данные</div>
+    <div class="rowl"><div><div class="k">Всё хранится на устройстве</div><div class="sub">записи, тексты и ключи не покидают телефон</div></div></div>
+    <div class="rowl"><div class="k">Папка обмена (диагностика)</div><div class="v">открыть</div></div>
+    <div class="rowl" style="border-bottom:none"><div class="k">${I.gist} Подписка · тарифы и ИИ-часы</div><div class="v">→</div></div>`));
+
+  /* ---------- 14. ПОДПИСКА ---------- */
+  page('Подписка · тарифы и пакеты',sc(`<div class="hd"><div class="brand">Подписка<span>Тарифы и ИИ-часы для онлайн-итогов</span></div></div>
+    <div class="toggle"><div class="on">Месяц</div><div>Год <small>выгоднее до 25%</small></div></div>
+    <div class="card cur"><div class="crow"><div class="tier">Дневник<small>заметки, лекции, интервью</small></div>
+      <div class="price"><b>499 ₽</b><s>в месяц · $4,99 в мире</s></div></div>
+      <div class="vol">Расшифровка: <b>24 ч</b> в месяц</div><div class="bonus">+ 10 ИИ-часов в подарок каждый месяц</div></div>
+    <div class="card"><div class="crow"><div class="tier">Ассистент<small>встречи, протоколы, консультации</small></div>
+      <div class="price"><b>999 ₽</b><s>в месяц · $9,99 в мире</s></div></div>
+      <div class="vol">Расшифровка: <b>120 ч</b> в месяц</div><div class="bonus">+ 20 ИИ-часов в подарок каждый месяц</div></div>
+    <div class="card best"><div class="badge">ЛУЧШАЯ ЦЕНА ЗА ГОД</div>
+      <div class="crow"><div class="tier">Безлимит<small>кто работает голосом каждый день</small></div>
+      <div class="price"><b>1 999 ₽</b><s>в месяц · $19,99 в мире</s></div></div>
+      <div class="vol">Расшифровка: <b>без ограничений</b></div><div class="bonus">+ 40 ИИ-часов в подарок каждый месяц</div></div>
+    <div class="sec"><b>Пакеты ИИ-часов</b><span>не сгорают</span></div>
+    <div class="packs"><div class="pack"><b>1 час</b><div class="p">29 ₽</div></div><div class="pack"><b>10 часов</b><div class="p">249 ₽</div></div>
+      <div class="pack"><b>50 часов</b><div class="p">990 ₽</div></div><div class="pack"><b>200 часов</b><div class="p">3 490 ₽</div></div></div>
+    <div class="cta" style="margin-top:12px">Оформить «Дневник»<small>499 ₽ в месяц · отменить можно в магазине</small></div>
+    <div class="links"><span><u>Восстановить покупку</u></span><span><u>Ввести промокод</u></span></div>
+    <div class="foot"><b>Бесплатно:</b> базовый режим и весь остальной функционал. Оплата и продление — через магазин приложений.</div>`));
+
+  /* ---------- 15. ЭКСПОРТ ---------- */
+  page('Экспорт и «поделиться»',`<div class="scr">${sc(`<div class="dim"></div>
+    ${hd('Встреча по договору',null,)}
+    <div class="ttl">Формат экспорта</div>
+    <div class="sheet">
+      <div class="grab"></div>
+      <div class="rowl"><div class="ibox">${I.doc}</div><div class="k">TXT — текст с таймкодами</div><div class="v">→</div></div>
+      <div class="rowl"><div class="ibox">${I.doc}</div><div class="k">HTML — красивый документ</div><div class="v">→</div></div>
+      <div class="rowl"><div class="ibox">${I.doc}</div><div class="k">PDF — документ для печати</div><div class="v">→</div></div>
+      <div class="rowl"><div class="ibox">${I.copy}</div><div class="k">Скопировать текст</div><div class="v">→</div></div>
+      <div class="rowl" style="border-bottom:none"><div class="ibox">${I.share}</div><div class="k">Отправить: текст · аудио · PDF</div><div class="v">→</div></div>
+      <div class="note-r" style="margin-top:10px">При экспорте можно включать или не включать подписи говорящих и таймкоды. Файл сохраняется в «Загрузки» или сразу уходит в мессенджер.</div>
+      <div class="btn ghost">Отмена</div>
+    </div>`)}</div>`);
+
+  /* ---------- 16. ПРОМОКОД / ВОССТАНОВЛЕНИЕ ---------- */
+  page('Промокод и восстановление',`<div class="scr">${sc(`<div class="dim"></div>
+    ${hd('Подписка',null,)}
+    <div class="ttl">Промокод</div>
+    <div class="lead">Код из письма или поста — активирует тариф или пакет ИИ-часов.</div>
+    <div class="sheet">
+      <div class="grab"></div>
+      <div class="search" style="color:var(--d-ink3)">Код из письма или поста</div>
+      <div class="btn mint" style="margin-bottom:10px">Применить код</div>
+      <div class="note-r">Промокоды заработают после публикации приложения в магазине.</div>
+      <div class="rowl" style="border-bottom:none"><div class="k">Восстановить покупку</div><div class="v">→</div></div>
+      <div class="rowl" style="border-bottom:none"><div class="k">Статус</div><div class="v">Активной подписки нет · доступен бесплатный режим</div></div>
+      <div class="btn ghost" style="margin-top:10px">Закрыть</div>
+    </div>`)}</div>`);
+
+  /* ---------- 17. СВЕТЛАЯ ТЕМА ---------- */
+  page('Светлая тема',`<div class="scr light">${sc(`${hd('ДиктаПро','Не покидая телефон')}
+    <div class="search" style="background:rgba(17,26,36,.05);border-color:rgba(17,26,36,.12);color:#7A8794">${I.search} Поиск по записям и текстам</div>
+    <div class="item" style="background:#fff;border-color:rgba(17,26,36,.10);color:#16222E">
+      <div class="ihead"><div class="ibox" style="background:rgba(79,179,165,.14);border-color:rgba(79,179,165,.3)">${I.play.replace('<svg','<svg style="fill:#4FB3A5;stroke:none"')}</div>
+      <div style="flex:1"><div class="name">Встреча по договору</div><div class="sub mono" style="color:#7A8794">22 сен · 04:31 · 8,1 МБ</div></div></div>
+      <span class="tag">Расшифровано · итоги готовы</span></div>
+    <div class="item" style="background:#fff;border-color:rgba(17,26,36,.10);color:#16222E">
+      <div class="ihead"><div class="ibox" style="background:rgba(79,179,165,.14);border-color:rgba(79,179,165,.3)">${I.text}</div>
+      <div style="flex:1"><div class="name">Заметка: идеи</div><div class="sub mono" style="color:#7A8794">22 сен · 00:34 · 1,2 МБ</div></div></div>
+      <span class="tag g">Без текста</span></div>
+    <div class="hero" style="background:linear-gradient(180deg,rgba(79,179,165,.12),rgba(79,179,165,.03));border-color:rgba(79,179,165,.35)">
+      <div class="cap2" style="color:#4A5A68">Распознавание: <b style="color:#16222E">на устройстве · модель внутри</b></div>
+      <div class="mic" style="margin:0 auto">${I.mic.replace('class="icn"','width="30" height="30" stroke="#2A0E0E" stroke-width="2"')}</div>
+      <div class="timer mono" style="color:#16222E">00:00</div>
+      <div class="recstate" style="color:#2E7D6E">Начать запись · всё останется в телефоне</div></div>
+    <div class="nav" style="border-color:rgba(17,26,36,.12);color:#7A8794"><div class="on" style="color:#2E7D6E">Записи</div><div>Тексты</div><div>Итоги</div><div>Ещё</div></div>`)}</div>`);
+
+  /* ---------- 18. СОСТОЯНИЯ ---------- */
+  page('Состояния: пусто · ошибки · лимит',sc(`${hd('Состояния и сервисные экраны',null)}
+    <div class="item" style="padding:16px"><div class="name">Ничего не нашлось</div>
+      <div class="sub" style="margin-top:5px">Попробуйте другое слово или очистите поиск.</div></div>
+    <div class="item" style="padding:16px"><div class="name">Лимит бесплатного режима исчерпан</div>
+      <div class="sub" style="margin-top:5px">Выбрано 3 файла из 3 в этом месяце. Подписка снимает лимит и добавляет часы расшифровки.</div>
+      <div class="kbdcta" style="margin-top:10px"><div class="btn mint">Смотреть тарифы</div><div class="btn ghost">Купить полную версию</div></div></div>
+    <div class="item" style="border-color:rgba(255,107,107,.3);padding:16px"><div class="name">ИИ-часы закончились</div>
+      <div class="sub" style="margin-top:5px">Онлайн-итоги недоступны. Продлите подписку или докупите пакет часов. Локальные итоги работают всегда.</div></div>
+    <div class="item" style="padding:16px"><div class="name">Не удалось получить итоги</div>
+      <div class="sub" style="margin-top:5px">Проверьте интернет и попробуйте позже. Кэш последнего результата — бесплатно.</div>
+      <div class="btn ghost" style="margin-top:10px">Повторить</div></div>
+    <div class="item" style="padding:16px"><div class="name">Расшифровка прервана</div>
+      <div class="sub" style="margin-top:5px">Откройте ту же запись и запустите расшифровку — предложим продолжить с места обрыва.</div>
+      <div class="kbdcta" style="margin-top:10px"><div class="btn">Продолжить</div><div class="btn ghost">Начать заново</div></div></div>
+    <div class="item" style="padding:16px"><div class="name">Нужен доступ к микрофону</div>
+      <div class="sub" style="margin-top:5px">Запись включается только по вашей кнопке. Аудио обрабатывается на устройстве.</div>
+      <div class="note-r" style="margin:10px 0 0">Настройки → Микрофон → «Разрешить»</div></div>
+    <div class="foot">Все состояния проектируются: пусто · загрузка · ошибка · успех · запрет · лимит.</div>`));
+
+  page('Ещё · шкаф',sc(`${hd('Ещё',null)}
+    <div class="rowl"><div class="ibox">${I.gear}</div><div style="flex:1"><div class="k">Настройки</div><div class="sub">оформление · запись · распознавание · фон · данные</div></div><div class="v">→</div></div>
+    <div class="rowl"><div class="ibox">${I.gist}</div><div style="flex:1"><div class="k">Подписка и ИИ-часы</div><div class="sub">тарифы, пакеты часов, промокод, восстановление</div></div><div class="v">→</div></div>
+    <div class="rowl"><div class="ibox">${I.text}</div><div style="flex:1"><div class="k">Как пользоваться</div><div class="sub">короткие подсказки по записи и расшифровке</div></div><div class="v">→</div></div>
+    <div class="rowl"><div class="ibox">${I.doc}</div><div style="flex:1"><div class="k">О приложении</div><div class="sub">версия, лицензии, что считается на устройстве</div></div><div class="v">→</div></div>
+    <div class="rowl"><div class="ibox">${I.copy}</div><div style="flex:1"><div class="k">Папка обмена (диагностика)</div><div class="sub">тексты и временные файлы для проверки</div></div><div class="v">→</div></div>
+    <div class="note-r" style="margin-top:12px">Настройки и подписка живут только здесь. В шапке главной их больше нет — чтобы не дублировать одно и то же в двух местах.</div>
+    <div class="foot">Всё хранится на устройстве: записи, тексты и ключи не покидают телефон.</div>
+    <div class="nav"><div>Записи</div><div>Тексты</div><div>Итоги</div><div class="on">Ещё</div></div>`));
+
+  function build(){const y1=row1();const y2=row2(y1);buildPages(y2);}
+  build();
+  const r=viewport.getBoundingClientRect();panX=r.width*.03;panY=r.height*.06;zoom=.62;updateTransform();
+})();
+</script>
+</body>
+</html>
