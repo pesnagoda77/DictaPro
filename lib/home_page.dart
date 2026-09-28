@@ -25,6 +25,7 @@ import 'services/local_notify.dart';
 import 'dialogue_editor.dart';
 import 'tag_service.dart';
 import 'app_strings.dart';
+import 'widgets/dicta_ui.dart';
 import 'export_service.dart';
 import 'player_page.dart';
 import 'settings_page.dart';
@@ -1706,7 +1707,10 @@ class _HomePageState extends State<HomePage>
   Widget build(BuildContext context) {
     final filtered = _filteredRecordings;
 
-    return Scaffold(
+    return DictaBackground(
+      child: Scaffold(
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
       appBar: AppBar(
         title: _isSearching
             ? TextField(
@@ -1720,11 +1724,11 @@ class _HomePageState extends State<HomePage>
                 ),
                 onChanged: (value) => setState(() => _searchQuery = value),
               )
-            : Center(
-                child: Text(AppStrings.t('app_title', context),
-                    style: TextStyle(fontWeight: FontWeight.bold))),
+            : const DictaBrand(subtitle: 'Не покидая телефон'),
         centerTitle: !_isSearching,
         elevation: 0,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         leading: _isSearching
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
@@ -2255,6 +2259,7 @@ class _HomePageState extends State<HomePage>
             ),
           ),
         ],
+      ),
       ),
     );
   }
