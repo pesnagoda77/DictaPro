@@ -1781,22 +1781,13 @@ class _HomePageState extends State<HomePage>
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Column(
               children: [
-                Text(
-                  _isRecording ? AppStrings.t('recording_now', context) : AppStrings.t('tap_to_record', context),
-                  style: TextStyle(
-                    color: _isRecording ? Colors.red : Colors.white54,
-                    fontSize: 14,
-                    fontWeight:
-                        _isRecording ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
-                const SizedBox(height: 4),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color: AppColors.mint.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: AppColors.mint.withValues(alpha: 0.22)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1805,7 +1796,7 @@ class _HomePageState extends State<HomePage>
                         width: 8,
                         height: 8,
                         decoration: const BoxDecoration(
-                            color: Color(0xFF5FBF8B), shape: BoxShape.circle),
+                            color: AppColors.mint, shape: BoxShape.circle),
                       ),
                       const SizedBox(width: 8),
                       Text(_engineLabel,
@@ -1839,8 +1830,8 @@ class _HomePageState extends State<HomePage>
                   onTap: _toggleRecord,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    width: _isRecording ? 108 : 132,
-                    height: _isRecording ? 108 : 132,
+                    width: _isRecording ? 84 : 88,
+                    height: _isRecording ? 84 : 88,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: _isRecording
@@ -1862,25 +1853,30 @@ class _HomePageState extends State<HomePage>
                     ),
                     child: Icon(
                       _isRecording ? Icons.stop : Icons.mic,
-                      size: _isRecording ? 44 : 52,
-                      color: _isRecording ? AppColors.record : Colors.white,
+                      size: _isRecording ? 34 : 36,
+                      color: _isRecording ? AppColors.record : AppColors.redInk,
                     ),
                   ),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   _isRecording ? AppStrings.t('stop_recording', context) : AppStrings.t('start_recording', context),
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: _isRecording ? AppColors.red : AppColors.mint,
+                        fontSize: 12.5,
+                      ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   _fmtTime(_recordSeconds ~/ 10),
                   style: TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.bold,
+                    fontFamily: 'JetBrains Mono',
+                    fontSize: 25,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
                     color: _isRecording
                         ? AppColors.record
-                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                        : Theme.of(context).colorScheme.onSurface,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
