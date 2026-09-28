@@ -597,9 +597,17 @@ class AppStrings {
       'ru': 'Частота дискретизации (Hz)', 'en': 'Sample rate (Hz)',
       'de': 'Abtastrate (Hz)', 'it': 'Frequenza di campionamento (Hz)',
     },
+    'sample_rate_label': {
+      'ru': 'Частота дискретизации', 'en': 'Sample rate',
+      'de': 'Abtastrate', 'it': 'Frequenza di campionamento',
+    },
     'bitrate': {
       'ru': 'Битрейт (bps)', 'en': 'Bitrate (bps)',
       'de': 'Bitrate (bps)', 'it': 'Bitrate (bps)',
+    },
+    'bitrate_label': {
+      'ru': 'Битрейт', 'en': 'Bitrate',
+      'de': 'Bitrate', 'it': 'Bitrate',
     },
     'channels': {
       'ru': 'Каналы', 'en': 'Channels', 'de': 'Kanäle', 'it': 'Canali',
@@ -842,6 +850,10 @@ class AppStrings {
     'sub_all_plans': {
       'ru': 'Все тарифы и пакеты', 'en': 'All plans and packs',
       'de': 'Alle Tarife und Pakete', 'it': 'Tutti i piani e i pacchetti',
+    },
+    'sub_row_title': {
+      'ru': 'Подписка и ИИ-часы', 'en': 'Subscription & AI hours',
+      'de': 'Abo & KI-Stunden', 'it': 'Abbonamento e ore AI',
     },
     'sub_settings_sub': {
       'ru': 'Тарифы, ИИ-часы, пакеты',
