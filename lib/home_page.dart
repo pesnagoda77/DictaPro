@@ -83,6 +83,8 @@ class _HomePageState extends State<HomePage>
   String _searchQuery = '';
   bool _isSearching = false;
   bool _showFavoritesOnly = false;
+  /// 0 — все, 1 — сегодня, 2 — в очереди (без расшифровки).
+  int _quickFilter = 0;
   Timer? _timer;
   late AnimationController _pulseController;
   final _searchController = TextEditingController();
@@ -399,6 +401,20 @@ class _HomePageState extends State<HomePage>
     var list = List<Recording>.from(_recordings);
     if (_showFavoritesOnly) {
       list = list.where((rec) => rec.isFavorite).toList();
+    }
+    // Задача 068: чипы «Все / Сегодня / В очереди».
+    if (_quickFilter == 1) {
+      final now = DateTime.now();
+      list = list
+          .where((rec) =>
+              rec.createdAt.year == now.year &&
+              rec.createdAt.month == now.month &&
+              rec.createdAt.day == now.day)
+          .toList();
+    } else if (_quickFilter == 2) {
+      list = list
+          .where((rec) => (rec.transcription ?? '').trim().isEmpty)
+          .toList();
     }
     // Задача 068: вкладки «Тексты» и «Итоги» — те же записи, но с фильтром.
     if (widget.tab == 1) {
@@ -1994,21 +2010,20 @@ class _HomePageState extends State<HomePage>
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
                     child: Row(
                       children: [
-                        const Icon(Icons.library_music,
-                            size: 20, color: Colors.white54),
-                        const SizedBox(width: 8),
-                        Text(
-                          _searchQuery.isEmpty
-                              ? (_showFavoritesOnly ? AppStrings.tf('favorites_count', context, {'n': '${filtered.length}'}) : AppStrings.tf('recordings_count', context, {'n': '${_recordings.length}'}))
-                              : AppStrings.tf('found_count', context, {'n': '${filtered.length}'}),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white70,
-                          ),
-                        ),
+                        DictaChip('Все',
+                            selected: _quickFilter == 0,
+                            onTap: () => setState(() => _quickFilter = 0)),
+                        const SizedBox(width: 7),
+                        DictaChip('Сегодня',
+                            selected: _quickFilter == 1,
+                            onTap: () => setState(() => _quickFilter = 1)),
+                        const SizedBox(width: 7),
+                        DictaChip('В очереди',
+                            selected: _quickFilter == 2,
+                            onTap: () => setState(() => _quickFilter = 2)),
                         const Spacer(),
                         PopupMenuButton<SortOption>(
                           icon: const Icon(Icons.sort, color: Colors.white54, size: 20),
@@ -2073,28 +2088,19 @@ class _HomePageState extends State<HomePage>
                                         children: [
                                           GestureDetector(
                                             onTap: () => _renameRecording(rec),
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 4),
-                                              decoration: BoxDecoration(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .primary
-                                                    .withOpacity(0.15),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
+                                            child: ConstrainedBox(
+                                              constraints:
+                                                  const BoxConstraints(maxWidth: 210),
                                               child: Text(
-                                                rec.title ??
-                                                    '$dateStr $timeStr',
+                                                rec.title ?? '$dateStr $timeStr',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
                                                 style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13.5,
+                                                  fontWeight: FontWeight.w700,
                                                   color: Theme.of(context)
                                                       .colorScheme
-                                                      .primary,
+                                                      .onSurface,
                                                 ),
                                               ),
                                             ),
@@ -2116,6 +2122,7 @@ class _HomePageState extends State<HomePage>
                                           Text(
                                             '${_fmtDuration(rec.durationMs)} • ${_fmtSize(rec.fileSize)}',
                                             style: TextStyle(
+                                              fontFamily: 'JetBrains Mono',
                                               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45),
                                               fontSize: 11,
                                             ),
