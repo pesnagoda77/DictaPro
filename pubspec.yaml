@@ -26,6 +26,9 @@ dependencies:
   pdf: ^3.10.7
   # Task 054: разовая покупка «Полная версия» (non-consumable).
   in_app_purchase: ^3.2.0
+  # Task 066: прямой доступ к GooglePlayProductDetails / GooglePlayPurchaseParam
+  # (базовые планы подписок Play). Та же версия, что и транзитивно от 3.3.1.
+  in_app_purchase_android: ^0.5.3
   # Task 056: локальное уведомление «Расшифровка готова».
   flutter_local_notifications: ^18.0.1
 
