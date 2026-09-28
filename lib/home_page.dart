@@ -873,16 +873,20 @@ class _HomePageState extends State<HomePage>
           break;
         }
       }
-      if (wav16k != null) {
+      // ВАЖНО (29.09.2026): если конвертация не потребовалась, wav16k — это и
+      // есть исходный файл записи. Удалять/переносить его нельзя, иначе
+      // теряется аудио и повторная расшифровка падает «Файл не найден».
+      final isTempWav = wav16k != null && wav16k != filePath;
+      if (isTempWav) {
         try {
-          final f = File(wav16k);
+          final f = File(wav16k!);
           if (await f.exists()) {
             if (speechPercent >= 0 && speechPercent < 1.0) {
               final ext = await getExternalStorageDirectory();
               if (ext != null) {
                 final dir = Directory('${ext.path}/exports');
                 await dir.create(recursive: true);
-                final name = wav16k.split(RegExp(r'[\\/]')).last;
+                final name = wav16k!.split(RegExp(r'[\\/]')).last;
                 await f.rename('${dir.path}/$name');
                 debugPrint('DictaPro: речь $speechPercent% (<1%) — '
                     'WAV сохранён в exports для разбора');
@@ -1274,6 +1278,9 @@ class _HomePageState extends State<HomePage>
           ? result.segments.map((s) => s.toMap()).toList()
           : null;
       rec.tags = TagService.extractTags(punctuatedText);
+      // Сохраняем распознанный текст ДО сборки итогов: даже если следующий шаг
+      // упадёт или пользователь уйдёт из диалога — результат уже на диске.
+      await AudioService().updateRecording(rec);
       // Task 057: саммари ТОЛЬКО на устройстве (BYOK-облако отменено).
       _opStage.value = AppStrings.t('summary_computing', context);
       try {
