@@ -60,3 +60,6 @@ assets/models/vosk-model-small-ru-0.22.zip
 
 
 .backups/
+
+# локальные бэкапы правок (не коммитить)
+*.bak_*
