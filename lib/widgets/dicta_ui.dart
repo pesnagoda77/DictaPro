@@ -278,12 +278,8 @@ class DictaBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tk = DictaTokens.of(context);
-    const items = [
-      (Icons.graphic_eq_rounded, 'Записи'),
-      (Icons.article_outlined, 'Тексты'),
-      (Icons.auto_awesome_outlined, 'Итоги'),
-      (Icons.grid_view_rounded, 'Ещё'),
-    ];
+    // Как в утверждённом макете: только надписи, без иконок.
+    const items = ['Записи', 'Тексты', 'Итоги', 'Ещё'];
     return Container(
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: tk.line)),
@@ -297,20 +293,14 @@ class DictaBottomNav extends StatelessWidget {
                 child: InkWell(
                   onTap: () => onTap(i),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(items[i].$1, size: 20, color: i == index ? tk.mint : tk.ink3),
-                        const SizedBox(height: 3),
-                        Text(items[i].$2,
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: i == index ? FontWeight.w700 : FontWeight.w500,
-                              color: i == index ? tk.mint : tk.ink3,
-                            )),
-                      ],
-                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(items[i],
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: i == index ? FontWeight.w700 : FontWeight.w500,
+                          color: i == index ? tk.mint : tk.ink3,
+                        )),
                   ),
                 ),
               ),

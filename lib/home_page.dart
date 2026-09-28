@@ -1780,25 +1780,11 @@ class _HomePageState extends State<HomePage>
               )
             : null,
         actions: [
-          if (!_isSearching) ...[
-            IconButton(
-              icon: const Icon(Icons.folder_open),
-              onPressed: _importFile,
-            ),
-            IconButton(
-              icon: Icon(_showFavoritesOnly ? Icons.star : Icons.star_border),
-              color: _showFavoritesOnly ? Colors.amber : null,
-              onPressed: () {
-                setState(() {
-                  _showFavoritesOnly = !_showFavoritesOnly;
-                });
-              },
-            ),
+          if (!_isSearching)
             IconButton(
               icon: const Icon(Icons.search),
               onPressed: () => setState(() => _isSearching = true),
             ),
-          ],
         ],
       ),
       body: Column(
@@ -2035,8 +2021,30 @@ class _HomePageState extends State<HomePage>
                             selected: _quickFilter == 2,
                             onTap: () => setState(() => _quickFilter = 2)),
                         const Spacer(),
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          tooltip: 'Импорт',
+                          icon: Icon(Icons.upload_file_outlined,
+                              size: 20, color: DictaTokens.of(context).ink3),
+                          onPressed: _importFile,
+                        ),
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          tooltip: 'Избранное',
+                          icon: Icon(
+                              _showFavoritesOnly
+                                  ? Icons.star
+                                  : Icons.star_border,
+                              size: 20,
+                              color: _showFavoritesOnly
+                                  ? AppColors.gold
+                                  : DictaTokens.of(context).ink3),
+                          onPressed: () => setState(
+                              () => _showFavoritesOnly = !_showFavoritesOnly),
+                        ),
                         PopupMenuButton<SortOption>(
-                          icon: const Icon(Icons.sort, color: Colors.white54, size: 20),
+                          icon: Icon(Icons.sort,
+                              color: DictaTokens.of(context).ink3, size: 20),
                           tooltip: AppStrings.t('sort_tooltip', context),
                           onSelected: (option) {
                             setState(() => _sortOption = option);
@@ -2048,7 +2056,7 @@ class _HomePageState extends State<HomePage>
                               child: Row(
                                 children: [
                                   if (_sortOption == option)
-                                    const Icon(Icons.check, size: 16, color: Colors.green)
+                                    Icon(Icons.check, size: 16, color: DictaTokens.of(context).mint)
                                   else
                                     const SizedBox(width: 16),
                                   const SizedBox(width: 8),
