@@ -1710,7 +1710,6 @@ class _HomePageState extends State<HomePage>
     return DictaBackground(
       child: Scaffold(
       backgroundColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
       appBar: AppBar(
         title: _isSearching
             ? TextField(
