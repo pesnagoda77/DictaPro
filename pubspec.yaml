@@ -51,6 +51,18 @@ flutter:
     - family: Roboto
       fonts:
         - asset: assets/fonts/Roboto-Regular.ttf
+    # Задача 068: шрифты нового дизайна (вшиты в приложение, работают офлайн).
+    - family: Onest
+      fonts:
+        - asset: assets/fonts/Onest-Variable.ttf
+    - family: JetBrains Mono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/JetBrainsMono-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/JetBrainsMono-Bold.ttf
+          weight: 700
 
 dependency_overrides:
   record_linux: ^1.3.1
