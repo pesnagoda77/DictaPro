@@ -9,15 +9,14 @@ import 'services/enhanced_summary_service.dart';
 import 'services/online_summary_service.dart';
 import 'theme/app_theme.dart';
 import 'utils.dart';
-import 'widgets/dicta_ui.dart';
 import 'widgets/operation_progress.dart';
 
-/// SummaryPage: экран «Итоги» (task 068).
+/// Экран «Итоги» (V3): конспект записи по образцу экрана 11
+/// docs/design/v3_redesign_canvas.html.
 ///
-/// Вид — по макету V3, экран 11: переключатель «Локально / Онлайн»,
-/// блоки «О чём договорились / Задачи / Цифры и даты», примечание про
-/// ИИ-часы и кэш, кнопка «Обновить». Логика (локальный расчёт в изоляте,
-/// онлайн-сервер, кэш, списание ИИ-часов) сохранена без изменений.
+/// Локальные и онлайн-итоги хранятся отдельно; переключатель
+/// «Локально / Онлайн» выбирает, что показать. Онлайн расходует
+/// ИИ-часы (повторный показ из кэша — бесплатно), локальные — офлайн.
 class SummaryPage extends StatefulWidget {
   final RecordingDetailsModel recording;
 
@@ -36,21 +35,32 @@ class SummaryPage extends StatefulWidget {
 
 class _SummaryPageState extends State<SummaryPage> {
   bool _showFullText = false;
-  SummaryResult? _summaryResult;
+
+  /// Итоги по источникам: локальные и онлайн не затирают друг друга.
+  SummaryResult? _localResult;
+  SummaryResult? _onlineResult;
+
   bool _isLoadingSummary = false;
-  bool _localError = false;
+  bool _localFailed = false;
 
   // Task 059: онлайн-итоги и счётчик ИИ-часов.
   bool _onlineBusy = false;
+  bool _onlineFailed = false;
   bool _onlineWasUsed = false;
-  bool _onlineMode = false;
-  bool _onlineNoHours = false;
-  bool _onlineError = false;
-  SummaryResult? _onlineResult;
+  bool _canSpend = true;
   String _hoursLabel = '';
+
+  /// 0 — локально, 1 — онлайн.
+  int _mode = 0;
 
   // Task 034: этап операции для индикатора с секундомером.
   final ValueNotifier<String> _stage = ValueNotifier('Готовим текст…');
+
+  bool get _hasTranscript =>
+      widget.recording.transcript != null &&
+      widget.recording.transcript!.isNotEmpty;
+
+  int get _audioMs => widget.recording.duration?.inMilliseconds ?? 0;
 
   @override
   void dispose() {
@@ -69,19 +79,15 @@ class _SummaryPageState extends State<SummaryPage> {
     }
   }
 
-  bool get _hasTranscript =>
-      widget.recording.transcript != null &&
-      widget.recording.transcript!.isNotEmpty;
-
   // Task 034: саммари считается в изоляте — главный поток свободен,
   // счётчик тикает, пользователь может уйти с экрана и вернуться.
   Future<void> _generateSummary() async {
-    if (widget.recording.transcript == null ||
-        widget.recording.transcript!.isEmpty) return;
+    if (!_hasTranscript) return;
 
     setState(() {
       _isLoadingSummary = true;
-      _localError = false;
+      _localFailed = false;
+      _mode = 0;
     });
     _stage.value = AppStrings.t('summary_computing', context);
     try {
@@ -97,21 +103,30 @@ class _SummaryPageState extends State<SummaryPage> {
       // Экран могли закрыть, пока изолят считал — setState только если живы.
       if (!mounted) return;
       setState(() {
-        _summaryResult = summary;
+        _localResult = summary;
         _isLoadingSummary = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _isLoadingSummary = false;
-        _localError = true;
+        _localFailed = true;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.t('summary_failed_snack', context))),
+      );
     }
   }
 
   Future<void> _refreshHoursLabel() async {
     final label = await AiHoursService.instance.balanceLabel();
-    if (mounted) setState(() => _hoursLabel = label);
+    final canSpend = await AiHoursService.instance.canSpend(_audioMs);
+    if (mounted) {
+      setState(() {
+        _hoursLabel = label;
+        _canSpend = canSpend;
+      });
+    }
   }
 
   /// Task 059: онлайн-итоги. Gate для бесплатных: без подписки и без
@@ -120,15 +135,11 @@ class _SummaryPageState extends State<SummaryPage> {
   Future<void> _generateOnlineSummary() async {
     final transcript = widget.recording.transcript;
     if (transcript == null || transcript.isEmpty || _onlineBusy) return;
-    final audioMs = widget.recording.duration?.inMilliseconds ?? 0;
 
-    setState(() {
-      _onlineNoHours = false;
-      _onlineError = false;
-    });
-
-    if (!await AiHoursService.instance.canSpend(audioMs)) {
-      if (mounted) setState(() => _onlineNoHours = true);
+    final canSpend = await AiHoursService.instance.canSpend(_audioMs);
+    if (!mounted) return;
+    if (!canSpend) {
+      _showSnack(AppStrings.t('online_summary_no_hours', context));
       return;
     }
 
@@ -152,21 +163,27 @@ class _SummaryPageState extends State<SummaryPage> {
     );
     if (ok != true || !mounted) return;
 
-    setState(() => _onlineBusy = true);
+    setState(() {
+      _onlineBusy = true;
+      _onlineFailed = false;
+      _mode = 1;
+    });
     _stage.value = AppStrings.t('online_summary_stage', context);
     try {
       final res = await OnlineSummaryService.instance.summarize(
         fileId: widget.recording.filePath ?? widget.recording.title,
         text: transcript,
-        audioMs: audioMs,
+        audioMs: _audioMs,
         lang: Localizations.localeOf(context).languageCode,
       );
       if (!mounted) return;
       if (res == null) {
-        setState(() => _onlineError = true);
+        setState(() => _onlineFailed = true);
+        _showSnack(AppStrings.t('online_summary_failed', context));
         return;
       }
       setState(() {
+        _onlineBusy = false;
         _onlineWasUsed = true;
         _onlineResult = SummaryResult(
           title: AppStrings.t('online_summary_title', context),
@@ -175,11 +192,11 @@ class _SummaryPageState extends State<SummaryPage> {
           fullText: transcript,
         );
       });
-      await _refreshHoursLabel();
       _showSnack(res.fromCache
           ? AppStrings.t('online_summary_from_cache', context)
           : AppStrings.tf('online_summary_spent', context,
               {'h': _fmtHours(res.aiHoursSpent)}));
+      await _refreshHoursLabel();
       await widget.onSave?.call(res.text);
     } finally {
       if (mounted) setState(() => _onlineBusy = false);
@@ -190,30 +207,55 @@ class _SummaryPageState extends State<SummaryPage> {
 
   void _showSnack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: DictaBackground(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+          children: [
+            _buildHeader(context),
+            const SizedBox(height: 5),
+            _buildMetaLine(context),
+            const SizedBox(height: 12),
+            if (_hasTranscript) ...[
+              _buildToggle(context),
+              const SizedBox(height: 12),
+            ],
+            ..._buildContent(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============ Шапка ============
+
+  Widget _buildHeader(BuildContext context) {
     final tk = DictaTokens.of(context);
-    return DictaBackground(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          titleSpacing: 16,
-          title: Column(
-            mainAxisSize: MainAxisSize.min,
+    return Row(
+      children: [
+        IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+        const SizedBox(width: 2),
+        Expanded(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 widget.recording.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                style: Theme.of(context).textTheme.headlineMedium,
               ),
               Text(
-                AppStrings.t('summary_subtitle', context),
+                'конспект из текста записи',
                 style: TextStyle(
                   fontSize: 10.5,
                   fontWeight: FontWeight.w500,
@@ -222,353 +264,374 @@ class _SummaryPageState extends State<SummaryPage> {
               ),
             ],
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.share),
-              tooltip: AppStrings.t('share_title', context),
-              onPressed: () => _shareContent(context),
-            ),
-            IconButton(
-              icon: const Icon(Icons.copy),
-              tooltip: AppStrings.t('export_copy', context),
-              onPressed: () => _copyToClipboard(context),
-            ),
-          ],
         ),
-        body: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          children: [
-            _modeToggle(context),
-            const SizedBox(height: 10),
-            _metaLine(context),
-            const SizedBox(height: 12),
-            ..._content(context),
-            if (_hasTranscript) _fullTextCard(context),
-            _notePlate(context),
-            _hoursLine(context),
-            if (_hasTranscript) ...[
-              const SizedBox(height: 2),
-              _cta(context),
-            ],
-          ],
+        const SizedBox(width: 8),
+        _airPill(context, 'Экспорт', () => _shareContent(context)),
+        const SizedBox(width: 2),
+        IconButton(
+          onPressed: () => _copyToClipboard(context),
+          icon: Icon(Icons.copy_rounded, size: 18, color: tk.ink3),
         ),
+      ],
+    );
+  }
+
+  Widget _buildMetaLine(BuildContext context) {
+    final tk = DictaTokens.of(context);
+    final recording = widget.recording;
+    return Padding(
+      padding: const EdgeInsets.only(left: 50),
+      child: Text(
+        '${formatDuration(recording.duration ?? Duration.zero)} · ${formatDateTime(recording.dateTime ?? DateTime.now())}',
+        style: tk.mono(11, FontWeight.w600, tk.ink3),
       ),
     );
   }
 
-  // ── Переключатель «Локально / Онлайн» (макет, экран 11) ─────────────
+  Widget _airPill(BuildContext context, String text, VoidCallback onTap) {
+    final tk = DictaTokens.of(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: tk.line),
+        ),
+        child: Text(text, style: TextStyle(fontSize: 10, color: tk.ink2)),
+      ),
+    );
+  }
 
-  Widget _modeToggle(BuildContext context) {
+  // ============ Переключатель «Локально / Онлайн» ============
+
+  Widget _buildToggle(BuildContext context) {
     final tk = DictaTokens.of(context);
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: tk.surface2,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: tk.line),
       ),
       child: Row(
         children: [
-          Expanded(
-            child: _modeSegment(
-              context,
-              title: AppStrings.t('summary_mode_local', context),
-              sub: AppStrings.t('summary_mode_local_sub', context),
-              active: !_onlineMode,
-              onTap: () => setState(() => _onlineMode = false),
-            ),
-          ),
-          Expanded(
-            child: _modeSegment(
-              context,
-              title: AppStrings.t('summary_mode_online', context),
-              sub: AppStrings.t('summary_mode_online_sub', context),
-              active: _onlineMode,
-              onTap: () => setState(() => _onlineMode = true),
-            ),
-          ),
+          _toggleSeg(context, index: 0, label: 'Локально', sub: 'без интернета'),
+          _toggleSeg(context, index: 1, label: 'Онлайн', sub: 'точнее · ИИ-часы'),
         ],
       ),
     );
   }
 
-  Widget _modeSegment(
+  Widget _toggleSeg(
     BuildContext context, {
-    required String title,
+    required int index,
+    required String label,
     required String sub,
-    required bool active,
-    required VoidCallback onTap,
   }) {
     final tk = DictaTokens.of(context);
-    final onAccent = Theme.of(context).colorScheme.onPrimary;
-    final color = active ? onAccent : tk.ink3;
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 9),
-        decoration: BoxDecoration(
-          color: active ? tk.mint : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-            ),
-            Text(
-              sub,
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-                color: active ? color.withValues(alpha: 0.85) : tk.ink3,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Мета записи (моно): длительность · дата ─────────────────────────
-
-  Widget _metaLine(BuildContext context) {
-    final tk = DictaTokens.of(context);
-    final parts = <String>[];
-    final d = widget.recording.duration;
-    final dt = widget.recording.dateTime;
-    if (d != null) parts.add(formatDuration(d));
-    if (dt != null) parts.add(formatDateTime(dt));
-    if (parts.isEmpty) return const SizedBox.shrink();
-    return Text(
-      parts.join(' · '),
-      style: tk.mono(10.5, FontWeight.w500, tk.ink3),
-    );
-  }
-
-  // ── Содержимое по состоянию ─────────────────────────────────────────
-
-  List<Widget> _content(BuildContext context) {
-    final tk = DictaTokens.of(context);
-    if (!_hasTranscript) {
-      return [
-        _statePlate(
-          context,
-          icon: Icons.article_outlined,
-          text: AppStrings.t('no_transcript', context),
-        ),
-      ];
-    }
-
-    if (_onlineMode) {
-      if (_onlineBusy) return [_loadingPlate(context)];
-      if (_onlineNoHours) {
-        return [
-          _statePlate(
-            context,
-            icon: Icons.hourglass_empty,
-            text: AppStrings.t('online_summary_no_hours', context),
-            accent: tk.gold,
+    final on = _mode == index;
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: () => setState(() => _mode = index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: on ? tk.mint : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
           ),
-        ];
-      }
-      if (_onlineError) {
-        return [
-          _statePlate(
-            context,
-            icon: Icons.error_outline,
-            text: AppStrings.t('online_summary_failed', context),
-            accent: tk.red,
-            onRetry: _generateOnlineSummary,
-          ),
-        ];
-      }
-      final online = _onlineResult;
-      if (online != null) {
-        final split = _splitOnline(online);
-        return _blocks(context, split.deal, split.tasks, split.figures);
-      }
-      return [
-        _statePlate(
-          context,
-          icon: Icons.cloud_outlined,
-          text: AppStrings.t('online_summary_not_yet', context),
-        ),
-      ];
-    }
-
-    if (_isLoadingSummary) return [_loadingPlate(context)];
-    if (_localError) {
-      return [
-        _statePlate(
-          context,
-          icon: Icons.error_outline,
-          text: AppStrings.t('summary_failed_snack', context),
-          accent: tk.red,
-          onRetry: _generateSummary,
-        ),
-      ];
-    }
-    final local = _summaryResult;
-    if (local != null) {
-      final split = _splitLocal(local);
-      return [
-        _typePill(context, local),
-        ..._blocks(context, split.deal, split.tasks, split.figures),
-      ];
-    }
-    final saved = widget.recording.summary;
-    if (saved != null &&
-        saved.isNotEmpty &&
-        saved != AppStrings.t('no_summary_yet', context)) {
-      return [
-        DictaCard(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _blockTitle(context, AppStrings.t('summary_card_title', context)),
               Text(
-                saved,
+                label,
                 style: TextStyle(
-                  fontSize: 12.5,
-                  height: 1.5,
-                  color: tk.ink2,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: on ? AppColors.mintInk : tk.ink3,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                sub,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  color: on
+                      ? AppColors.mintInk.withValues(alpha: 0.75)
+                      : tk.ink3,
                 ),
               ),
             ],
           ),
         ),
-      ];
-    }
-    return [
-      _statePlate(
-        context,
-        icon: Icons.auto_awesome_outlined,
-        text: AppStrings.t('summary_press_button', context),
-      ),
-    ];
-  }
-
-  // ── Блоки итогов ────────────────────────────────────────────────────
-
-  List<Widget> _blocks(
-    BuildContext context,
-    List<String> deal,
-    List<String> tasks,
-    List<String> figures,
-  ) {
-    final out = <Widget>[];
-    if (deal.isNotEmpty) {
-      out.add(
-        DictaCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _blockTitle(context, AppStrings.t('summary_block_deal', context)),
-              for (final s in deal) _dealRow(context, s),
-            ],
-          ),
-        ),
-      );
-    }
-    if (tasks.isNotEmpty) {
-      out.add(
-        DictaCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _blockTitle(context, AppStrings.t('summary_block_tasks', context)),
-              for (final s in tasks) _taskRow(context, s),
-            ],
-          ),
-        ),
-      );
-    }
-    if (figures.isNotEmpty) {
-      out.add(
-        DictaCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _blockTitle(context, AppStrings.t('summary_block_figures', context)),
-              for (final s in figures) _dealRow(context, s),
-            ],
-          ),
-        ),
-      );
-    }
-    return out;
-  }
-
-  Widget _blockTitle(BuildContext context, String text) {
-    final tk = DictaTokens.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 7),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.2,
-          color: tk.mint,
-        ),
       ),
     );
   }
 
-  Widget _dealRow(BuildContext context, String text) {
+  // ============ Содержимое ============
+
+  List<Widget> _buildContent(BuildContext context) {
+    final children = <Widget>[];
+
+    if (!_hasTranscript) {
+      children.add(_statePlate(
+        context,
+        icon: Icons.text_snippet_outlined,
+        title: AppStrings.t('summary_title', context),
+        body: AppStrings.t('no_transcript', context),
+      ));
+      return children;
+    }
+
+    final busy = _mode == 1 ? _onlineBusy : _isLoadingSummary;
+    if (busy) {
+      children.add(_progressPlate(context));
+    } else if (_mode == 1) {
+      final r = _onlineResult;
+      if (r != null) {
+        children.addAll(_blocksFor(context, r));
+      } else if (_onlineFailed) {
+        children.add(_statePlate(
+          context,
+          icon: Icons.cloud_off_outlined,
+          title: AppStrings.t('online_summary_title', context),
+          body: AppStrings.t('online_summary_failed', context),
+          gold: true,
+        ));
+      } else if (!_canSpend) {
+        children.add(_statePlate(
+          context,
+          icon: Icons.hourglass_bottom_rounded,
+          title: AppStrings.t('online_summary_title', context),
+          body: AppStrings.t('online_summary_no_hours', context),
+          gold: true,
+        ));
+      } else {
+        children.add(_statePlate(
+          context,
+          icon: Icons.cloud_outlined,
+          title: AppStrings.t('online_summary_title', context),
+          body: AppStrings.t('summary_press_button', context),
+        ));
+      }
+    } else {
+      final r = _localResult;
+      final saved = widget.recording.summary;
+      if (r != null) {
+        children.addAll(_blocksFor(context, r));
+      } else if (_localFailed) {
+        children.add(_statePlate(
+          context,
+          icon: Icons.error_outline_rounded,
+          title: AppStrings.t('summary_title', context),
+          body: AppStrings.t('summary_failed', context),
+          gold: true,
+        ));
+      } else if (saved != null &&
+          saved.isNotEmpty &&
+          saved != AppStrings.t('no_summary_yet', context)) {
+        final lines = saved
+            .split('\n')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+        children.add(_blk(
+          context,
+          title: AppStrings.t('summary_card_title', context),
+          lines: [for (final l in lines) _richLi(context, l)],
+        ));
+      } else {
+        children.add(_statePlate(
+          context,
+          icon: Icons.auto_awesome_outlined,
+          title: AppStrings.t('summary_title', context),
+          body: AppStrings.t('summary_press_button', context),
+        ));
+      }
+    }
+
+    children.add(_buildFullTextSection(context));
+    children.add(_notePlate(context));
+    children.add(const SizedBox(height: 2));
+    children.add(_buildActions(context));
+    return children;
+  }
+
+  /// Раскладывает пункты итогов по трём блокам: «О чём договорились»,
+  /// «Задачи» и «Цифры и даты». Служебные маркеры сервиса (буллеты,
+  /// квадратики, вопросы, идеи, даты) в текст не попадают.
+  List<Widget> _blocksFor(BuildContext context, SummaryResult result) {
+    final agreed = <String>[];
+    final tasks = <String>[];
+    final numbers = <String>[];
+    final seen = <String>{};
+
+    void add(List<String> bucket, String raw) {
+      final t = raw.trim();
+      if (t.isEmpty) return;
+      if (seen.add(t.toLowerCase())) bucket.add(t);
+    }
+
+    bool numbersHeader(String h) =>
+        h.contains('финанс') ||
+        h.contains('сумм') ||
+        h.contains('срок') ||
+        h.contains('дат') ||
+        h.contains('цифр') ||
+        h.contains('стои') ||
+        h.contains('бюджет');
+
+    bool tasksHeader(String h) => h.contains('делать') || h.contains('задач');
+
+    final ideaMark = '\u{1F4A1}';
+    final dateMark = '\u{1F4C5}';
+    var header = '';
+
+    for (final raw in result.points) {
+      final indent = raw.startsWith('  ');
+      var t = raw.trim();
+      if (t.isEmpty) continue;
+
+      final isHeader = !indent &&
+          !t.startsWith('•') &&
+          !t.startsWith('□') &&
+          !t.startsWith('?') &&
+          !t.startsWith('Q:') &&
+          !t.startsWith(ideaMark) &&
+          !t.startsWith(dateMark);
+
+      if (isHeader && t.endsWith(':') && t.length <= 42) {
+        header = t.toLowerCase();
+        continue;
+      }
+
+      var bucket = agreed;
+      if (t.startsWith('□')) {
+        bucket = tasks;
+        t = t.substring(1).trim();
+      } else if (t.startsWith(dateMark)) {
+        bucket = numbers;
+        t = t.substring(1).trim();
+      } else {
+        if (t.startsWith(ideaMark)) {
+          t = t.substring(1).trim();
+        } else if (t.startsWith('Q:')) {
+          t = t.substring(2).trim();
+        } else if (t.startsWith('?') || t.startsWith('•')) {
+          t = t.substring(1).trim();
+        } else if (t.startsWith('- ') ||
+            t.startsWith('— ') ||
+            t.startsWith('– ')) {
+          t = t.substring(2).trim();
+        }
+        if (tasksHeader(header)) {
+          bucket = tasks;
+        } else if (numbersHeader(header)) {
+          bucket = numbers;
+        }
+      }
+      add(bucket, t);
+    }
+
+    for (final a in result.actionItems) {
+      add(tasks, a);
+    }
+    for (final c in result.contacts) {
+      add(agreed, c);
+    }
+    for (final d in [...result.deadlines, ...result.amounts, ...result.dates]) {
+      add(numbers, d);
+    }
+
+    final blocks = <Widget>[];
+    if (agreed.isNotEmpty) {
+      blocks.add(_blk(
+        context,
+        title: 'О ЧЁМ ДОГОВОРИЛИСЬ',
+        lines: [for (final t in agreed) _richLi(context, t)],
+      ));
+    }
+    if (tasks.isNotEmpty) {
+      blocks.add(_blk(
+        context,
+        title: 'ЗАДАЧИ',
+        lines: [for (final t in tasks) _taskLi(context, t)],
+      ));
+    }
+    if (numbers.isNotEmpty) {
+      blocks.add(_blk(
+        context,
+        title: 'ЦИФРЫ И ДАТЫ',
+        lines: [for (final t in numbers) _monoLi(context, t)],
+      ));
+    }
+    if (blocks.isEmpty) {
+      blocks.add(_statePlate(
+        context,
+        icon: Icons.auto_awesome_outlined,
+        title: AppStrings.t('summary_title', context),
+        body: AppStrings.t('summary_press_button', context),
+      ));
+    }
+    return blocks;
+  }
+
+  // ============ Блоки и пункты ============
+
+  Widget _blk(BuildContext context, {required String title, required List<Widget> lines}) {
     final tk = DictaTokens.of(context);
-    final span = _leadSpan(context, text);
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 9),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tk.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: tk.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: tk.mint,
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(height: 7),
+          ...lines,
+        ],
+      ),
+    );
+  }
+
+  Widget _richLi(BuildContext context, String text) {
+    final tk = DictaTokens.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 5),
       child: Text.rich(
-        span,
-        style: TextStyle(fontSize: 12.5, height: 1.5, color: tk.ink2),
+        _richText(text, tk, TextStyle(fontSize: 12, height: 1.5, color: tk.ink2)),
       ),
     );
   }
 
-  /// Лёд-слово до двоеточия — жирным (как `<b>` в макете).
-  TextSpan _leadSpan(BuildContext context, String text) {
-    final tk = DictaTokens.of(context);
-    final idx = text.indexOf(':');
-    if (idx > 0 && idx < 40) {
-      return TextSpan(
-        style: TextStyle(fontSize: 12.5, height: 1.5, color: tk.ink2),
-        children: [
-          TextSpan(
-            text: text.substring(0, idx + 1),
-            style: TextStyle(
-              fontSize: 12.5,
-              height: 1.5,
-              fontWeight: FontWeight.w600,
-              color: tk.ink,
-            ),
-          ),
-          TextSpan(text: text.substring(idx + 1)),
-        ],
-      );
-    }
-    return TextSpan(text: text);
-  }
-
-  Widget _taskRow(BuildContext context, String text) {
+  Widget _taskLi(BuildContext context, String text) {
     final tk = DictaTokens.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 13,
             height: 13,
-            margin: const EdgeInsets.only(top: 2.5),
+            margin: const EdgeInsets.only(top: 2),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(4),
               border: Border.all(color: tk.mint, width: 1.5),
@@ -576,9 +639,8 @@ class _SummaryPageState extends State<SummaryPage> {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              text,
-              style: TextStyle(fontSize: 12.5, height: 1.5, color: tk.ink2),
+            child: Text.rich(
+              _richText(text, tk, TextStyle(fontSize: 12, height: 1.5, color: tk.ink2)),
             ),
           ),
         ],
@@ -586,26 +648,109 @@ class _SummaryPageState extends State<SummaryPage> {
     );
   }
 
-  Widget _typePill(BuildContext context, SummaryResult r) {
+  Widget _monoLi(BuildContext context, String text) {
     final tk = DictaTokens.of(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 5),
+      child: Text(
+        text,
+        style: tk.mono(11, FontWeight.w600, tk.ink2).copyWith(height: 1.55),
+      ),
+    );
+  }
+
+  /// Жирный префикс до «:» или « — » — как в макете (.li b).
+  TextSpan _richText(String text, DictaTokens tk, TextStyle base) {
+    final m = RegExp(r'^([^:]{1,48}):\s+(\S.*)$').firstMatch(text);
+    if (m != null && RegExp(r'[A-Za-zА-Яа-яЁё]').hasMatch(m.group(1)!)) {
+      return TextSpan(
+        style: base,
+        children: [
+          TextSpan(
+            text: '${m.group(1)}:',
+            style: base.copyWith(color: tk.ink, fontWeight: FontWeight.w600),
+          ),
+          TextSpan(text: ' ${m.group(2)}'),
+        ],
+      );
+    }
+    final dash = text.indexOf(' — ');
+    if (dash > 0 && dash <= 48) {
+      final rest = text.substring(dash + 3).trim();
+      if (rest.isNotEmpty) {
+        return TextSpan(
+          style: base,
+          children: [
+            TextSpan(
+              text: text.substring(0, dash),
+              style: base.copyWith(color: tk.ink, fontWeight: FontWeight.w600),
+            ),
+            TextSpan(text: ' — $rest'),
+          ],
+        );
+      }
+    }
+    return TextSpan(text: text, style: base);
+  }
+
+  // ============ Плашки ============
+
+  Widget _progressPlate(BuildContext context) {
+    final tk = DictaTokens.of(context);
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: tk.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: tk.mint.withValues(alpha: 0.24)),
+      ),
+      child: Center(child: OperationProgressView(stage: _stage)),
+    );
+  }
+
+  Widget _statePlate(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String body,
+    bool gold = false,
+  }) {
+    final tk = DictaTokens.of(context);
+    final c = gold ? tk.gold : tk.mint;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tk.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: tk.line),
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(99),
-              border: Border.all(color: tk.line),
+              color: c.withValues(alpha: 0.13),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: c.withValues(alpha: 0.24)),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            child: Icon(icon, size: 17, color: c),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(_getTypeIcon(r.type), size: 13, color: tk.ink2),
-                const SizedBox(width: 5),
+                Text(title, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 3),
                 Text(
-                  r.typeLabel,
-                  style: TextStyle(fontSize: 10.5, color: tk.ink2),
+                  body,
+                  style: TextStyle(fontSize: 12, color: tk.ink2, height: 1.5),
                 ),
               ],
             ),
@@ -615,366 +760,147 @@ class _SummaryPageState extends State<SummaryPage> {
     );
   }
 
-  // ── Плашки состояний ────────────────────────────────────────────────
-
-  Widget _loadingPlate(BuildContext context) {
-    return DictaCard(
-      padding: const EdgeInsets.all(14),
-      child: Center(child: OperationProgressView(stage: _stage)),
-    );
-  }
-
-  Widget _statePlate(
-    BuildContext context, {
-    required IconData icon,
-    required String text,
-    Color? accent,
-    VoidCallback? onRetry,
-  }) {
+  Widget _notePlate(BuildContext context) {
     final tk = DictaTokens.of(context);
-    final tone = accent ?? tk.ink2;
+    const base = TextStyle(fontSize: 11.5, height: 1.5);
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
       decoration: BoxDecoration(
-        color: tk.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: accent == null ? tk.line : accent.withValues(alpha: 0.3),
-        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: tk.mint.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, size: 18, color: tone),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  text,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    height: 1.45,
-                    color: tk.ink2,
+          Text.rich(
+            TextSpan(
+              style: base.copyWith(color: tk.ink2),
+              children: [
+                const TextSpan(
+                  text:
+                      'Онлайн-итоги считаются на сервере за ИИ-часы и кэшируются: повторный показ — ',
+                ),
+                TextSpan(
+                  text: 'бесплатно',
+                  style: base.copyWith(color: tk.ink, fontWeight: FontWeight.w600),
+                ),
+                const TextSpan(text: '. Локальные итоги не используют интернет.'),
+              ],
+            ),
+          ),
+          if (_hoursLabel.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _hoursLabel,
+                    style: tk.mono(10.5, FontWeight.w600, tk.ink3),
                   ),
                 ),
-              ),
-            ],
-          ),
-          if (onRetry != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4, left: 28),
-              child: TextButton(
-                style: TextButton.styleFrom(
-                  minimumSize: const Size(0, 32),
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                ),
-                onPressed: onRetry,
-                child: Text(AppStrings.t('retry', context)),
-              ),
+                if (_onlineWasUsed)
+                  TextButton(
+                    onPressed: _refreshHoursLabel,
+                    child: Text(AppStrings.t('online_summary_refresh', context)),
+                  ),
+              ],
             ),
+          ],
         ],
       ),
     );
   }
 
-  /// Примечание-плашка (пунктирная рамка, как `.note-r` в макете).
-  Widget _notePlate(BuildContext context) {
+  // ============ Полный текст и действия ============
+
+  Widget _buildFullTextSection(BuildContext context) {
     final tk = DictaTokens.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: CustomPaint(
-        painter: _DashedBorderPainter(
-          color: tk.mint.withValues(alpha: 0.3),
-          radius: 14,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(11),
-          child: Text(
-            AppStrings.t('summary_note', context),
-            style: TextStyle(fontSize: 11.5, height: 1.5, color: tk.ink2),
-          ),
-        ),
+    final transcript = widget.recording.transcript;
+    if (transcript == null || transcript.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tk.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: tk.line),
       ),
-    );
-  }
-
-  Widget _hoursLine(BuildContext context) {
-    if (_hoursLabel.isEmpty) return const SizedBox.shrink();
-    final tk = DictaTokens.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              _hoursLabel,
-              style: tk.mono(10.5, FontWeight.w500, tk.ink3),
-            ),
-          ),
-          if (_onlineWasUsed)
-            TextButton(
-              style: TextButton.styleFrom(
-                minimumSize: const Size(0, 32),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-              ),
-              onPressed: _refreshHoursLabel,
-              child: Text(AppStrings.t('online_summary_refresh', context)),
-            ),
-        ],
-      ),
-    );
-  }
-
-  // ── Полный текст записи ─────────────────────────────────────────────
-
-  Widget _fullTextCard(BuildContext context) {
-    final tk = DictaTokens.of(context);
-    return DictaCard(
-      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(8),
             onTap: () => setState(() => _showFullText = !_showFullText),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Text(
-                    AppStrings.t('summary_full_text', context),
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                    ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Полный текст',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  const Spacer(),
-                  Icon(
-                    _showFullText ? Icons.expand_less : Icons.expand_more,
-                    size: 20,
-                    color: tk.ink2,
-                  ),
-                ],
-              ),
+                ),
+                Icon(
+                  _showFullText
+                      ? Icons.expand_less_rounded
+                      : Icons.expand_more_rounded,
+                  color: tk.ink3,
+                ),
+              ],
             ),
           ),
-          if (_showFullText)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Text(
-                widget.recording.transcript!,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  height: 1.5,
-                  color: tk.ink2,
-                ),
-              ),
+          if (_showFullText) ...[
+            const SizedBox(height: 8),
+            Text(
+              transcript,
+              style: tk.mono(11.5, FontWeight.w500, tk.ink2).copyWith(height: 1.6),
             ),
+          ],
         ],
       ),
     );
   }
 
-  // ── Кнопка «Обновить» ───────────────────────────────────────────────
-
-  Widget _cta(BuildContext context) {
+  Widget _buildActions(BuildContext context) {
     final busy = _isLoadingSummary || _onlineBusy;
-    return SizedBox(
-      width: double.infinity,
-      child: FilledButton(
-        onPressed: busy
-            ? null
-            : (_onlineMode ? _generateOnlineSummary : _generateSummary),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (busy)
-              SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Theme.of(context).colorScheme.onPrimary,
-                ),
-              )
-            else
-              const Icon(Icons.refresh, size: 18),
-            const SizedBox(width: 8),
-            Text(AppStrings.t('online_summary_refresh', context)),
-          ],
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            icon: _onlineBusy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.cloud_outlined, size: 18),
+            label: Text(AppStrings.t('summary_online_btn', context)),
+            onPressed: busy ? null : _generateOnlineSummary,
+          ),
         ),
-      ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: FilledButton.icon(
+            icon: _isLoadingSummary
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.summarize_outlined, size: 18),
+            label: Text(AppStrings.t('summary_local_btn', context)),
+            onPressed: busy ? null : _generateSummary,
+          ),
+        ),
+      ],
     );
   }
 
-  // ── Разбор итогов на блоки ──────────────────────────────────────────
-
-  static final RegExp _markerRe =
-      RegExp(r'^\s*(□|•|💡|📅|\?|Q:)\s*(.*)$');
-
-  ({List<String> deal, List<String> tasks, List<String> figures}) _splitLocal(
-    SummaryResult r,
-  ) {
-    final deal = <String>[];
-    final tasks = <String>[];
-    final figures = <String>[];
-    final seen = <String>[];
-
-    bool dup(String t) {
-      final k = t.toLowerCase();
-      for (final e in seen) {
-        if (e.contains(k) || k.contains(e)) return true;
-      }
-      return false;
-    }
-
-    void add(List<String> bucket, String raw) {
-      final t = raw.trim();
-      if (t.isEmpty || dup(t)) return;
-      seen.add(t.toLowerCase());
-      bucket.add(t);
-    }
-
-    String header = '';
-    for (final raw in r.points) {
-      final t = raw.trim();
-      final m = _markerRe.firstMatch(raw);
-      if (m == null) {
-        if (t.endsWith(':')) {
-          header = t.toLowerCase();
-        } else {
-          add(deal, t);
-        }
-        continue;
-      }
-      final marker = m.group(1);
-      final text = m.group(2) ?? '';
-      if (marker == '□') {
-        add(tasks, text);
-      } else if (marker == '📅' || _figureHeader(header)) {
-        add(figures, text);
-      } else {
-        add(deal, text);
-      }
-    }
-    for (final a in r.actionItems) {
-      add(tasks, a);
-    }
-    for (final d in r.deadlines) {
-      add(figures, d);
-    }
-    for (final a in r.amounts) {
-      add(figures, a);
-    }
-    for (final c in r.contacts) {
-      add(figures, c);
-    }
-    for (final d in r.dates) {
-      add(figures, d);
-    }
-    return (deal: deal, tasks: tasks, figures: figures);
-  }
-
-  bool _figureHeader(String h) =>
-      h.contains('срок') ||
-      h.contains('финанс') ||
-      h.contains('сумм') ||
-      h.contains('контакт') ||
-      h.contains('цифр') ||
-      h.contains('дат');
-
-  ({List<String> deal, List<String> tasks, List<String> figures}) _splitOnline(
-    SummaryResult r,
-  ) {
-    final deal = <String>[];
-    final tasks = <String>[];
-    final figures = <String>[];
-    final seen = <String>[];
-    var bucket = deal;
-
-    bool dup(String t) {
-      final k = t.toLowerCase();
-      for (final e in seen) {
-        if (e.contains(k) || k.contains(e)) return true;
-      }
-      return false;
-    }
-
-    void add(String raw) {
-      var t = raw.trim().replaceAll('**', '');
-      t = t.replaceFirst(RegExp(r'^[-–—•*]\s+'), '');
-      t = t.replaceFirst(RegExp(r'^\d+[.)]\s+'), '');
-      t = t.trim();
-      if (t.isEmpty || dup(t)) return;
-      seen.add(t.toLowerCase());
-      bucket.add(t);
-    }
-
-    for (final raw in r.points) {
-      final t = raw.trim();
-      if (t.isEmpty) continue;
-      final clean = t.replaceAll(RegExp(r'[#*]'), '').trim();
-      if (clean.isEmpty) continue;
-      final low = clean.toLowerCase();
-      final fig = low.contains('цифр') ||
-          low.contains('дат') ||
-          low.contains('срок') ||
-          low.contains('numbers') ||
-          low.contains('dates') ||
-          low.contains('zahlen') ||
-          low.contains('numeri');
-      final task = low.contains('задач') ||
-          low.contains('что делать') ||
-          low.contains('tasks') ||
-          low.contains('aufgaben') ||
-          low.contains('attività') ||
-          low.contains('attivita');
-      final dealHead = low.contains('договор') ||
-          low.contains('о чём') ||
-          low.contains('о чем') ||
-          low.contains('agreed') ||
-          low.contains('vereinbart') ||
-          low.contains('concordato');
-      final looksHead = t.endsWith(':') ||
-          raw.trimLeft().startsWith('#') ||
-          (clean == clean.toUpperCase() && clean.length <= 48);
-      if (looksHead && (fig || task || dealHead)) {
-        if (dealHead) {
-          bucket = deal;
-        } else if (task) {
-          bucket = tasks;
-        } else {
-          bucket = figures;
-        }
-        continue;
-      }
-      add(raw);
-    }
-    return (deal: deal, tasks: tasks, figures: figures);
-  }
-
-  IconData _getTypeIcon(TextType type) {
-    switch (type) {
-      case TextType.business:
-        return Icons.business;
-      case TextType.educational:
-        return Icons.school;
-      case TextType.interview:
-        return Icons.record_voice_over;
-      case TextType.personal:
-        return Icons.person;
-      case TextType.narrative:
-        return Icons.book;
-      case TextType.general:
-        return Icons.summarize;
-    }
-  }
-
-  // ── Экспорт / копирование (логика без изменений) ────────────────────
+  // ============ Экспорт / копирование ============
 
   void _shareContent(BuildContext context) {
     final buffer = StringBuffer();
@@ -983,8 +909,9 @@ class _SummaryPageState extends State<SummaryPage> {
     buffer.writeln('Длительность: ${formatDuration(widget.recording.duration ?? Duration.zero)}');
     buffer.writeln();
 
-    if (_summaryResult != null) {
-      buffer.writeln(_summaryResult!.formatted);
+    final r = _mode == 1 ? _onlineResult : _localResult;
+    if (r != null) {
+      buffer.writeln(r.formatted);
     } else if (widget.recording.summary != null) {
       buffer.writeln(widget.recording.summary);
     }
@@ -1000,8 +927,9 @@ class _SummaryPageState extends State<SummaryPage> {
 
   void _copyToClipboard(BuildContext context) {
     final buffer = StringBuffer();
-    if (_summaryResult != null) {
-      buffer.writeln(_summaryResult!.formatted);
+    final r = _mode == 1 ? _onlineResult : _localResult;
+    if (r != null) {
+      buffer.writeln(r.formatted);
     } else if (widget.recording.summary != null) {
       buffer.writeln(widget.recording.summary);
     }
@@ -1012,53 +940,7 @@ class _SummaryPageState extends State<SummaryPage> {
 
     Clipboard.setData(ClipboardData(text: buffer.toString()));
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(AppStrings.t('copied_to_clipboard', context))),
+      SnackBar(content: Text(AppStrings.t('text_copied', context))),
     );
   }
-}
-
-/// Пунктирная рамка для примечания-плашки (аналог dashed-бордера в макете).
-class _DashedBorderPainter extends CustomPainter {
-  _DashedBorderPainter({
-    required this.color,
-    this.radius = 14,
-    this.dash = 5,
-    this.gap = 4,
-    this.strokeWidth = 1,
-  });
-
-  final Color color;
-  final double radius;
-  final double dash;
-  final double gap;
-  final double strokeWidth;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rrect = RRect.fromRectAndRadius(
-      Offset.zero & size,
-      Radius.circular(radius),
-    );
-    final path = Path()..addRRect(rrect);
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
-    for (final metric in path.computeMetrics()) {
-      var dist = 0.0;
-      while (dist < metric.length) {
-        final next = dist + dash < metric.length ? dist + dash : metric.length;
-        canvas.drawPath(metric.extractPath(dist, next), paint);
-        dist = next + gap;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.radius != radius ||
-      oldDelegate.dash != dash ||
-      oldDelegate.gap != gap ||
-      oldDelegate.strokeWidth != strokeWidth;
 }

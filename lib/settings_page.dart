@@ -211,7 +211,6 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final tk = DictaTokens.of(context);
     return Scaffold(
-      backgroundColor: Colors.transparent,
       body: DictaBackground(
         child: !_loaded
             ? const Center(child: CircularProgressIndicator())
@@ -512,7 +511,7 @@ class _SettingsPageState extends State<SettingsPage> {
         decoration: BoxDecoration(
           color: accent
               ? tk.mint.withValues(alpha: enabled ? 0.13 : 0.05)
-              : Colors.transparent,
+              : null,
           borderRadius: BorderRadius.circular(99),
           border: Border.all(
             color: accent
