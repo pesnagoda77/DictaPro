@@ -4,6 +4,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'audio_service.dart';
 import 'home_page.dart';
+import 'main_shell.dart';
 import 'splash_screen.dart';
 import 'app_strings.dart';
 import 'theme/app_theme.dart';
@@ -100,6 +101,6 @@ class _SplashWrapperState extends State<SplashWrapper> {
         },
       );
     }
-    return const HomePage();
+    return const MainShell();
   }
 }

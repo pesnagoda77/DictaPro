@@ -3,51 +3,51 @@ import 'package:flutter/services.dart';
 import 'dart:async';
 
 import 'app_strings.dart';
+import 'theme/app_theme.dart';
 
+/// Задача 068: сплэш в новом стиле — минимализм, три строки, каждая закончена
+/// по смыслу: ДиктаПро · Голос → Текст · Не покидая телефон.
 class SplashScreen extends StatefulWidget {
   final VoidCallback onComplete;
-  
+
   const SplashScreen({super.key, required this.onComplete});
-  
+
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
-  
+  late Animation<double> _fade;
+  late Animation<double> _rise;
+
   @override
   void initState() {
     super.initState();
-    
-    // Fullscreen splash
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
-    
+
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 1600),
     );
-    
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+
+    _fade = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
+    );
+    _rise = Tween<double>(begin: 14, end: 0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.0, 0.5, curve: Curves.easeIn),
+        curve: const Interval(0.0, 0.7, curve: Curves.easeOutCubic),
       ),
     );
-    
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeOutBack),
-      ),
-    );
-    
+
+    // Полноэкранный сплэш (поведение сохраняем с прежней версии).
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
+
     _controller.forward();
-    
-    // Navigate after delay
-    Timer(const Duration(milliseconds: 2500), () {
+
+    Timer(const Duration(milliseconds: 2200), () {
       SystemChrome.setEnabledSystemUIMode(
         SystemUiMode.manual,
         overlays: SystemUiOverlay.values,
@@ -55,88 +55,72 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       widget.onComplete();
     });
   }
-  
+
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
-  
+
   @override
   Widget build(BuildContext context) {
+    final tk = DictaTokens.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFF2C3E50), // Dark blue from icon
-      body: Center(
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return Opacity(
-              opacity: _fadeAnimation.value,
-              child: Transform.scale(
-                scale: _scaleAnimation.value,
+      backgroundColor: Colors.transparent,
+      body: DictaBackground(
+        child: Center(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) => Opacity(
+              opacity: _fade.value,
+              child: Transform.translate(
+                offset: Offset(0, _rise.value),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // App icon
-                    Image.asset(
-                      'assets/icons/launcher_icon.png',
-                      width: 120,
-                      height: 120,
+                    Text(
+                      'ДиктаПро',
+                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                            letterSpacing: -0.5,
+                          ),
                     ),
-                    const SizedBox(height: 24),
-                    // App name
-                    const Text(
-                      'DictaPro',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Tagline
-                    const Text(
+                    const SizedBox(height: 13),
+                    Text(
                       'Голос → Текст',
                       style: TextStyle(
-                        color: Color(0xFF95E1D3), // Mint from icon
-                        fontSize: 16,
-                        letterSpacing: 1,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        color: tk.mint,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    // Task 052: главный маркер линейки «офлайн вместо облака» —
-                    // запись и распознавание идут на устройстве.
-                    // Строка локализована (ru/en/de/it), стиль — как у таглайна.
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        AppStrings.splashSlogan(context),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                          letterSpacing: 0.5,
-                        ),
+                    const SizedBox(height: 9),
+                    Text(
+                      AppStrings.splashSlogan(context),
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        color: tk.ink2,
                       ),
                     ),
-                    const SizedBox(height: 48),
-                    // Loading indicator
-                    const SizedBox(
-                      width: 40,
-                      height: 40,
+                    const SizedBox(height: 64),
+                    SizedBox(
+                      width: 22,
+                      height: 22,
                       child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Color(0xFFFF6B6B), // Red dot from icon
-                        ),
-                        strokeWidth: 3,
+                        strokeWidth: 2.2,
+                        valueColor: AlwaysStoppedAnimation<Color>(tk.mint),
                       ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'модель внутри · интернет не нужен',
+                      style: TextStyle(fontSize: 11, color: tk.ink3),
                     ),
                   ],
                 ),
               ),
-            );
-          },
+            ),
+          ),
         ),
       ),
     );

@@ -62,7 +62,10 @@ extension SortOptionExtension on SortOption {
 }
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.tab = 0});
+
+  /// 0 — записи, 1 — тексты (только расшифрованное), 2 — итоги.
+  final int tab;
 
   @override
   State createState() => _HomePageState();
@@ -396,6 +399,16 @@ class _HomePageState extends State<HomePage>
     var list = List<Recording>.from(_recordings);
     if (_showFavoritesOnly) {
       list = list.where((rec) => rec.isFavorite).toList();
+    }
+    // Задача 068: вкладки «Тексты» и «Итоги» — те же записи, но с фильтром.
+    if (widget.tab == 1) {
+      list = list
+          .where((rec) => (rec.transcription ?? '').trim().isNotEmpty)
+          .toList();
+    } else if (widget.tab == 2) {
+      list = list
+          .where((rec) => (rec.summary ?? '').trim().isNotEmpty)
+          .toList();
     }
     if (_searchQuery.isNotEmpty) {
       list = list.where((rec) {
@@ -1742,16 +1755,6 @@ class _HomePageState extends State<HomePage>
             : null,
         actions: [
           if (!_isSearching) ...[
-            IconButton(
-              icon: const Icon(Icons.settings, color: Colors.white),
-              tooltip: AppStrings.t('settings_tooltip', context),
-              onPressed: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const SettingsPage()),
-                );
-              },
-            ),
             IconButton(
               icon: const Icon(Icons.folder_open),
               onPressed: _importFile,
