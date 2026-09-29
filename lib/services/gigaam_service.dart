@@ -16,6 +16,8 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'keep_alive.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -298,6 +300,7 @@ class GigaamService {
     final dir = (await modelDir()).path;
     final receivePort = ReceivePort();
     late Isolate isolate;
+    final threadsOverride = await GigaamService.readThreadsOverride();
     isolate = await Isolate.spawn<_GigaamJob>(
       _gigaamIsolateEntry,
       _GigaamJob(
@@ -305,6 +308,7 @@ class GigaamService {
         wavPath: wavPath,
         skipChunks: skipChunks,
         progressPort: receivePort.sendPort,
+        threads: threadsOverride,
       ),
       debugName: 'gigaam-asr',
     );
@@ -346,6 +350,21 @@ class GigaamService {
   /// Оставляем только глоссарий «Термины записи» (HotwordsStorage):
   /// пользовательские термины (в т.ч. латиница/аббревиатуры), которые модель
   /// не может выдать сама. Без списка текст не меняется.
+  /// Спидтюнинг: число потоков задаётся файлом threads.txt (1..8)
+  /// в папке приложения — без пересборки. Иначе дефолт 4.
+  static Future<int> readThreadsOverride() async {
+    try {
+      final dir = await TranscribeKeepAlive.filesDir();
+      if (dir == null) return 4;
+      final f = File('${dir.path}/threads.txt');
+      if (await f.exists()) {
+        final v = int.tryParse((await f.readAsString()).trim());
+        if (v != null && v >= 1 && v <= 8) return v;
+      }
+    } catch (_) {}
+    return 4;
+  }
+
   static Future<String?> transcribeWithGlossary(
     String wavPath, {
     int skipChunks = 0,
@@ -403,11 +422,13 @@ class _GigaamJob {
   final String wavPath;
   final int skipChunks;
   final SendPort progressPort;
+  final int threads;
   const _GigaamJob({
     required this.modelDir,
     required this.wavPath,
     this.skipChunks = 0,
     required this.progressPort,
+    this.threads = 4,
   });
 }
 
@@ -434,7 +455,7 @@ void _gigaamIsolateEntry(_GigaamJob job) {
           ),
           tokens: '${job.modelDir}/tokens.txt',
           modelType: 'nemo_transducer',
-          numThreads: 4,
+          numThreads: job.threads,
           debug: false,
         ),
       ),
@@ -452,10 +473,9 @@ void _gigaamIsolateEntry(_GigaamJob job) {
           windowSize: 512,
         ),
         sampleRate: 16000,
-        // Task 045: было numThreads: 1 → 4. VAD (нарезка) при 1 потоке
-        // узкое место на длинных файлах; замер на реальной записи —
-        // фаза нарезки ускоряется заметно, декодер и так на 4 потоках.
-        numThreads: 4,
+        // Task 045: было 1 → 4. Спидтюнинг 29.09: значение можно
+        // переопределить файлом threads.txt в папке приложения.
+        numThreads: job.threads,
       ),
       bufferSizeInSeconds: 60,
     );

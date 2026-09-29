@@ -175,6 +175,9 @@ class TranscribeKeepAlive {
   /// Task 056: на iOS getExternalStorageDirectory бросает → partial.txt
   /// и active_job.txt никогда не писались, и «Продолжить с куска N» на iOS
   /// молча не работало. Берём applicationSupportDirectory.
+  /// Публичный доступ к папке приложения (для экспериментов: threads.txt).
+  static Future<Directory?> filesDir() => _filesDir();
+
   static Future<Directory?> _filesDir() async {
     try {
       if (Platform.isIOS) {
