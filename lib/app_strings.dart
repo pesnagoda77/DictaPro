@@ -582,6 +582,22 @@ class AppStrings {
     'saved': {
       'ru': 'Сохранено', 'en': 'Saved', 'de': 'Gespeichert', 'it': 'Salvato',
     },
+    'ui_lang_title': {
+      'ru': 'Язык приложения',
+      'en': 'App language',
+      'de': 'App-Sprache',
+      'it': "Lingua dell'app",
+      'fr': "Langue de l'application",
+      'es': 'Idioma de la aplicación',
+    },
+    'ui_lang_system': {
+      'ru': 'Системный (как в телефоне)',
+      'en': 'System (same as phone)',
+      'de': 'System (wie im Telefon)',
+      'it': 'Sistema (come il telefono)',
+      'fr': 'Système (comme le téléphone)',
+      'es': 'Sistema (igual que el teléfono)',
+    },
     'group_appearance': {
       'ru': 'Оформление', 'en': 'Appearance',
       'de': 'Erscheinungsbild', 'it': 'Aspetto',

@@ -66,6 +66,8 @@ class DictaProApp extends StatelessWidget {
           Locale('en'),
           Locale('de'),
           Locale('it'),
+          Locale('fr'),
+          Locale('es'),
         ],
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,

@@ -10,7 +10,10 @@
 import io, os, shutil, subprocess, sys
 
 A = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ASSETS = os.path.join(A, 'assets', 'models', 'gigaam_v3_punct')
+MODEL_DIRS = {
+    'gigaam': os.path.join(A, 'assets', 'models', 'gigaam_v3_punct'),
+    'whisper': os.path.join(A, 'assets', 'models', 'whisper-small'),
+}
 HOLD = os.path.join(A, '.openclaw_model_hold')
 KEEP = {'README.md', 'readme.md'}
 
@@ -18,23 +21,25 @@ KEEP = {'README.md', 'readme.md'}
 def move_out():
     os.makedirs(HOLD, exist_ok=True)
     moved = []
-    if not os.path.isdir(ASSETS):
-        return moved
-    for f in os.listdir(ASSETS):
-        if f in KEEP:
+    for tag, adir in MODEL_DIRS.items():
+        if not os.path.isdir(adir):
             continue
-        src = os.path.join(ASSETS, f)
-        dst = os.path.join(HOLD, f)
-        shutil.move(src, dst)
-        moved.append(f)
+        for f in os.listdir(adir):
+            if f in KEEP:
+                continue
+            src = os.path.join(adir, f)
+            dst = os.path.join(HOLD, tag + '__' + f)
+            shutil.move(src, dst)
+            moved.append(tag + '__' + f)
     return moved
 
 
 def move_back(moved):
-    for f in moved:
-        src = os.path.join(HOLD, f)
+    for name in moved:
+        tag, f = name.split('__', 1)
+        src = os.path.join(HOLD, name)
         if os.path.exists(src):
-            shutil.move(src, os.path.join(ASSETS, f))
+            shutil.move(src, os.path.join(MODEL_DIRS[tag], f))
     if os.path.isdir(HOLD) and not os.listdir(HOLD):
         os.rmdir(HOLD)
 

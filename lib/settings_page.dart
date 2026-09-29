@@ -170,20 +170,26 @@ class _SettingsPageState extends State<SettingsPage> {
         'ru' => 'Русский',
         'en' => 'English',
         'de' => 'Deutsch',
-        _ => 'Системный (как в телефоне)',
+        'fr' => 'Français',
+        'es' => 'Español',
+        'it' => 'Italiano',
+        _ => AppStrings.t('ui_lang_system', context),
       };
 
   Future<void> _pickUiLang() async {
     final res = await showDialog<String>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Язык приложения'),
+        title: Text(AppStrings.t('ui_lang_title', ctx)),
         children: [
-          for (final e in const [
-            ('system', 'Системный (как в телефоне)'),
+          for (final e in [
+            ('system', AppStrings.t('ui_lang_system', context)),
             ('ru', 'Русский'),
             ('en', 'English'),
             ('de', 'Deutsch'),
+            ('fr', 'Français'),
+            ('es', 'Español'),
+            ('it', 'Italiano'),
           ])
             SimpleDialogOption(
               onPressed: () => Navigator.pop(ctx, e.$1),
