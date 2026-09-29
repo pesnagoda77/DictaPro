@@ -1279,11 +1279,27 @@ class _HomePageState extends State<HomePage>
     // Путь может содержать старый UUID контейнера (iOS меняет его при
     // переустановке) — вычисляем актуальный.
     final filePath = await AudioService.resolveFilePath(rec.filePath);
-    if (!await File(filePath).exists()) {
+    final srcFile = File(filePath);
+    if (!await srcFile.exists()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppStrings.tf('file_not_found', context, {'p': filePath})),
-          backgroundColor: Colors.red.shade900,
+        const SnackBar(
+          content: Text(
+              'Аудио этой записи не найдено — файл был потерян старой версией '
+              'приложения (исправлено с 29.09). Новые записи сохраняются.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 6),
+        ),
+      );
+      return;
+    }
+    if (await srcFile.length() == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Файл записи пустой (0 байт) — расшифровывать нечего. '
+              'Похоже, запись оборвалась в самом начале.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 6),
         ),
       );
       return;
@@ -1360,7 +1376,10 @@ class _HomePageState extends State<HomePage>
                   s.contains('FileSystemException'))
               ? 'Аудио этой записи не найдено — файл был потерян старой '
                   'версией приложения (исправлено с 29.09). Новые записи сохраняются.'
-              : AppStrings.tf('transcribe_error', context, {'e': s});
+              : s.contains('GigaAM не справился')
+                  ? 'В записи не найдена речь: возможно, начало пустое или звук '
+                      'слишком тихий. Проверьте запись и попробуйте снова.'
+                  : AppStrings.tf('transcribe_error', context, {'e': s});
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(friendly),
