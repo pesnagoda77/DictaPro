@@ -1,0 +1,63 @@
+name: iOS TestFlight (App Store upload)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  testflight:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Подписи (distribution cert + App Store profile)
+        env:
+          BUILD_CERT_P12_BASE64: ${{ secrets.BUILD_CERT_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          PROFILE_APPSTORE_BASE64: ${{ secrets.PROFILE_APPSTORE_BASE64 }}
+          ASC_KEY_B64: ${{ secrets.ASC_KEY_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          set -e
+          echo "$BUILD_CERT_P12_BASE64" | base64 --decode > /tmp/build_cert.p12
+          echo "$PROFILE_APPSTORE_BASE64" | base64 --decode > /tmp/appstore.mobileprovision
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import /tmp/build_cert.p12 -k build.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp /tmp/appstore.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$ASC_KEY_B64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+
+      - name: Зависимости
+        run: flutter pub get
+
+      - name: Модели (GigaAM + Whisper)
+        run: python3 tools/fetch_model.py
+
+      - name: Сборка IPA (App Store)
+        run: flutter build ipa --release --dart-define=DICTA_APP_KEY=${{ secrets.DICTA_APP_KEY }} --export-options-plist=ios/ExportOptions-appstore.plist
+
+      - name: Что получилось
+        run: ls -la build/ios/ipa/ || true
+
+      - name: Загрузка в TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER: '05732e53-e9dc-4d34-8ab7-c5ced3e4c540'
+        run: |
+          IPA=$(ls build/ios/ipa/*.ipa | head -1)
+          echo "загружаю: $IPA"
+          xcrun altool --upload-app --type ios -f "$IPA" \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DictaPro-testflight-ipa
+          path: build/ios/ipa/*.ipa
