@@ -1,0 +1,25 @@
+name: store-asc-check
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare ASC key
+        run: |
+          echo "$ASC_KEY_B64" | base64 --decode > /tmp/AuthKey.p8
+        env:
+          ASC_KEY_B64: ${{ secrets.ASC_KEY_BASE64 }}
+
+      - name: Check App Store Connect
+        env:
+          ASC_KEY_PATH: /tmp/AuthKey.p8
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER: '05732e53-e9dc-4d34-8ab7-c5ced3e4c540'
+        run: python3 tools/ci_asc_check.py
