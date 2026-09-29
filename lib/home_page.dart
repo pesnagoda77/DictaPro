@@ -1269,7 +1269,8 @@ class _HomePageState extends State<HomePage>
     rec.tags = null;
     rec.decisions = null;
     await AudioService().updateRecording(rec);
-    await TranscribeKeepAlive.clearPartial();
+    // Частичный прогресс НЕ стираем: если прошлый прогон обрывался (вылет),
+    // штатный поток предложит «Продолжить с куска N / Начать заново».
     await _transcribeRecording(rec);
   }
 
@@ -1350,11 +1351,21 @@ class _HomePageState extends State<HomePage>
       );
     } catch (e) {
       _hideTranscribingDialog();
+      final s = '$e';
+      final friendly = (s.contains('Decoded audio is empty') ||
+              s.contains('No audio data decoded'))
+          ? 'Не удалось прочитать звук: файл пуст или повреждён. '
+              'Запишите заново или импортируйте другой файл.'
+          : (s.contains('No such file') ||
+                  s.contains('FileSystemException'))
+              ? 'Аудио этой записи не найдено — файл был потерян старой '
+                  'версией приложения (исправлено с 29.09). Новые записи сохраняются.'
+              : AppStrings.tf('transcribe_error', context, {'e': s});
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(AppStrings.tf('transcribe_error', context, {'e': '$e'})),
+          content: Text(friendly),
           backgroundColor: Colors.red.shade900,
-          duration: const Duration(seconds: 5),
+          duration: const Duration(seconds: 6),
         ),
       );
     }
