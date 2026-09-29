@@ -63,3 +63,7 @@ assets/models/vosk-model-small-ru-0.22.zip
 
 # локальные бэкапы правок (не коммитить)
 *.bak_*
+
+# Модели (большие файлы): локально, в CI качаются fetch_model.py
+assets/models/whisper-small/
+android/gigaam_pack/src/main/assets/models/whisper-small/

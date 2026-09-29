@@ -37,6 +37,13 @@ class GigaamService {
 
   static const _channel = MethodChannel('dictapro/model');
 
+  /// Файлы мультиязычной модели Whisper (EN/DE/…), int8 — одна на все языки.
+  static const whisperFiles = [
+    'small-encoder.int8.onnx',
+    'small-decoder.int8.onnx',
+    'small-tokens.txt',
+  ];
+
   /// Маркер завершённой подготовки (в пределах сессии).
   static bool _prepared = false;
 
@@ -58,6 +65,104 @@ class GigaamService {
     final dir = Directory('${support.path}/models/gigaam_v3_punct');
     if (!dir.existsSync()) dir.createSync(recursive: true);
     return dir;
+  }
+
+  /// Рабочая папка мультиязычной модели Whisper.
+  static Future<Directory> whisperModelDir() async {
+    final support = await getApplicationSupportDirectory();
+    final dir = Directory('${support.path}/models/whisper-small');
+    if (!dir.existsSync()) dir.createSync(recursive: true);
+    return dir;
+  }
+
+  static bool _allPresentW(Directory d) {
+    for (final f in whisperFiles) {
+      final file = File('${d.path}/$f');
+      if (!file.existsSync() || file.lengthSync() < 1024) return false;
+    }
+    return true;
+  }
+
+  /// Готовит мультиязычную модель (EN/DE): копирует из asset pack (AAB) или
+  /// из flutter-ассетов (APK). Повторный вызов бесплатен.
+  static Future<void> ensureWhisperReady({
+    void Function(int copied, int total)? onProgress,
+  }) async {
+    final dir = await whisperModelDir();
+    if (_allPresentW(dir)) return;
+
+    try {
+      final packDir = await _assetPackDir();
+      if (packDir != null) {
+        final src = Directory('$packDir/models/whisper-small');
+        if (_allPresentW(src)) {
+          phase = 'copy';
+          await _copyList(src, dir, whisperFiles, onProgress);
+          phase = null;
+          debugPrint('[whisper] prepared from asset pack');
+          return;
+        }
+      }
+    } catch (_) {}
+
+    try {
+      const approxTotal = 375 * 1024 * 1024;
+      var doneFiles = 0;
+      for (final f in whisperFiles) {
+        final data = await rootBundle.load('assets/models/whisper-small/$f');
+        final bytes = data.buffer.asUint8List();
+        await File('${dir.path}/$f').writeAsBytes(bytes, flush: true);
+        doneFiles++;
+        onProgress?.call(
+            (approxTotal * doneFiles / whisperFiles.length).round(),
+            approxTotal);
+      }
+      if (_allPresentW(dir)) {
+        debugPrint('[whisper] prepared from bundle assets');
+        return;
+      }
+    } catch (e) {
+      debugPrint('[whisper] bundle assets unavailable: $e');
+    }
+    throw StateError('Мультиязычная модель не найдена в сборке.');
+  }
+
+  /// Копирование списка файлов из [src] в [dst] с прогрессом.
+  static Future<void> _copyList(
+    Directory src,
+    Directory dst,
+    List<String> files,
+    void Function(int copied, int total)? onProgress,
+  ) async {
+    var total = 0;
+    for (final f in files) {
+      total += File('${src.path}/$f').lengthSync();
+    }
+    var copied = 0;
+    for (final f in files) {
+      final s = File('${src.path}/$f');
+      final d = File('${dst.path}/$f');
+      final expected = s.lengthSync();
+      if (d.existsSync() && d.lengthSync() == expected) {
+        copied += expected;
+        onProgress?.call(copied, total);
+        continue;
+      }
+      final reader = s.openRead();
+      final writer = d.openWrite();
+      try {
+        await for (final chunk in reader) {
+          writer.add(chunk);
+          copied += chunk.length;
+          onProgress?.call(copied, total);
+        }
+      } finally {
+        await writer.close();
+      }
+      if (d.lengthSync() != expected) {
+        throw StateError('Ошибка копирования модели: $f');
+      }
+    }
   }
 
   /// Гарантирует, что все файлы модели лежат в [modelDir].
@@ -292,12 +397,18 @@ class GigaamService {
   static Future<String?> transcribe(
     String wavPath, {
     int skipChunks = 0,
+    String language = 'ru',
     void Function(int done, int total)? onProgress,
     void Function(int done, int total, String text)? onPartial,
     void Function(String line)? onLog,
   }) async {
     await ensureModelReady();
     final dir = (await modelDir()).path;
+    var whisperDir = '';
+    if (language != 'ru') {
+      await ensureWhisperReady();
+      whisperDir = (await whisperModelDir()).path;
+    }
     final receivePort = ReceivePort();
     late Isolate isolate;
     final threadsOverride = await GigaamService.readThreadsOverride();
@@ -309,6 +420,8 @@ class GigaamService {
         skipChunks: skipChunks,
         progressPort: receivePort.sendPort,
         threads: threadsOverride,
+        language: language,
+        whisperDir: whisperDir,
       ),
       debugName: 'gigaam-asr',
     );
@@ -396,11 +509,13 @@ class GigaamService {
   static Future<String?> transcribeWithGlossary(
     String wavPath, {
     int skipChunks = 0,
+    String language = 'ru',
     void Function(int done, int total)? onProgress,
     void Function(int done, int total, String text)? onPartial,
     void Function(String line)? onLog,
   }) async {
     final text = await transcribe(wavPath,
+        language: language,
         skipChunks: skipChunks,
         onProgress: onProgress,
         onPartial: onPartial,
@@ -451,12 +566,16 @@ class _GigaamJob {
   final int skipChunks;
   final SendPort progressPort;
   final int threads;
+  final String language;
+  final String whisperDir;
   const _GigaamJob({
     required this.modelDir,
     required this.wavPath,
     this.skipChunks = 0,
     required this.progressPort,
     this.threads = 4,
+    this.language = 'ru',
+    this.whisperDir = '',
   });
 }
 
@@ -488,6 +607,28 @@ void _gigaamIsolateEntry(_GigaamJob job) {
         ),
       ),
     );
+
+    // --- Мультиязычные языки (EN/DE/…): Whisper small int8 ---
+    if (job.language != 'ru') {
+      recognizer?.free();
+      recognizer = sherpa.OfflineRecognizer(
+        sherpa.OfflineRecognizerConfig(
+          // Whisper ждёт стандартные 80-мерные признаки (у GigaAM — 64).
+          feat: const sherpa.FeatureConfig(sampleRate: 16000, featureDim: 80),
+          model: sherpa.OfflineModelConfig(
+            whisper: sherpa.OfflineWhisperModelConfig(
+              encoder: '${job.whisperDir}/small-encoder.int8.onnx',
+              decoder: '${job.whisperDir}/small-decoder.int8.onnx',
+              language: job.language,
+              task: 'transcribe',
+            ),
+            tokens: '${job.whisperDir}/small-tokens.txt',
+            numThreads: job.threads,
+            debug: false,
+          ),
+        ),
+      );
+    }
 
     // --- VAD: режем по паузам и СРАЗУ расшифровываем (без накопления сегментов) ---
     vad = sherpa.VoiceActivityDetector(
