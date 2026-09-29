@@ -303,6 +303,10 @@ class AppStrings {
     'btn_gist': {
       'ru': 'Суть', 'en': 'Gist', 'de': 'Kernaussage', 'it': 'Sintesi',
     },
+    'btn_redo': {
+      'ru': 'Заново', 'en': 'Redo',
+      'de': 'Neu', 'it': 'Rifai',
+    },
     'btn_send': {
       'ru': 'Отправить', 'en': 'Send', 'de': 'Senden', 'it': 'Invia',
     },

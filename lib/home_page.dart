@@ -1242,6 +1242,18 @@ class _HomePageState extends State<HomePage>
     return ok == true;
   }
 
+  /// «3аново»: сбрасываем прошлый результат и запускаем распознавание ещё раз.
+  Future<void> _retranscribe(rec) async {
+    rec.transcription = null;
+    rec.segments = null;
+    rec.summary = null;
+    rec.tags = null;
+    rec.decisions = null;
+    await AudioService().updateRecording(rec);
+    await TranscribeKeepAlive.clearPartial();
+    await _transcribeRecording(rec);
+  }
+
   Future<void> _transcribeRecording(rec,
       {bool resumeFromPartial = false}) async {
     // Путь может содержать старый UUID контейнера (iOS меняет его при
@@ -2267,6 +2279,13 @@ class _HomePageState extends State<HomePage>
                                               color: DictaTokens.of(context).mint,
                                               label: AppStrings.t('btn_gist', context),
                                               onTap: () => _openSummaryPage(rec),
+                                            ),
+                                          if (hasTranscription)
+                                            _ActionButton(
+                                              icon: Icons.refresh,
+                                              color: DictaTokens.of(context).ink2,
+                                              label: AppStrings.t('btn_redo', context),
+                                              onTap: () => _retranscribe(rec),
                                             ),
                                           _ActionButton(
                                             icon: Icons.share,
