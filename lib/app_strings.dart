@@ -61,7 +61,7 @@ class AppStrings {
     'online_summary_warning_title': {
       'ru': 'Отправить на сервер?',
       'en': 'Send to server?',
-      'de': 'An Server senden?',
+      'de': 'An den Server senden?',
       'it': 'Inviare al server?',
     },
     'online_summary_warning_body': {
@@ -415,7 +415,7 @@ class AppStrings {
     },
     'elapsed': {
       'ru': 'прошло {t}', 'en': 'elapsed {t}',
-      'de': 'vergangen {t}', 'it': 'trascorso {t}',
+      'de': '{t} vergangen', 'it': 'trascorso {t}',
     },
     'on_device_note': {
       'ru': 'Считается на устройстве — можно не держать экран открытым',
@@ -1167,13 +1167,19 @@ class AppStrings {
       _t('store_unavailable', context);
 
   /// Человекочитаемая длительность: «16 ч 40 мин», «40 мин», «5 мин».
-  static String humanDuration(int ms) {
+  static String humanDuration(int ms, {String lang = 'ru'}) {
     final totalMin = ms ~/ 60000;
     final h = totalMin ~/ 60;
     final m = totalMin % 60;
-    if (h > 0 && m > 0) return '$h ч $m мин';
-    if (h > 0) return '$h ч';
-    return '$m мин';
+    final ch = lang == 'ru' ? 'ч' : 'h';
+    final cm = switch (lang) {
+      'ru' => 'мин',
+      'de' => 'Min',
+      _ => 'min',
+    };
+    if (h > 0 && m > 0) return '$h $ch $m $cm';
+    if (h > 0) return '$h $ch';
+    return '$m $cm';
   }
 
   /// Оценка времени расшифровки: «≈ 3 ч», «≈ 45 мин».
@@ -1181,13 +1187,19 @@ class AppStrings {
   /// Коэффициент — из замера Claude (см. журнал), консервативный запас ×1.2.
   static const _kTranscribeMinutesPerAudioHour = 20.0; // PLACEHOLDER до замера
 
-  static String transcribeEstimate(int audioMs) {
+  static String transcribeEstimate(int audioMs, {String lang = 'ru'}) {
     final audioHours = audioMs / 3600000.0;
     final estMin = (audioHours * _kTranscribeMinutesPerAudioHour * 1.2).round();
     final h = estMin ~/ 60;
     final m = estMin % 60;
-    if (h > 0 && m > 0) return '≈ $h ч $m мин';
-    if (h > 0) return '≈ $h ч';
-    return '≈ $m мин';
+    final ch = lang == 'ru' ? 'ч' : 'h';
+    final cm = switch (lang) {
+      'ru' => 'мин',
+      'de' => 'Min',
+      _ => 'min',
+    };
+    if (h > 0 && m > 0) return '≈ $h $ch $m $cm';
+    if (h > 0) return '≈ $h $ch';
+    return '≈ $m $cm';
   }
 }

@@ -1378,8 +1378,10 @@ class _HomePageState extends State<HomePage>
         title: Text(AppStrings.longTranscribeTitle(ctx)),
         content: Text(AppStrings.longTranscribeBody(
           ctx,
-          duration: AppStrings.humanDuration(durationMs),
-          estimate: AppStrings.transcribeEstimate(durationMs),
+          duration: AppStrings.humanDuration(durationMs,
+              lang: Localizations.localeOf(ctx).languageCode),
+          estimate: AppStrings.transcribeEstimate(durationMs,
+              lang: Localizations.localeOf(ctx).languageCode),
         )),
         actions: [
           TextButton(

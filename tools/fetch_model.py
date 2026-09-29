@@ -43,6 +43,24 @@ FILES = [
     ("silero_vad.onnx", VAD_URL, 500 * 1024),
 ]
 
+WHISPER_BASE = (
+    "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-small/resolve/main"
+)
+WHISPER_FILES = [
+    ("small-encoder.int8.onnx",
+     f"{WHISPER_BASE}/small-encoder.int8.onnx", 100 * 1024 * 1024),
+    ("small-decoder.int8.onnx",
+     f"{WHISPER_BASE}/small-decoder.int8.onnx", 200 * 1024 * 1024),
+    ("small-tokens.txt", f"{WHISPER_BASE}/small-tokens.txt", 10 * 1024),
+]
+WHISPER_DEST_DIRS = [
+    os.path.join(ROOT, "assets", "models", "whisper-small"),
+    os.path.join(
+        ROOT, "android", "gigaam_pack", "src", "main", "assets",
+        "models", "whisper-small",
+    ),
+]
+
 DEST_DIRS = [
     os.path.join(ROOT, "assets", "models", "gigaam_v3_punct"),
     os.path.join(
@@ -97,6 +115,20 @@ def main() -> int:
 
     for name, url, min_size in FILES:
         download(name, url, os.path.join(primary, name), min_size)
+
+    # Мультиязычная модель Whisper (EN/DE) — тоже в оба канала доставки.
+    wprimary = WHISPER_DEST_DIRS[0]
+    os.makedirs(wprimary, exist_ok=True)
+    for name, url, min_size in WHISPER_FILES:
+        download(name, url, os.path.join(wprimary, name), min_size)
+    import shutil as _sh
+    for other in WHISPER_DEST_DIRS[1:]:
+        os.makedirs(other, exist_ok=True)
+        for name, _u, _m in WHISPER_FILES:
+            src = os.path.join(wprimary, name)
+            dst = os.path.join(other, name)
+            if not valid(dst, 1) or os.path.getsize(dst) != os.path.getsize(src):
+                _sh.copy2(src, dst)
 
     # Копия в asset pack для Play AAB.
     for other in DEST_DIRS[1:]:
