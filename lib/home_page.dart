@@ -949,7 +949,7 @@ class _HomePageState extends State<HomePage>
       throw StateError('GigaAM не справился с записью');
     }
     return _gigaamResult(text, GigaamService.lastPartTimes,
-        GigaamService.lastChunkWordCounts);
+        GigaamService.lastChunkWordCounts, baseText);
   }
 
   /// Модальный прогресс копирования модели из сборки во внутреннее
@@ -1019,7 +1019,9 @@ class _HomePageState extends State<HomePage>
   /// GigaAM выдаёт один текст — режем на сегменты по предложениям,
   /// чтобы редактор и статистика спикеров работали унифицированно.
   TranscriptionResult _gigaamResult(String text,
-      [List<List<double>> times = const [], List<int> wordCounts = const []]) {
+      [List<List<double>> times = const [],
+      List<int> wordCounts = const [],
+      String baseText = '']) {
     final sentences = text
         .split(RegExp(r'(?<=[.!?])\s+'))
         .map((e) => e.trim())
@@ -1031,29 +1033,48 @@ class _HomePageState extends State<HomePage>
     // Точная карта «слово → время»: у нас есть реальные интервалы кусков речи
     // и число слов в каждом. Если счёт сходится — раскладываем слова по кускам
     // и линейно внутри куска (тап по фразе попадает именно в её звук).
+    // Если прогон был возобновлён («Продолжить»), первые куски не расшифрованы
+    // заново — их слова лежат в baseText. Добавляем псевдо-кусок [0 .. первый
+    // новый кусок], чтобы карта «слово → время» покрывала весь текст и не
+    // съезжала на середину записи.
+    var effTimes = times;
+    var effCounts = wordCounts;
+    if (baseText.trim().isNotEmpty && times.isNotEmpty) {
+      final baseWords = baseText
+          .split(RegExp(r'\s+'))
+          .where((w) => w.isNotEmpty)
+          .length;
+      if (baseWords > 0) {
+        effTimes = [
+          [0.0, times.first[0]],
+          ...times,
+        ];
+        effCounts = [baseWords, ...wordCounts];
+      }
+    }
     final words =
         text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-    final totalWords = wordCounts.fold<int>(0, (a, b) => a + b);
-    final useWordMap = times.isNotEmpty &&
-        wordCounts.isNotEmpty &&
-        wordCounts.length == times.length &&
+    final totalWords = effCounts.fold<int>(0, (a, b) => a + b);
+    final useWordMap = effTimes.isNotEmpty &&
+        effCounts.isNotEmpty &&
+        effCounts.length == effTimes.length &&
         totalWords == words.length;
 
     double timeOfWord(int k) {
       if (!useWordMap) return 0;
       if (k >= words.length) k = words.length - 1;
       var cum = 0;
-      for (var i = 0; i < wordCounts.length; i++) {
-        final c = wordCounts[i];
+      for (var i = 0; i < effCounts.length; i++) {
+        final c = effCounts[i];
         if (k < cum + c) {
           final frac = c > 0 ? (k - cum) / c : 0.0;
-          final s = times[i][0];
-          final e = times[i][1];
+          final s = effTimes[i][0];
+          final e = effTimes[i][1];
           return s + (e - s) * frac;
         }
         cum += c;
       }
-      return times.last[1];
+      return effTimes.last[1];
     }
 
     // Пропорция по длине — запасной вариант, если карта недоступна.
