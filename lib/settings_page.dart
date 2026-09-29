@@ -163,6 +163,9 @@ class _SettingsPageState extends State<SettingsPage> {
   String get _asrLangTitle => switch (_asrLang) {
         'en' => 'English',
         'de' => 'Deutsch',
+        'fr' => 'Français',
+        'es' => 'Español',
+        'it' => 'Italiano',
         _ => 'Русский',
       };
 
@@ -170,6 +173,9 @@ class _SettingsPageState extends State<SettingsPage> {
         'ru' => 'Русский',
         'en' => 'English',
         'de' => 'Deutsch',
+        'fr' => 'Français',
+        'es' => 'Español',
+        'it' => 'Italiano',
         _ => AppStrings.t('ui_lang_system', context),
       };
 
@@ -184,6 +190,9 @@ class _SettingsPageState extends State<SettingsPage> {
             ('ru', 'Русский'),
             ('en', 'English'),
             ('de', 'Deutsch'),
+            ('fr', 'Français'),
+            ('es', 'Español'),
+            ('it', 'Italiano'),
           ])
             SimpleDialogOption(
               onPressed: () => Navigator.pop(ctx, e.$1),
@@ -217,6 +226,9 @@ class _SettingsPageState extends State<SettingsPage> {
             ('ru', 'Русский', AppStrings.t('asr_gigaam_offline', ctx)),
             ('en', 'English', AppStrings.t('asr_whisper_offline', ctx)),
             ('de', 'Deutsch', AppStrings.t('asr_whisper_offline', ctx)),
+            ('fr', 'Français', AppStrings.t('asr_whisper_offline', ctx)),
+            ('es', 'Español', AppStrings.t('asr_whisper_offline', ctx)),
+            ('it', 'Italiano', AppStrings.t('asr_whisper_offline', ctx)),
           ])
             RadioListTile<String>(
               value: e.$1,
@@ -252,7 +264,7 @@ class _SettingsPageState extends State<SettingsPage> {
     });
     try {
       final sbox = await Hive.openBox<dynamic>('settings');
-      final lang = (sbox.get('asr_lang') ?? 'ru').toString();
+      final lang = (sbox.get('asr_lang') ?? AppStrings.defaultAsrLang()).toString();
       final ui = (sbox.get('ui_lang') ?? 'system').toString();
       if (mounted) setState(() {
         _asrLang = lang;

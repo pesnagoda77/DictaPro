@@ -735,16 +735,23 @@ class _HomePageState extends State<HomePage>
   /// Выбор языка расшифровки при «В текст». Спрашиваем, если пользователь
   /// не отметил «больше не спрашивать»; иначе используем сохранённый выбор.
   Future<String?> _chooseAsrLang() async {
-    var saved = 'ru';
+    var saved = AppStrings.defaultAsrLang();
     var ask = true;
     try {
       final sbox = await Hive.openBox<dynamic>('settings');
-      saved = (sbox.get('asr_lang') ?? 'ru').toString();
+      final v = sbox.get('asr_lang')?.toString();
+      if (v != null && v.isNotEmpty) saved = v;
+      // Разовая миграция: раньше «Больше не спрашивать» стояло включённым
+      // по умолчанию и первый же выбор отключал диалог навсегда. Возвращаем.
+      if (sbox.get('asr_ask_reset_v2') != true) {
+        await sbox.put('asr_ask', true);
+        await sbox.put('asr_ask_reset_v2', true);
+      }
       ask = (sbox.get('asr_ask') ?? true) == true;
     } catch (_) {}
     if (!ask) return saved;
 
-    var remember = true;
+    var dontAsk = false;
     final res = await showDialog<String>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -757,6 +764,9 @@ class _HomePageState extends State<HomePage>
                 ('ru', 'Русский'),
                 ('en', 'English'),
                 ('de', 'Deutsch'),
+                ('fr', 'Français'),
+                ('es', 'Español'),
+                ('it', 'Italiano'),
               ])
                 RadioListTile<String>(
                   value: e.$1,
@@ -766,10 +776,10 @@ class _HomePageState extends State<HomePage>
                   onChanged: (v) => Navigator.pop(ctx, v),
                 ),
               CheckboxListTile(
-                value: remember,
+                value: dontAsk,
                 dense: true,
                 contentPadding: EdgeInsets.zero,
-                onChanged: (v) => setSt(() => remember = v ?? true),
+                onChanged: (v) => setSt(() => dontAsk = v ?? false),
                 title: Text(AppStrings.t('asr_dont_ask', ctx),
                     style: const TextStyle(fontSize: 13)),
               ),
@@ -782,7 +792,7 @@ class _HomePageState extends State<HomePage>
     try {
       final sbox = await Hive.openBox<dynamic>('settings');
       await sbox.put('asr_lang', res);
-      await sbox.put('asr_ask', !remember);
+      await sbox.put('asr_ask', !dontAsk);
     } catch (_) {}
     return res;
   }

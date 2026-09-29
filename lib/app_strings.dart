@@ -1706,6 +1706,15 @@ class AppStrings {
   /// Публичный доступ к текущему языку UI (для DateFormat и т.п.).
   static String globalLangCode() => _globalLangCode();
 
+  /// Язык расшифровки по умолчанию = язык интерфейса пользователя.
+  /// Офлайн-движки: GigaAM (ru) и мультиязычный Whisper (en/de/fr/es/it).
+  static String defaultAsrLang() {
+    final lang = _globalLangCode();
+    return const {'ru', 'en', 'de', 'fr', 'es', 'it'}.contains(lang)
+        ? lang
+        : 'en';
+  }
+
   /// Как [t], но для мест без BuildContext (уведомления, сервисы, экспорт).
   static String tGlobal(String key) =>
       _dict[key]?[_globalLangCode()] ?? _dict[key]?['ru'] ?? key;
