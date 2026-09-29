@@ -948,7 +948,8 @@ class _HomePageState extends State<HomePage>
     if (text == null || text.trim().isEmpty) {
       throw StateError('GigaAM не справился с записью');
     }
-    return _gigaamResult(text, GigaamService.lastPartTimes);
+    return _gigaamResult(text, GigaamService.lastPartTimes,
+        GigaamService.lastChunkWordCounts);
   }
 
   /// Модальный прогресс копирования модели из сборки во внутреннее
@@ -1018,7 +1019,7 @@ class _HomePageState extends State<HomePage>
   /// GigaAM выдаёт один текст — режем на сегменты по предложениям,
   /// чтобы редактор и статистика спикеров работали унифицированно.
   TranscriptionResult _gigaamResult(String text,
-      [List<List<double>> times = const []]) {
+      [List<List<double>> times = const [], List<int> wordCounts = const []]) {
     final sentences = text
         .split(RegExp(r'(?<=[.!?])\s+'))
         .map((e) => e.trim())
@@ -1027,6 +1028,35 @@ class _HomePageState extends State<HomePage>
     // Настоящие таймкоды: раскладываем предложения по реальному интервалу речи
     // (от первого расшифрованного куска до последнего), пропорционально длине.
     // Это лечит «тап по фразе попадает в пустое начало записи».
+    // Точная карта «слово → время»: у нас есть реальные интервалы кусков речи
+    // и число слов в каждом. Если счёт сходится — раскладываем слова по кускам
+    // и линейно внутри куска (тап по фразе попадает именно в её звук).
+    final words =
+        text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final totalWords = wordCounts.fold<int>(0, (a, b) => a + b);
+    final useWordMap = times.isNotEmpty &&
+        wordCounts.isNotEmpty &&
+        wordCounts.length == times.length &&
+        totalWords == words.length;
+
+    double timeOfWord(int k) {
+      if (!useWordMap) return 0;
+      if (k >= words.length) k = words.length - 1;
+      var cum = 0;
+      for (var i = 0; i < wordCounts.length; i++) {
+        final c = wordCounts[i];
+        if (k < cum + c) {
+          final frac = c > 0 ? (k - cum) / c : 0.0;
+          final s = times[i][0];
+          final e = times[i][1];
+          return s + (e - s) * frac;
+        }
+        cum += c;
+      }
+      return times.last[1];
+    }
+
+    // Пропорция по длине — запасной вариант, если карта недоступна.
     var t0 = 0.0;
     var t1 = 0.0;
     if (times.isNotEmpty) {
@@ -1037,10 +1067,20 @@ class _HomePageState extends State<HomePage>
         sentences.fold<int>(0, (a, s) => a + (s.isEmpty ? 1 : s.length));
     final segs = <DialogueSegment>[];
     var acc = 0;
+    var wordIdx = 0;
     for (final s in sentences) {
-      final a = totalChars > 0 ? t0 + (t1 - t0) * acc / totalChars : 0.0;
-      acc += s.isEmpty ? 1 : s.length;
-      final b = totalChars > 0 ? t0 + (t1 - t0) * acc / totalChars : 0.0;
+      final sw = s.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+      double a;
+      double b;
+      if (useWordMap) {
+        a = timeOfWord(wordIdx);
+        wordIdx += sw;
+        b = timeOfWord(wordIdx);
+      } else {
+        a = totalChars > 0 ? t0 + (t1 - t0) * acc / totalChars : 0.0;
+        acc += s.isEmpty ? 1 : s.length;
+        b = totalChars > 0 ? t0 + (t1 - t0) * acc / totalChars : 0.0;
+      }
       segs.add(DialogueSegment(
         speaker: 'Speaker 1',
         text: s,

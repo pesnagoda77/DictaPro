@@ -339,6 +339,14 @@ class GigaamService {
             } catch (_) {
               lastPartTimes = <List<double>>[];
             }
+            try {
+              final rawc = message.length > 3 ? message[3] : null;
+              lastChunkWordCounts = (rawc is List)
+                  ? rawc.map((e) => (e as num).toInt()).toList()
+                  : <int>[];
+            } catch (_) {
+              lastChunkWordCounts = <int>[];
+            }
             completer.complete(message[1] as String?);
             receivePort.close();
             isolate.kill();
@@ -365,6 +373,10 @@ class GigaamService {
   /// Настоящие времена расшифрованных кусков последнего прогона:
   /// [[start, end], ...] в секундах, в том же порядке, что и слова в тексте.
   static List<List<double>> lastPartTimes = <List<double>>[];
+
+  /// Число слов в каждом расшифрованном куске (в том же порядке) — для точных
+  /// таймкодов: слово k текста ↔ дробная позиция внутри куска.
+  static List<int> lastChunkWordCounts = <int>[];
 
   /// Спидтюнинг: число потоков задаётся файлом threads.txt (1..8)
   /// в папке приложения — без пересборки. Иначе дефолт 4.
@@ -531,6 +543,7 @@ void _gigaamIsolateEntry(_GigaamJob job) {
     }
 
     final chunkTimes = <List<double>>[];
+    final chunkWords = <int>[];
 
     void decodeOne(Float32List raw, int gStart, int gEnd) {
       // Пустые/микроскопические куски в декодер не отдаём (роняют нативный ORT).
@@ -553,6 +566,8 @@ void _gigaamIsolateEntry(_GigaamJob job) {
         if (text.isNotEmpty) {
           parts.add(text);
           chunkTimes.add([gStart / 16000.0, gEnd / 16000.0]);
+          chunkWords.add(
+              text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length);
         }
         if (idx % 5 == 0) {
           // Задача 036: каждые 5 кусков отдаём накопленный текст наружу,
@@ -649,7 +664,7 @@ void _gigaamIsolateEntry(_GigaamJob job) {
           'lens=${segLens.take(40).join(',')}'
     ]);
 
-    job.progressPort.send(['done', parts.join(' '), chunkTimes]);
+    job.progressPort.send(['done', parts.join(' '), chunkTimes, chunkWords]);
   } catch (e) {
     job.progressPort.send(['error', e.toString()]);
   } finally {
