@@ -497,13 +497,25 @@ class _HomePageState extends State<HomePage>
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              isSearch ? Icons.search_off : Icons.mic_none,
+              isSearch
+                  ? Icons.search_off
+                  : widget.tab == 1
+                      ? Icons.article_outlined
+                      : widget.tab == 2
+                          ? Icons.auto_awesome_outlined
+                          : Icons.mic_none,
               size: 56,
               color: scheme.onSurface.withOpacity(0.25),
             ),
             const SizedBox(height: 14),
             Text(
-              isSearch ? AppStrings.t('empty_search_title', context) : AppStrings.t('empty_rec_title', context),
+              isSearch
+                  ? AppStrings.t('empty_search_title', context)
+                  : widget.tab == 1
+                      ? 'Пока нет расшифрованных записей'
+                      : widget.tab == 2
+                          ? 'Пока нет конспектов'
+                          : AppStrings.t('empty_rec_title', context),
               style: Theme.of(context).textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
@@ -511,7 +523,11 @@ class _HomePageState extends State<HomePage>
             Text(
               isSearch
                   ? AppStrings.t('empty_search_body', context)
-                  : AppStrings.t('empty_rec_body', context),
+                  : widget.tab == 1
+                      ? 'Расшифруйте любую запись — и она появится здесь.'
+                      : widget.tab == 2
+                          ? 'Соберите «Итоги» на карточке записи — и они появятся здесь.'
+                          : AppStrings.t('empty_rec_body', context),
               style: Theme.of(context).textTheme.bodySmall,
               textAlign: TextAlign.center,
             ),
@@ -1781,7 +1797,14 @@ class _HomePageState extends State<HomePage>
                 ),
                 onChanged: (value) => setState(() => _searchQuery = value),
               )
-            : const DictaBrand(subtitle: 'Не покидая телефон'),
+            : DictaBrand(
+                title: widget.tab == 1
+                    ? 'Тексты'
+                    : (widget.tab == 2 ? 'Итоги' : null),
+                subtitle: widget.tab == 1
+                    ? 'расшифровки записей'
+                    : (widget.tab == 2 ? 'конспекты' : 'Не покидая телефон'),
+              ),
         centerTitle: !_isSearching,
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -1808,6 +1831,7 @@ class _HomePageState extends State<HomePage>
       ),
       body: Column(
         children: [
+          if (widget.tab == 0)
           Container(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Column(
