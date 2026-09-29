@@ -1,0 +1,24 @@
+name: xcode-probe
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe-26:
+    runs-on: macos-26
+    steps:
+      - name: Версии
+        run: |
+          sw_vers || true
+          xcode-select -p || true
+          xcodebuild -version || true
+          ls /Applications | grep -i xcode || true
+  probe-15:
+    runs-on: macos-15
+    steps:
+      - name: Версии
+        run: |
+          sw_vers || true
+          xcode-select -p || true
+          xcodebuild -version || true
+          ls /Applications | grep -i xcode || true
