@@ -835,6 +835,7 @@ class _HomePageState extends State<HomePage>
       ),
     );
     ticker = Timer.periodic(const Duration(seconds: 1), (_) => elapsed.value++);
+    var elapsedSec = 0;
     try {
       wav16k = await AudioConvert.toWav16k(filePath);
       stage.value = skipChunks > 0
@@ -872,6 +873,7 @@ class _HomePageState extends State<HomePage>
       }
     } finally {
       ticker?.cancel();
+      elapsedSec = elapsed.value;
       if (mounted) Navigator.of(context).pop();
       progress.dispose();
       elapsed.dispose();
@@ -935,6 +937,7 @@ class _HomePageState extends State<HomePage>
             'источник: $filePath\n'
             'wav16k: $wav16k\n'
             'символов: ${text.length}; слов: $words\n'
+            'время: ${elapsedSec} с\n'
             '${diagLines.join('\n')}\n'
             '=== ТЕКСТ ===\n$text\n');
         debugPrint('DictaPro: выгружено ${f.path} (${text.length} символов, $words слов)');
