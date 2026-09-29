@@ -731,8 +731,63 @@ class _HomePageState extends State<HomePage>
   /// дальше стандартный путь (VAD + изолят) без изменений.
   /// При первом запуске показываем прогресс локального копирования модели
   /// («Подготовка модели: X%») — без сети, без возможности отменить.
+  /// Выбор языка расшифровки при «В текст». Спрашиваем, если пользователь
+  /// не отметил «больше не спрашивать»; иначе используем сохранённый выбор.
+  Future<String?> _chooseAsrLang() async {
+    var saved = 'ru';
+    var ask = true;
+    try {
+      final sbox = await Hive.openBox<dynamic>('settings');
+      saved = (sbox.get('asr_lang') ?? 'ru').toString();
+      ask = (sbox.get('asr_ask') ?? true) == true;
+    } catch (_) {}
+    if (!ask) return saved;
+
+    var remember = true;
+    final res = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
+          title: const Text('На каком языке расшифровать?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final e in const [
+                ('ru', 'Русский'),
+                ('en', 'English'),
+                ('de', 'Deutsch'),
+              ])
+                RadioListTile<String>(
+                  value: e.$1,
+                  groupValue: saved,
+                  dense: true,
+                  title: Text(e.$2),
+                  onChanged: (v) => Navigator.pop(ctx, v),
+                ),
+              CheckboxListTile(
+                value: remember,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                onChanged: (v) => setSt(() => remember = v ?? true),
+                title: const Text('Больше не спрашивать',
+                    style: TextStyle(fontSize: 13)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (res == null) return null;
+    try {
+      final sbox = await Hive.openBox<dynamic>('settings');
+      await sbox.put('asr_lang', res);
+      await sbox.put('asr_ask', !remember);
+    } catch (_) {}
+    return res;
+  }
+
   Future<TranscriptionResult> _transcribeOffline(String filePath,
-      {bool resumeFromPartial = false}) async {
+      {bool resumeFromPartial = false, String asrLang = 'ru'}) async {
     if (!GigaamService.isPrepared) {
       await _showModelPreparingDialog();
     }
@@ -841,11 +896,6 @@ class _HomePageState extends State<HomePage>
       stage.value = skipChunks > 0
           ? AppStrings.tf('stage_resume_skip', context, {'n': '$skipChunks'})
           : AppStrings.t('stage_transcribing', context);
-      String asrLang = 'ru';
-      try {
-        final sbox = await Hive.openBox<dynamic>('settings');
-        asrLang = (sbox.get('asr_lang') ?? 'ru').toString();
-      } catch (_) {}
       text = await GigaamService.transcribeWithGlossary(
         wav16k,
         language: asrLang,
@@ -1165,9 +1215,11 @@ class _HomePageState extends State<HomePage>
         final recordings = AudioService().getAllRecordings();
         if (recordings.isNotEmpty) {
           final latest = recordings.first;
+          final asrLangRec = await _chooseAsrLang();
+          if (asrLangRec == null) return;
           final onlineText = await _onlineTranscript(latest.filePath);
           final result = onlineText == null
-              ? await _transcribeOffline(latest.filePath)
+              ? await _transcribeOffline(latest.filePath, asrLang: asrLangRec)
               : null;
           final fullText = onlineText ?? result!.fullText;
 
@@ -1393,13 +1445,16 @@ class _HomePageState extends State<HomePage>
       return;
     }
 
+    final asrLang = await _chooseAsrLang();
+    if (asrLang == null) return;
+
     _showTranscribingDialog();
 
     try {
       final onlineText = await _onlineTranscript(filePath);
       final result = onlineText == null
           ? await _transcribeOffline(filePath,
-              resumeFromPartial: resumeFromPartial)
+              resumeFromPartial: resumeFromPartial, asrLang: asrLang)
           : null;
 
       final punctuatedText = onlineText ?? result!.fullText;
