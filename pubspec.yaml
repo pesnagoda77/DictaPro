@@ -49,6 +49,9 @@ flutter:
     # в репозитории лежит только README.md, чтобы сборка не падала на пустой папке.
     # Для Play (AAB) модель идёт через android/gigaam_pack (см. android/app/build.gradle).
     - assets/models/gigaam_v3_punct/
+    # Мультиязычная модель Whisper (EN/DE) для прямой раздачи (APK).
+    # В git не хранится — файлы .onnx локальные (см. .gitignore).
+    - assets/models/whisper-small/
     - assets/fonts/Roboto-Regular.ttf
   fonts:
     - family: Roboto
