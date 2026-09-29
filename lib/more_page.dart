@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'app_strings.dart';
 import 'theme/app_theme.dart';
 import 'widgets/dicta_ui.dart';
 import 'settings_page.dart';
@@ -21,29 +22,36 @@ class MorePage extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
           children: [
             const SizedBox(height: 6),
-            Text('Ещё', style: Theme.of(context).textTheme.headlineMedium),
+            Text(AppStrings.t('nav_more', context),
+                style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 4),
-            Text('Настройки, подписка, справка и служебное',
+            Text(AppStrings.t('more_subtitle', context),
                 style: TextStyle(fontSize: 12.5, color: tk.ink2)),
             const SizedBox(height: 16),
-            _row(context, Icons.tune_rounded, 'Настройки',
-                'оформление · запись · распознавание · фон · данные',
+            _row(context, Icons.tune_rounded,
+                AppStrings.t('settings_title', context),
+                AppStrings.t('more_settings_sub', context),
                 () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const SettingsPage()))),
-            _row(context, Icons.workspace_premium_outlined, 'Подписка и ИИ-часы',
-                'тарифы, пакеты часов, промокод, восстановление',
+            _row(context, Icons.workspace_premium_outlined,
+                AppStrings.t('sub_row_title', context),
+                AppStrings.t('more_subscription_sub', context),
                 () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const SubscriptionPage()))),
-            _row(context, Icons.menu_book_outlined, 'Как пользоваться',
-                'короткие подсказки по записи и расшифровке',
+            _row(context, Icons.menu_book_outlined,
+                AppStrings.t('help_title', context),
+                AppStrings.t('help_row_sub', context),
                 () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const HelpPage()))),
-            _row(context, Icons.info_outline_rounded, 'О приложении',
-                'что считается на устройстве, лицензии, политика',
+            _row(context, Icons.info_outline_rounded,
+                AppStrings.t('about_title', context),
+                AppStrings.t('about_row_sub', context),
                 () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const AboutPage()))),
-            _row(context, Icons.folder_open_rounded, 'Папка обмена (диагностика)',
-                'тексты и временные файлы для проверки', () => _showDiag(context)),
+            _row(context, Icons.folder_open_rounded,
+                AppStrings.t('share_folder_diag', context),
+                AppStrings.t('share_folder_row_sub', context),
+                () => _showDiag(context)),
             const SizedBox(height: 18),
             Container(
               padding: const EdgeInsets.all(12),
@@ -53,7 +61,7 @@ class MorePage extends StatelessWidget {
                     color: tk.mint.withValues(alpha: 0.3), style: BorderStyle.solid),
               ),
               child: Text(
-                'Всё хранится на устройстве: записи, тексты и ключи не покидают телефон.',
+                AppStrings.t('more_privacy_note', context),
                 style: TextStyle(fontSize: 11.5, color: tk.ink2, height: 1.5),
               ),
             ),
@@ -112,14 +120,12 @@ class MorePage extends StatelessWidget {
     showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Папка обмена (диагностика)'),
-        content: const Text(
-            'Android/data/com.dictapro.app/files\n\nЗдесь лежат тексты и временные WAV — '
-            'чтобы проверить, что расшифровка сохраняется. В обычной работе папка не нужна.'),
+        title: Text(AppStrings.t('share_folder_diag', context)),
+        content: Text(AppStrings.t('diag_dialog_body', context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Понятно'),
+            child: Text(AppStrings.t('got_it', context)),
           ),
         ],
       ),
@@ -134,13 +140,19 @@ class HelpPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tk = DictaTokens.of(context);
-    const steps = <(IconData, String, String)>[
-      (Icons.mic_rounded, 'Запись', 'Нажмите круглую кнопку. Можно свернуть приложение — запись продолжится в фоне. Таймер сна остановит её сам.'),
-      (Icons.folder_open_rounded, 'Импорт готовых файлов', 'Кнопка «Импорт» — выберите mp3, m4a, wav и другие. Приложение расшифрует их на устройстве.'),
-      (Icons.graphic_eq_rounded, 'Расшифровка', 'Считается прямо в телефоне, интернет не нужен. Длинную запись можно продолжить с места обрыва.'),
-      (Icons.article_outlined, 'Текст и диалог', 'Текст можно править, разделять по говорящим, искать по словам и копировать.'),
-      (Icons.auto_awesome_outlined, 'Итоги', 'Локально — быстро и без сети. Онлайн — точнее, расходует ИИ-часы и повторно показывается бесплатно из кэша.'),
-      (Icons.ios_share_rounded, 'Экспорт и отправка', 'TXT с таймкодами, HTML, PDF — или сразу отправить в мессенджер.'),
+    final steps = <(IconData, String, String)>[
+      (Icons.mic_rounded, AppStrings.t('group_recording', context),
+          AppStrings.t('help_record_sub', context)),
+      (Icons.folder_open_rounded, AppStrings.t('help_import_title', context),
+          AppStrings.t('help_import_sub', context)),
+      (Icons.graphic_eq_rounded, AppStrings.t('help_transcribe_title', context),
+          AppStrings.t('help_transcribe_sub', context)),
+      (Icons.article_outlined, AppStrings.t('help_text_title', context),
+          AppStrings.t('help_text_sub', context)),
+      (Icons.auto_awesome_outlined, AppStrings.t('nav_summaries', context),
+          AppStrings.t('help_summary_sub', context)),
+      (Icons.ios_share_rounded, AppStrings.t('help_export_title', context),
+          AppStrings.t('help_export_sub', context)),
     ];
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -153,7 +165,7 @@ class HelpPage extends StatelessWidget {
                 onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.arrow_back_rounded),
               ),
-              Text('Как пользоваться',
+              Text(AppStrings.t('help_title', context),
                   style: Theme.of(context).textTheme.headlineMedium),
             ]),
             const SizedBox(height: 8),
@@ -214,18 +226,15 @@ class AboutPage extends StatelessWidget {
                 onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.arrow_back_rounded),
               ),
-              Text('О приложении',
+              Text(AppStrings.t('about_title', context),
                   style: Theme.of(context).textTheme.headlineMedium),
             ]),
             const SizedBox(height: 6),
-            const DictaBrand(subtitle: 'Не покидая телефон'),
+            DictaBrand(subtitle: AppStrings.splashSlogan(context)),
             const SizedBox(height: 16),
             DictaCard(
               child: Text(
-                'ДиктаПро превращает речь в текст на самом телефоне. Запись, расшифровка, поиск и итоги '
-                'считаются на устройстве; модель распознавания хранится внутри приложения.\n\n'
-                'Онлайн-расшифровка и онлайн-итоги выключены по умолчанию и включаются только вашим решением: '
-                'тогда текст записи уходит на выбранный вами сервис по защищённому соединению.',
+                '${AppStrings.t('about_p1', context)}\n\n${AppStrings.t('about_p2', context)}',
                 style: TextStyle(fontSize: 12.5, color: tk.ink2, height: 1.6),
               ),
             ),
@@ -233,11 +242,11 @@ class AboutPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Лицензии', style: Theme.of(context).textTheme.titleMedium),
+                  Text(AppStrings.t('about_licenses_title', context),
+                      style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 4),
                   Text(
-                    'Шрифты Onest и JetBrains Mono — SIL Open Font License 1.1.\n'
-                    'Модель распознавания GigaAM — по лицензии правообладателя (см. карточку модели).',
+                    AppStrings.t('about_licenses_body', context),
                     style: TextStyle(fontSize: 12, color: tk.ink2, height: 1.5),
                   ),
                 ],
@@ -247,11 +256,11 @@ class AboutPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Приватность', style: Theme.of(context).textTheme.titleMedium),
+                  Text(AppStrings.t('about_privacy_title', context),
+                      style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 4),
                   Text(
-                    'Рекламы нет, рекламный идентификатор не используется, аккаунт не нужен. '
-                    'Удаление записей и всех данных — средствами приложения или системы.',
+                    AppStrings.t('about_privacy_body', context),
                     style: TextStyle(fontSize: 12, color: tk.ink2, height: 1.5),
                   ),
                 ],

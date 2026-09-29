@@ -9,6 +9,7 @@
 // назад раньше этой даты — считаем, что «сегодня» ещё не наступило,
 // лимит не обнуляем.
 import 'package:shared_preferences/shared_preferences.dart';
+import '../app_strings.dart';
 
 class UsageLimitService {
   UsageLimitService._();
@@ -72,6 +73,6 @@ class UsageLimitService {
   /// Для paywall-диалога: «сегодня использовано X из Y минут».
   Future<String> todaySummary() async {
     final used = await usedMinutesToday();
-    return '$used из $dailyMinutesLimit';
+    return AppStrings.tfGlobal('usage_used_of', {'u': '$used', 'n': '$dailyMinutesLimit'});
   }
 }

@@ -166,21 +166,21 @@ class _SettingsPageState extends State<SettingsPage> {
         _ => 'Русский',
       };
 
-  String get _uiLangTitle => switch (_uiLang) {
+  String _uiLangTitle(BuildContext context) => switch (_uiLang) {
         'ru' => 'Русский',
         'en' => 'English',
         'de' => 'Deutsch',
-        _ => 'Системный (как в телефоне)',
+        _ => AppStrings.t('ui_lang_system', context),
       };
 
   Future<void> _pickUiLang() async {
     final res = await showDialog<String>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Язык приложения'),
+        title: Text(AppStrings.t('ui_lang_title', ctx)),
         children: [
-          for (final e in const [
-            ('system', 'Системный (как в телефоне)'),
+          for (final e in [
+            ('system', AppStrings.t('ui_lang_system', ctx)),
             ('ru', 'Русский'),
             ('en', 'English'),
             ('de', 'Deutsch'),
@@ -211,12 +211,12 @@ class _SettingsPageState extends State<SettingsPage> {
     final res = await showDialog<String>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Язык расшифровки'),
+        title: Text(AppStrings.t('asr_lang_title', ctx)),
         children: [
-          for (final e in const [
-            ('ru', 'Русский', 'офлайн-модель GigaAM'),
-            ('en', 'English', 'Whisper, офлайн'),
-            ('de', 'Deutsch', 'Whisper, офлайн'),
+          for (final e in [
+            ('ru', 'Русский', AppStrings.t('asr_gigaam_offline', ctx)),
+            ('en', 'English', AppStrings.t('asr_whisper_offline', ctx)),
+            ('de', 'Deutsch', AppStrings.t('asr_whisper_offline', ctx)),
           ])
             RadioListTile<String>(
               value: e.$1,
@@ -236,7 +236,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (mounted) {
       setState(() => _asrLang = res);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Язык расшифровки сохранён')),
+        SnackBar(content: Text(AppStrings.t('asr_lang_saved', context))),
       );
     }
   }
@@ -296,7 +296,8 @@ class _SettingsPageState extends State<SettingsPage> {
     return b.toString();
   }
 
-  static String _fmtSampleRate(int v) => '${_groupDigits(v)} Гц';
+  static String _fmtSampleRate(int v) =>
+      '${_groupDigits(v)} ${AppStrings.tGlobal('unit_hz')}';
 
   static String _fmtBitrate(int v) => '${v ~/ 1000} kbps';
 
@@ -332,8 +333,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   _groupTitle(context, AppStrings.t('group_appearance', context)),
                   _tile(
                     context,
-                    title: 'Язык приложения',
-                    sub: _uiLangTitle,
+                    title: AppStrings.t('ui_lang_title', context),
+                    sub: _uiLangTitle(context),
                     trailing: _chevron(context),
                     onTap: _pickUiLang,
                   ),
@@ -389,7 +390,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   _tile(
                     context,
-                    title: 'Язык расшифровки',
+                    title: AppStrings.t('asr_lang_title', context),
                     sub: _asrLangTitle,
                     trailing: _chevron(context),
                     onTap: _pickAsrLang,

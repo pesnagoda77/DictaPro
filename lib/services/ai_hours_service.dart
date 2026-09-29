@@ -11,6 +11,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'purchase_service.dart';
+import '../app_strings.dart';
 
 class AiHoursService {
   AiHoursService._();
@@ -110,8 +111,8 @@ class AiHoursService {
     final pack = await packMinutesLeft();
     final inclLeft = (incl - used).clamp(0.0, double.infinity);
     final buf = StringBuffer();
-    buf.write('ИИ-часы: осталось ${(inclLeft + pack / 60).toStringAsFixed(1)} ч');
-    buf.write(' (по подписке ${inclLeft.toStringAsFixed(1)}, пакеты ${(pack / 60).toStringAsFixed(1)})');
+    buf.write(AppStrings.tfGlobal('ai_hours_left', {'h': (inclLeft + pack / 60).toStringAsFixed(1)}));
+    buf.write(AppStrings.tfGlobal('ai_hours_breakdown', {'a': inclLeft.toStringAsFixed(1), 'p': (pack / 60).toStringAsFixed(1)}));
     return buf.toString();
   }
 

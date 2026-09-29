@@ -54,7 +54,7 @@ class _SummaryPageState extends State<SummaryPage> {
   int _mode = 0;
 
   // Task 034: этап операции для индикатора с секундомером.
-  final ValueNotifier<String> _stage = ValueNotifier('Готовим текст…');
+  final ValueNotifier<String> _stage = ValueNotifier(AppStrings.tGlobal('summary_prep_text'));
 
   bool get _hasTranscript =>
       widget.recording.transcript != null &&
@@ -74,6 +74,7 @@ class _SummaryPageState extends State<SummaryPage> {
     _refreshHoursLabel();
     if (widget.recording.summary != null &&
         widget.recording.summary!.isNotEmpty &&
+        widget.recording.summary != AppStrings.tGlobal('no_summary_yet') &&
         widget.recording.summary != 'Нет доступного резюме') {
       _generateSummary();
     }
@@ -266,7 +267,7 @@ class _SummaryPageState extends State<SummaryPage> {
           ),
         ),
         const SizedBox(width: 8),
-        _airPill(context, 'Экспорт', () => _shareContent(context)),
+        _airPill(context, AppStrings.t('export_btn', context), () => _shareContent(context)),
         const SizedBox(width: 2),
         IconButton(
           onPressed: () => _copyToClipboard(context),
@@ -895,8 +896,8 @@ class _SummaryPageState extends State<SummaryPage> {
   void _shareContent(BuildContext context) {
     final buffer = StringBuffer();
     buffer.writeln('=== ${widget.recording.title} ===');
-    buffer.writeln('Дата: ${formatDateTime(widget.recording.dateTime ?? DateTime.now())}');
-    buffer.writeln('Длительность: ${formatDuration(widget.recording.duration ?? Duration.zero)}');
+    buffer.writeln(AppStrings.tfGlobal('export_label_date', {'v': formatDateTime(widget.recording.dateTime ?? DateTime.now())}));
+    buffer.writeln(AppStrings.tfGlobal('export_label_duration', {'v': formatDuration(widget.recording.duration ?? Duration.zero)}));
     buffer.writeln();
 
     final r = _mode == 1 ? _onlineResult : _localResult;
@@ -908,7 +909,7 @@ class _SummaryPageState extends State<SummaryPage> {
 
     if (widget.recording.transcript != null) {
       buffer.writeln();
-      buffer.writeln('--- Полный текст ---');
+      buffer.writeln(AppStrings.tGlobal('export_full_text_sep'));
       buffer.writeln(widget.recording.transcript);
     }
 

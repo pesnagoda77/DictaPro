@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:path_provider/path_provider.dart';
+import '../app_strings.dart';
 
 /// Task 041: единый тег для logcat: adb logcat | grep -i keepalive
 void _keepLog(String msg) => debugPrint('[keepalive] $msg');
@@ -14,7 +15,7 @@ void _keepLog(String msg) => debugPrint('[keepalive] $msg');
 /// поэтому система убивала процесс во время расшифровки — Славан потерял
 /// результат двухчасового файла на 20-й минуте.
 class TranscribeKeepAlive {
-  static const _title = 'DictaPro — идёт расшифровка';
+  static String get _title => AppStrings.tGlobal('keepalive_title');
 
   /// Нативные вызовы для задачи 038: фактическое состояние «без ограничений»
   /// и прямое открытие экрана батареи приложения.

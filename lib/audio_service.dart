@@ -10,6 +10,7 @@ import 'package:hive/hive.dart';
 import 'models/transcription.dart';
 import 'settings_page.dart';
 import 'dart:math' as math;
+import 'app_strings.dart';
 
 export 'models/transcription.dart' show DialogueSegment;
 
@@ -205,15 +206,9 @@ class AudioService {
   int? get sleepDurationMinutes => _sleepDurationMinutes;
 
   String _generateDefaultTitle(DateTime dt) {
-    final day = dt.day;
-    const monthNames = [
-      'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-      'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
-    ];
-    final month = monthNames[dt.month - 1];
-    final hour = dt.hour.toString().padLeft(2, '0');
-    final minute = dt.minute.toString().padLeft(2, '0');
-    return 'Запись $day $month, $hour:$minute';
+    final d = '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}';
+    final t = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    return AppStrings.tfGlobal('default_title_recording', {'d': d, 't': t});
   }
 
   Future<void> _startKeepAliveService() async {
@@ -224,8 +219,8 @@ class AudioService {
         await FlutterForegroundTask.requestNotificationPermission();
       }
       await FlutterForegroundTask.startService(
-        notificationTitle: 'DictaPro — идёт запись',
-        notificationText: 'Запись продолжается при выключенном экране',
+        notificationTitle: AppStrings.tGlobal('notif_recording_title'),
+        notificationText: AppStrings.tGlobal('notif_recording_text'),
       );
     } catch (_) {
       // не критично: запись продолжается, пока приложение активно

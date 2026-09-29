@@ -19,7 +19,7 @@ void main() async {
   FlutterForegroundTask.init(
     androidNotificationOptions: AndroidNotificationOptions(
       channelId: 'dictapro_recording',
-      channelName: 'Запись DictaPro',
+      channelName: AppStrings.tGlobal('notif_channel_recording'),
       channelImportance: NotificationChannelImportance.LOW,
       priority: NotificationPriority.LOW,
     ),
@@ -65,6 +65,8 @@ class DictaProApp extends StatelessWidget {
           Locale('ru'),
           Locale('en'),
           Locale('de'),
+          Locale('fr'),
+          Locale('es'),
           Locale('it'),
         ],
         localizationsDelegates: const [
@@ -77,7 +79,7 @@ class DictaProApp extends StatelessWidget {
           for (final l in supported) {
             if (l.languageCode == code) return l;
           }
-          return const Locale('ru'); // по умолчанию русский
+          return const Locale('en'); // фолбэк для неподдерживаемых языков
         },
         home: const SplashWrapper(),
       ),

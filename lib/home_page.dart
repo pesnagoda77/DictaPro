@@ -430,7 +430,8 @@ class _HomePageState extends State<HomePage>
       list = list.where((rec) {
         final text = rec.transcription?.toLowerCase() ?? '';
         final title = (rec.title ?? '').toLowerCase();
-        final name = 'Запись ${DateFormat('dd.MM HH:mm').format(rec.createdAt)}'
+        final name = AppStrings.tf('recording_of', context,
+            {'d': DateFormat('dd.MM HH:mm').format(rec.createdAt)})
             .toLowerCase();
         return text.contains(_searchQuery.toLowerCase()) ||
             title.contains(_searchQuery.toLowerCase()) ||
@@ -512,9 +513,9 @@ class _HomePageState extends State<HomePage>
               isSearch
                   ? AppStrings.t('empty_search_title', context)
                   : widget.tab == 1
-                      ? 'Пока нет расшифрованных записей'
+                      ? AppStrings.t('empty_no_transcripts_title', context)
                       : widget.tab == 2
-                          ? 'Пока нет конспектов'
+                          ? AppStrings.t('empty_no_summaries_title', context)
                           : AppStrings.t('empty_rec_title', context),
               style: Theme.of(context).textTheme.titleMedium,
               textAlign: TextAlign.center,
@@ -524,9 +525,9 @@ class _HomePageState extends State<HomePage>
               isSearch
                   ? AppStrings.t('empty_search_body', context)
                   : widget.tab == 1
-                      ? 'Расшифруйте любую запись — и она появится здесь.'
+                      ? AppStrings.t('empty_no_transcripts_body', context)
                       : widget.tab == 2
-                          ? 'Соберите «Итоги» на карточке записи — и они появятся здесь.'
+                          ? AppStrings.t('empty_no_summaries_body', context)
                           : AppStrings.t('empty_rec_body', context),
               style: Theme.of(context).textTheme.bodySmall,
               textAlign: TextAlign.center,
@@ -657,12 +658,12 @@ class _HomePageState extends State<HomePage>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => const AlertDialog(
+      builder: (ctx) => AlertDialog(
         content: Row(
           children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 20),
-            Text('Создание PDF...'),
+            const CircularProgressIndicator(),
+            const SizedBox(width: 20),
+            Text(AppStrings.t('creating_pdf', ctx)),
           ],
         ),
       ),
@@ -748,7 +749,7 @@ class _HomePageState extends State<HomePage>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSt) => AlertDialog(
-          title: const Text('На каком языке расшифровать?'),
+          title: Text(AppStrings.t('asr_dialog_title', ctx)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -769,8 +770,8 @@ class _HomePageState extends State<HomePage>
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 onChanged: (v) => setSt(() => remember = v ?? true),
-                title: const Text('Больше не спрашивать',
-                    style: TextStyle(fontSize: 13)),
+                title: Text(AppStrings.t('asr_dont_ask', ctx),
+                    style: const TextStyle(fontSize: 13)),
               ),
             ],
           ),
@@ -808,10 +809,8 @@ class _HomePageState extends State<HomePage>
               context: context,
               builder: (ctx) => AlertDialog(
                 title: Text(AppStrings.t('unfinished_title', context)),
-                content: Text(
-                    'В прошлый раз распознание оборвалось на куске ${partial.$1} '
-                    '(${partial.$2.length} символов текста уже готово).\n\n'
-                    'Продолжить с этого места или начать заново?'),
+                content: Text(AppStrings.tf('unfinished_body', ctx,
+                    {'c': '${partial.$1}', 's': '${partial.$2.length}'})),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(ctx, false),
@@ -819,7 +818,7 @@ class _HomePageState extends State<HomePage>
                   ),
                   FilledButton(
                     onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text('Продолжить'),
+                    child: Text(AppStrings.t('long_transcribe_continue', ctx)),
                   ),
                 ],
               ),
@@ -989,13 +988,13 @@ class _HomePageState extends State<HomePage>
         final f = File('${dir.path}/dictapro_$stamp.txt');
         final words = text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
         await f.writeAsString(
-            '=== ДиктаПро: диагностика прогона ===\n'
-            'источник: $filePath\n'
+            '${AppStrings.tGlobal('diag_file_header')}\n'
+            '${AppStrings.tfGlobal('diag_file_source', {'v': filePath})}\n'
             'wav16k: $wav16k\n'
-            'символов: ${text.length}; слов: $words\n'
-            'время: ${elapsedSec} с\n'
+            '${AppStrings.tfGlobal('diag_file_counts', {'c': '${text.length}', 'w': '$words'})}\n'
+            '${AppStrings.tfGlobal('diag_file_time', {'v': '$elapsedSec'})}\n'
             '${diagLines.join('\n')}\n'
-            '=== ТЕКСТ ===\n$text\n');
+            '${AppStrings.tGlobal('diag_file_text_sep')}\n$text\n');
         debugPrint('DictaPro: выгружено ${f.path} (${text.length} символов, $words слов)');
       }
     } catch (e) {
@@ -1058,7 +1057,10 @@ class _HomePageState extends State<HomePage>
                   const SizedBox(height: 8),
                   Text(
                     known
-                        ? '${(copied / 1048576).round()} из ${(total / 1048576).round()} МБ · ${(pct! * 100).round()}%'
+                        ? AppStrings.tf('model_prep_progress', context, {
+                            'c': '${(copied / 1048576).round()}',
+                            't': '${(total / 1048576).round()}',
+                            'p': '${(pct! * 100).round()}'})
                         : AppStrings.t('model_prep_download', context),
                     style: const TextStyle(fontSize: 12, color: Colors.white54),
                   ),
@@ -1240,7 +1242,7 @@ class _HomePageState extends State<HomePage>
             latest.summary =
                 local.isEmpty ? AppStrings.t('summary_failed', context) : local;
           } catch (_) {
-            latest.summary = 'Итоги: не удалось собрать';
+            latest.summary = AppStrings.t('summary_failed', context);
           }
           latest.decisions = SummaryService.getDecisions(fullText);
           await AudioService().updateRecording(latest);
@@ -1419,24 +1421,20 @@ class _HomePageState extends State<HomePage>
     final srcFile = File(filePath);
     if (!await srcFile.exists()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Аудио этой записи не найдено — файл был потерян старой версией '
-              'приложения (исправлено с 29.09). Новые записи сохраняются.'),
+        SnackBar(
+          content: Text(AppStrings.t('audio_lost_banner', context)),
           backgroundColor: Colors.red,
-          duration: Duration(seconds: 6),
+          duration: const Duration(seconds: 6),
         ),
       );
       return;
     }
     if (await srcFile.length() == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Файл записи пустой (0 байт) — расшифровывать нечего. '
-              'Похоже, запись оборвалась в самом начале.'),
+        SnackBar(
+          content: Text(AppStrings.t('rec_empty_file_msg', context)),
           backgroundColor: Colors.red,
-          duration: Duration(seconds: 6),
+          duration: const Duration(seconds: 6),
         ),
       );
       return;
@@ -1478,7 +1476,7 @@ class _HomePageState extends State<HomePage>
             .trim();
         rec.summary = local.isEmpty ? AppStrings.t('summary_failed', context) : local;
       } catch (_) {
-        rec.summary = 'Итоги: не удалось собрать';
+        rec.summary = AppStrings.t('summary_failed', context);
       }
       rec.decisions = SummaryService.getDecisions(punctuatedText);
       rec.speakerStats = result != null
@@ -1510,15 +1508,12 @@ class _HomePageState extends State<HomePage>
       final s = '$e';
       final friendly = (s.contains('Decoded audio is empty') ||
               s.contains('No audio data decoded'))
-          ? 'Не удалось прочитать звук: файл пуст или повреждён. '
-              'Запишите заново или импортируйте другой файл.'
+          ? AppStrings.t('rec_decode_failed_msg', context)
           : (s.contains('No such file') ||
                   s.contains('FileSystemException'))
-              ? 'Аудио этой записи не найдено — файл был потерян старой '
-                  'версией приложения (исправлено с 29.09). Новые записи сохраняются.'
+              ? AppStrings.t('audio_lost_banner', context)
               : s.contains('GigaAM не справился')
-                  ? 'В записи не найдена речь: возможно, начало пустое или звук '
-                      'слишком тихий. Проверьте запись и попробуйте снова.'
+                  ? AppStrings.t('rec_no_speech_msg', context)
                   : AppStrings.tf('transcribe_error', context, {'e': s});
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1972,11 +1967,15 @@ class _HomePageState extends State<HomePage>
               )
             : DictaBrand(
                 title: widget.tab == 1
-                    ? 'Тексты'
-                    : (widget.tab == 2 ? 'Итоги' : null),
+                    ? AppStrings.t('nav_texts', context)
+                    : (widget.tab == 2
+                        ? AppStrings.t('nav_summaries', context)
+                        : null),
                 subtitle: widget.tab == 1
-                    ? 'расшифровки записей'
-                    : (widget.tab == 2 ? 'конспекты' : 'Не покидая телефон'),
+                    ? AppStrings.t('texts_subtitle', context)
+                    : (widget.tab == 2
+                        ? AppStrings.t('summaries_subtitle', context)
+                        : AppStrings.splashSlogan(context)),
               ),
         centerTitle: !_isSearching,
         elevation: 0,
@@ -2237,28 +2236,28 @@ class _HomePageState extends State<HomePage>
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
                     child: Row(
                       children: [
-                        DictaChip('Все',
+                        DictaChip(AppStrings.t('filter_all', context),
                             selected: _quickFilter == 0,
                             onTap: () => setState(() => _quickFilter = 0)),
                         const SizedBox(width: 7),
-                        DictaChip('Сегодня',
+                        DictaChip(AppStrings.t('filter_today', context),
                             selected: _quickFilter == 1,
                             onTap: () => setState(() => _quickFilter = 1)),
                         const SizedBox(width: 7),
-                        DictaChip('В очереди',
+                        DictaChip(AppStrings.t('filter_queued', context),
                             selected: _quickFilter == 2,
                             onTap: () => setState(() => _quickFilter = 2)),
                         const Spacer(),
                         IconButton(
                           visualDensity: VisualDensity.compact,
-                          tooltip: 'Импорт',
+                          tooltip: AppStrings.t('import_tooltip', context),
                           icon: Icon(Icons.upload_file_outlined,
                               size: 20, color: DictaTokens.of(context).ink3),
                           onPressed: _importFile,
                         ),
                         IconButton(
                           visualDensity: VisualDensity.compact,
-                          tooltip: 'Избранное',
+                          tooltip: AppStrings.t('favorites_tooltip', context),
                           icon: Icon(
                               _showFavoritesOnly
                                   ? Icons.star

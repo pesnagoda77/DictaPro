@@ -1,4 +1,17 @@
+import 'app_strings.dart';
 class SummaryService {
+  static const _typeKey = {
+    'Аудиокнига / Лекция': 'sum_t_audiobook',
+    'Доклад / Документ': 'sum_t_document',
+    'Лекция / Образование': 'sum_t_lecture',
+    'Бизнес-встреча': 'sum_t_business',
+    'Интервью': 'sum_t_interview',
+    'Заметки': 'sum_t_notes',
+  };
+
+  static String _typeLabel(String type) =>
+      AppStrings.tGlobal(_typeKey[type] ?? 'sum_t_notes');
+
   static String generateSummary(String text) {
     String type = _detectType(text);
     List<String> dates = _extractDates(text);
@@ -8,15 +21,15 @@ class SummaryService {
     List<String> sentences = text.split('.').map((s) => s.trim()).where((s) => s.length > 10).toList();
 
     StringBuffer summary = StringBuffer();
-    summary.writeln('Тип: $type');
+    summary.writeln(AppStrings.tfGlobal('sum_type', {'v': _typeLabel(type)}));
     summary.writeln();
 
-    if (dates.isNotEmpty) summary.writeln('Даты: ${dates.join(', ')}');
-    if (amounts.isNotEmpty) summary.writeln('Суммы: ${amounts.join(', ')}');
-    if (phones.isNotEmpty) summary.writeln('Контакты: ${phones.join(', ')}');
+    if (dates.isNotEmpty) summary.writeln(AppStrings.tfGlobal('sum_dates', {'v': dates.join(', ')}));
+    if (amounts.isNotEmpty) summary.writeln(AppStrings.tfGlobal('sum_amounts', {'v': amounts.join(', ')}));
+    if (phones.isNotEmpty) summary.writeln(AppStrings.tfGlobal('sum_contacts', {'v': phones.join(', ')}));
 
     summary.writeln();
-    summary.writeln('Ключевые моменты:');
+    summary.writeln(AppStrings.tGlobal('sum_key_points'));
     List<String> keyPoints = _extractKeyPoints(sentences, type);
     for (var point in keyPoints.take(5)) {
       summary.writeln('• $point');
@@ -24,7 +37,7 @@ class SummaryService {
 
     if (actionItems.isNotEmpty) {
       summary.writeln();
-      summary.writeln('Действия:');
+      summary.writeln(AppStrings.tGlobal('sum_actions'));
       for (var action in actionItems) {
         summary.writeln('• $action');
       }

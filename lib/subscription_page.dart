@@ -275,7 +275,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
       ),
       child: Row(children: [
         seg(false, AppStrings.t('sub_period_month', context), null),
-        seg(true, AppStrings.t('sub_period_year', context), 'выгоднее до 25%'),
+        seg(true, AppStrings.t('sub_period_year', context), AppStrings.t('sub_year_badge', context)),
       ]),
     );
   }
@@ -342,7 +342,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
               ),
           ]),
           const SizedBox(height: 9),
-          Text('ИИ-часы: $hours ч в месяц',
+          Text(AppStrings.tf('sub_hours_per_month', context, {'h': '$hours'}),
               style: TextStyle(
                   fontSize: 12.5, fontWeight: FontWeight.w700, color: tk.ink)),
           const SizedBox(height: 10),
@@ -371,8 +371,8 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                   color: tk.gold, borderRadius: BorderRadius.circular(999)),
-              child: const Text('ЛУЧШАЯ ЦЕНА ЗА ГОД',
-                  style: TextStyle(
+              child: Text(AppStrings.t('sub_best_price_year', context),
+                  style: const TextStyle(
                       fontSize: 9,
                       fontWeight: FontWeight.w800,
                       color: Color(0xFF3A2C00))),
@@ -410,7 +410,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('${e.value.toStringAsFixed(0)} ч',
+                    Text(AppStrings.tf('sub_hours_short', context, {'n': e.value.toStringAsFixed(0)}),
                         style: const TextStyle(
                             fontSize: 13, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 3),

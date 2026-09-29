@@ -5,10 +5,11 @@ import 'package:share_plus/share_plus.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'audio_service.dart';
+import 'app_strings.dart';
 
 class ExportService {
   static Future<void> shareText(String text) async {
-    await Share.share(text, subject: 'Транскрипция записи');
+    await Share.share(text, subject: AppStrings.tGlobal('share_subject_transcript'));
   }
 
   static Future<void> copyToClipboard(String text) async {
@@ -16,7 +17,7 @@ class ExportService {
   }
 
   static Future<void> shareAudioFile(String filePath) async {
-    await Share.shareXFiles([XFile(filePath)], text: 'Аудиозапись из ДиктаПро');
+    await Share.shareXFiles([XFile(filePath)], text: AppStrings.tGlobal('share_audio_caption'));
   }
 
   static Future<String> saveAsTxt(String text, String fileName) async {
@@ -35,14 +36,14 @@ class ExportService {
     final path = '${dir.path}/$fileName';
     final file = File(path);
     await file.writeAsString(text);
-    await Share.shareXFiles([XFile(path)], text: 'Транскрипция записи');
+    await Share.shareXFiles([XFile(path)], text: AppStrings.tGlobal('share_subject_transcript'));
   }
 
   static String formatTranscriptTxt(Recording rec) {
     final buffer = StringBuffer();
-    buffer.writeln('ДиктаПро - Транскрипция');
-    buffer.writeln('Дата: ${rec.createdAt}');
-    buffer.writeln('Длительность: ${rec.durationMs ~/ 1000} сек');
+    buffer.writeln(AppStrings.tGlobal('export_title'));
+    buffer.writeln(AppStrings.tfGlobal('export_label_date', {'v': '${rec.createdAt}'}));
+    buffer.writeln(AppStrings.tfGlobal('export_label_duration_sec', {'v': '${rec.durationMs ~/ 1000}'}));
     buffer.writeln('=' * 40);
     buffer.writeln();
 
@@ -52,7 +53,7 @@ class ExportService {
         buffer.writeln(time.isNotEmpty ? '[$time] ${seg['speaker']}: ${seg['text']}' : '[${seg['speaker']}] ${seg['text']}');
       }
     } else {
-      buffer.writeln(rec.transcription ?? 'Нет текста');
+      buffer.writeln(rec.transcription ?? AppStrings.tGlobal('no_text'));
     }
 
     return buffer.toString();
@@ -68,9 +69,9 @@ class ExportService {
 
   static String formatTranscript(Recording rec) {
     final buffer = StringBuffer();
-    buffer.writeln('ДиктаПро — Транскрипция');
-    buffer.writeln('Дата: ${rec.createdAt}');
-    buffer.writeln('Длительность: ${rec.durationMs ~/ 1000} сек');
+    buffer.writeln(AppStrings.tGlobal('export_title'));
+    buffer.writeln(AppStrings.tfGlobal('export_label_date', {'v': '${rec.createdAt}'}));
+    buffer.writeln(AppStrings.tfGlobal('export_label_duration_sec', {'v': '${rec.durationMs ~/ 1000}'}));
     buffer.writeln('=' * 40);
     buffer.writeln();
 
@@ -79,7 +80,7 @@ class ExportService {
         buffer.writeln('[${seg['speaker']}] ${seg['text']}');
       }
     } else {
-      buffer.writeln(rec.transcription ?? 'Нет текста');
+      buffer.writeln(rec.transcription ?? AppStrings.tGlobal('no_text'));
     }
 
     return buffer.toString();
@@ -100,19 +101,22 @@ class ExportService {
     buffer.writeln('.text{font-size:14px;}');
     buffer.writeln('</style></head><body>');
     buffer.writeln(
-        '<div class="header">ДиктаПро | ${rec.createdAt} | ${rec.durationMs ~/ 1000} сек</div>');
+        '<div class="header">' +
+            AppStrings.tfGlobal('export_html_header', {'d': '${rec.createdAt}', 's': '${rec.durationMs ~/ 1000}'}) +
+            '</div>');
 
     if (rec.segments != null && rec.segments!.isNotEmpty) {
       for (var seg in rec.segments!) {
         final isA = seg['speaker'] == 'A';
         buffer.writeln('<div class="${isA ? 'speaker-a' : 'speaker-b'}">');
-        buffer.writeln('<div class="label">Говорящий ${seg['speaker']}</div>');
+        final spk = seg['speaker'];
+        buffer.writeln('<div class="label">${AppStrings.tfGlobal('export_speaker_label', {'s': '$spk'})}</div>');
         buffer.writeln('<div class="text">${seg['text']}</div>');
         buffer.writeln('</div>');
       }
     } else {
       buffer.writeln(
-          '<div class="speaker-a"><div class="text">${rec.transcription ?? 'Нет текста'}</div></div>');
+          '<div class="speaker-a"><div class="text">${rec.transcription ?? AppStrings.tGlobal('no_text')}</div></div>');
     }
 
     buffer.writeln('</body></html>');
@@ -132,12 +136,12 @@ class ExportService {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Text(
-                'ДиктаПро — Транскрипция',
+                AppStrings.tGlobal('export_title'),
                 style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, font: ttf),
               ),
               pw.SizedBox(height: 8),
-              pw.Text('Дата: ${rec.createdAt}', style: pw.TextStyle(fontSize: 12, font: ttf)),
-              pw.Text('Длительность: ${rec.durationMs ~/ 1000} сек', style: pw.TextStyle(fontSize: 12, font: ttf)),
+              pw.Text(AppStrings.tfGlobal('export_label_date', {'v': '${rec.createdAt}'}), style: pw.TextStyle(fontSize: 12, font: ttf)),
+              pw.Text(AppStrings.tfGlobal('export_label_duration_sec', {'v': '${rec.durationMs ~/ 1000}'}), style: pw.TextStyle(fontSize: 12, font: ttf)),
               pw.Divider(),
               pw.SizedBox(height: 8),
               if (rec.segments != null && rec.segments!.isNotEmpty)
@@ -150,7 +154,7 @@ class ExportService {
                     ))
               else
                 pw.Text(
-                  rec.transcription ?? 'Нет текста',
+                  rec.transcription ?? AppStrings.tGlobal('no_text'),
                   style: pw.TextStyle(fontSize: 14, font: ttf),
                 ),
             ],

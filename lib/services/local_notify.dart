@@ -4,6 +4,7 @@
 // не будет уведомления (интерфейс всё равно покажет баннер при возврате).
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../app_strings.dart';
 
 class LocalNotify {
   LocalNotify._();
@@ -13,7 +14,7 @@ class LocalNotify {
   bool _ready = false;
 
   static const _channelId = 'dictapro_transcribe';
-  static const _channelName = 'Расшифровка';
+  static String get _channelName => AppStrings.tGlobal('notif_channel_transcription');
 
   Future<void> init() async {
     try {
@@ -42,9 +43,9 @@ class LocalNotify {
     try {
       await _plugin.show(
         1,
-        'Расшифровка готова',
-        'Текст сохранён в записи',
-        const NotificationDetails(
+        AppStrings.tGlobal('notif_transcription_done'),
+        AppStrings.tGlobal('notif_transcription_saved'),
+        NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
             _channelName,

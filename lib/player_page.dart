@@ -73,15 +73,15 @@ class _PlayerPageState extends State<PlayerPage> {
   String _defaultName() {
     final d = widget.recording.createdAt;
     String two(int v) => v.toString().padLeft(2, '0');
-    return 'Запись ${two(d.day)}.${two(d.month)} ${two(d.hour)}:${two(d.minute)}';
+    return AppStrings.tf('recording_of', context,
+        {'d': '${two(d.day)}.${two(d.month)} ${two(d.hour)}:${two(d.minute)}'});
   }
 
   Future<void> _togglePlay() async {
     if (_audioMissing) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Аудио этой записи не найдено — файл потерян старой версией (исправлено 29.09)'),
+        SnackBar(
+          content: Text(AppStrings.t('audio_lost_snack', context)),
         ),
       );
       return;
@@ -221,7 +221,7 @@ class _PlayerPageState extends State<PlayerPage> {
             PopupMenuButton<double>(
               initialValue: _speed,
               onSelected: _setSpeed,
-              tooltip: 'Скорость',
+              tooltip: AppStrings.t('player_speed', context),
               icon: Icon(Icons.speed_rounded, size: 18, color: tk.ink2),
               itemBuilder: (context) => const [
                 PopupMenuItem(value: 0.5, child: Text('0.5x')),
@@ -253,7 +253,7 @@ class _PlayerPageState extends State<PlayerPage> {
                               Border.all(color: tk.red.withValues(alpha: 0.30)),
                         ),
                         child: Text(
-                          'Аудио этой записи не найдено — файл был потерян старой версией приложения (исправлено с 29.09). Новые записи сохраняются.',
+                          AppStrings.t('audio_lost_banner', context),
                           style: TextStyle(
                               fontSize: 11.5, color: tk.ink2, height: 1.5),
                         ),

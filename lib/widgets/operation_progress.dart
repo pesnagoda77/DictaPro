@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../app_strings.dart';
+
 /// Task 034: индикатор длительной операции с секундомером.
 ///
 /// Проблема: саммари/транскрипция считаются 20–25+ секунд, а на экране
@@ -60,7 +62,7 @@ class _OperationProgressViewState extends State<OperationProgressView> {
                 Text(stageText, style: const TextStyle(fontSize: 15)),
                 const SizedBox(height: 2),
                 Text(
-                  'прошло $_elapsed с',
+                  AppStrings.tf('elapsed_seconds', context, {'n': '$_elapsed'}),
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
               ],

@@ -279,7 +279,12 @@ class DictaBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final tk = DictaTokens.of(context);
     // Как в утверждённом макете: только надписи, без иконок.
-    const items = ['Записи', 'Тексты', 'Итоги', 'Ещё'];
+    final items = [
+      AppStrings.t('nav_recordings', context),
+      AppStrings.t('nav_texts', context),
+      AppStrings.t('nav_summaries', context),
+      AppStrings.t('nav_more', context),
+    ];
     return Container(
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: tk.line)),

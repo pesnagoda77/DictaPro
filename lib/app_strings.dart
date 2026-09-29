@@ -4,7 +4,12 @@
 // (ru/en/de/it). Язык берём из системной локали, дефолт — русский.
 // Смысловой слоган линейки: запись и распознавание идут на устройстве,
 // данные никуда не отправляются.
+import 'dart:ui' show PlatformDispatcher;
+
 import 'package:flutter/widgets.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+import 'locale_controller.dart';
 
 class AppStrings {
   AppStrings._();
@@ -1101,6 +1106,425 @@ class AppStrings {
       'de': 'Abschnitt {i} von {n}', 'it': 'segmento {i} di {n}',
     },
 
+    // ---------- Task 068-1: полная локализация остатка UI ----------
+    'nav_recordings': {
+      'ru': 'Записи', 'en': 'Recordings', 'de': 'Aufnahmen',
+      'fr': 'Enregistrements', 'es': 'Grabaciones', 'it': 'Registrazioni',
+    },
+    'nav_texts': {
+      'ru': 'Тексты', 'en': 'Texts', 'de': 'Texte',
+      'fr': 'Textes', 'es': 'Textos', 'it': 'Testi',
+    },
+    'nav_summaries': {
+      'ru': 'Итоги', 'en': 'Summaries', 'de': 'Zusammenfassungen',
+      'fr': 'Résumés', 'es': 'Resúmenes', 'it': 'Riepiloghi',
+    },
+    'nav_more': {
+      'ru': 'Ещё', 'en': 'More', 'de': 'Mehr',
+      'fr': 'Plus', 'es': 'Más', 'it': 'Altro',
+    },
+    'more_subtitle': {
+      'ru': 'Настройки, подписка, справка и служебное', 'en': 'Settings, subscription, help and tools', 'de': 'Einstellungen, Abo, Hilfe und Extras',
+      'fr': 'Réglages, abonnement, aide et outils', 'es': 'Ajustes, suscripción, ayuda y herramientas', 'it': 'Impostazioni, abbonamento, aiuto e strumenti',
+    },
+    'more_settings_sub': {
+      'ru': 'оформление · запись · распознавание · фон · данные', 'en': 'appearance · recording · recognition · background · data', 'de': 'Design · Aufnahme · Erkennung · Hintergrund · Daten',
+      'fr': 'apparence · enregistrement · reconnaissance · arrière-plan · données', 'es': 'apariencia · grabación · reconocimiento · fondo · datos', 'it': 'aspetto · registrazione · riconoscimento · sfondo · dati',
+    },
+    'more_subscription_sub': {
+      'ru': 'тарифы, пакеты часов, промокод, восстановление', 'en': 'plans, hour packs, promo code, restore', 'de': 'Tarife, Stundenpakete, Promocode, Wiederherstellung',
+      'fr': 'formules, packs d\'heures, code promo, restauration', 'es': 'planes, paquetes de horas, código promo, restauración', 'it': 'piani, pacchetti ore, codice promo, ripristino',
+    },
+    'more_privacy_note': {
+      'ru': 'Всё хранится на устройстве: записи, тексты и ключи не покидают телефон.', 'en': 'Everything stays on the device: recordings, texts and keys never leave your phone.', 'de': 'Alles bleibt auf dem Gerät: Aufnahmen, Texte und Schlüssel verlassen das Handy nie.',
+      'fr': 'Tout reste sur l\'appareil : enregistrements, textes et clés ne quittent jamais votre téléphone.', 'es': 'Todo se queda en el dispositivo: las grabaciones, los textos y las claves no salen del teléfono.', 'it': 'Tutto resta sul dispositivo: registrazioni, testi e chiavi non lasciano mai il telefono.',
+    },
+    'help_title': {
+      'ru': 'Как пользоваться', 'en': 'How to use', 'de': 'So funktioniert es',
+      'fr': 'Mode d\'emploi', 'es': 'Cómo usar', 'it': 'Come si usa',
+    },
+    'help_row_sub': {
+      'ru': 'короткие подсказки по записи и расшифровке', 'en': 'short tips on recording and transcription', 'de': 'kurze Tipps zu Aufnahme und Transkription',
+      'fr': 'astuces courtes : enregistrement et transcription', 'es': 'consejos breves sobre grabación y transcripción', 'it': 'brevi consigli su registrazione e trascrizione',
+    },
+    'help_record_sub': {
+      'ru': 'Нажмите круглую кнопку. Можно свернуть приложение — запись продолжится в фоне. Таймер сна остановит её сам.', 'en': 'Tap the round button. You can minimize the app — recording continues in the background. The sleep timer will stop it for you.', 'de': 'Tippen Sie auf die runde Taste. Die App darf minimiert werden — die Aufnahme läuft im Hintergrund weiter. Der Schlaf-Timer stoppt sie automatisch.',
+      'fr': 'Appuyez sur le bouton rond. Vous pouvez réduire l\'application — l\'enregistrement continue en arrière-plan. Le minuteur de veille l\'arrêtera tout seul.', 'es': 'Pulsa el botón redondo. Puedes minimizar la aplicación — la grabación continúa en segundo plano. El temporizador de apagado la detiene solo.', 'it': 'Tocca il pulsante rotondo. Puoi ridurre l\'app — la registrazione continua in background. Il timer di spegnimento la ferma da solo.',
+    },
+    'help_import_title': {
+      'ru': 'Импорт готовых файлов', 'en': 'Import files', 'de': 'Dateien importieren',
+      'fr': 'Importer des fichiers', 'es': 'Importar archivos', 'it': 'Importa file',
+    },
+    'help_import_sub': {
+      'ru': 'Кнопка «Импорт» — выберите mp3, m4a, wav и другие. Приложение расшифрует их на устройстве.', 'en': 'Use the "Import" button — pick mp3, m4a, wav and others. The app transcribes them on the device.', 'de': 'Taste „Importieren“ — wählen Sie mp3, m4a, wav und weitere. Die App transkribiert sie auf dem Gerät.',
+      'fr': 'Bouton « Importer » — choisissez mp3, m4a, wav et autres. L\'application les transcrira sur l\'appareil.', 'es': 'Botón «Importar» — elige mp3, m4a, wav y otros. La app los transcribe en el dispositivo.', 'it': 'Pulsante «Importa» — scegli mp3, m4a, wav e altri. L\'app li trascrive sul dispositivo.',
+    },
+    'help_transcribe_title': {
+      'ru': 'Расшифровка', 'en': 'Transcription', 'de': 'Transkription',
+      'fr': 'Transcription', 'es': 'Transcripción', 'it': 'Trascrizione',
+    },
+    'help_transcribe_sub': {
+      'ru': 'Считается прямо в телефоне, интернет не нужен. Длинную запись можно продолжить с места обрыва.', 'en': 'Runs right on your phone, no internet needed. A long recording can be resumed from where it stopped.', 'de': 'Läuft direkt auf dem Handy, kein Internet nötig. Eine lange Aufnahme kann ab der Unterbrechung fortgesetzt werden.',
+      'fr': 'Calculé directement sur le téléphone, sans internet. Un long enregistrement peut reprendre là où il s\'est arrêté.', 'es': 'Se procesa directamente en el teléfono, sin internet. Una grabación larga puede continuarse desde donde se interrumpió.', 'it': 'Elaborata direttamente sul telefono, senza internet. Una registrazione lunga può riprendere dal punto di interruzione.',
+    },
+    'help_text_title': {
+      'ru': 'Текст и диалог', 'en': 'Text & dialogue', 'de': 'Text & Dialog',
+      'fr': 'Texte et dialogue', 'es': 'Texto y diálogo', 'it': 'Testo e dialogo',
+    },
+    'help_text_sub': {
+      'ru': 'Текст можно править, разделять по говорящим, искать по словам и копировать.', 'en': 'You can edit the text, split it by speakers, search by words and copy.', 'de': 'Der Text lässt sich bearbeiten, nach Sprechern trennen, durchsuchen und kopieren.',
+      'fr': 'Le texte peut être modifié, divisé par locuteurs, recherché par mots et copié.', 'es': 'El texto se puede editar, dividir por hablantes, buscar por palabras y copiar.', 'it': 'Il testo si può modificare, dividere per parlanti, cercare per parole e copiare.',
+    },
+    'help_summary_sub': {
+      'ru': 'Локально — быстро и без сети. Онлайн — точнее, расходует ИИ-часы и повторно показывается бесплатно из кэша.', 'en': 'On-device — fast and offline. Online — more accurate, spends AI hours, and replays are free from cache.', 'de': 'Lokal — schnell und offline. Online — genauer, verbraucht KI-Stunden, erneute Anzeige gratis aus dem Cache.',
+      'fr': 'En local — rapide et hors ligne. En ligne — plus précis, consomme des heures IA, réaffichage gratuit depuis le cache.', 'es': 'Local — rápido y sin conexión. Online — más preciso, consume horas de IA y se muestra de nuevo gratis desde la caché.', 'it': 'In locale — veloce e offline. Online — più preciso, consuma ore AI e la riproduzione è gratis dalla cache.',
+    },
+    'help_export_title': {
+      'ru': 'Экспорт и отправка', 'en': 'Export & share', 'de': 'Export & Senden',
+      'fr': 'Export et envoi', 'es': 'Exportar y enviar', 'it': 'Esporta e invia',
+    },
+    'help_export_sub': {
+      'ru': 'TXT с таймкодами, HTML, PDF — или сразу отправить в мессенджер.', 'en': 'TXT with timecodes, HTML, PDF — or send straight to a messenger.', 'de': 'TXT mit Zeitcodes, HTML, PDF — oder direkt an einen Messenger senden.',
+      'fr': 'TXT avec timecodes, HTML, PDF — ou envoi direct vers une messagerie.', 'es': 'TXT con marcas de tiempo, HTML, PDF — o enviar directamente a un mensajero.', 'it': 'TXT con timecode, HTML, PDF — o invia subito a un messenger.',
+    },
+    'about_title': {
+      'ru': 'О приложении', 'en': 'About', 'de': 'Über die App',
+      'fr': 'À propos', 'es': 'Acerca de', 'it': 'Informazioni',
+    },
+    'about_row_sub': {
+      'ru': 'что считается на устройстве, лицензии, политика', 'en': 'what runs on-device, licenses, policy', 'de': 'was auf dem Gerät läuft, Lizenzen, Richtlinien',
+      'fr': 'ce qui tourne en local, licences, politique', 'es': 'qué se procesa en el dispositivo, licencias, políticas', 'it': 'cosa gira in locale, licenze, policy',
+    },
+    'about_p1': {
+      'ru': 'ДиктаПро превращает речь в текст на самом телефоне. Запись, расшифровка, поиск и итоги считаются на устройстве; модель распознавания хранится внутри приложения.', 'en': 'DictaPro turns speech into text right on your phone. Recording, transcription, search and summaries run on the device; the speech model is stored inside the app.', 'de': 'DictaPro verwandelt Sprache direkt auf dem Handy in Text. Aufnahme, Transkription, Suche und Zusammenfassungen laufen auf dem Gerät; das Spracherkennungsmodell steckt in der App.',
+      'fr': 'DictaPro transforme la parole en texte directement sur votre téléphone. Enregistrement, transcription, recherche et résumés sont calculés sur l\'appareil ; le modèle de reconnaissance est intégré à l\'application.', 'es': 'DictaPro convierte la voz en texto directamente en tu teléfono. La grabación, la transcripción, la búsqueda y los resúmenes se procesan en el dispositivo; el modelo de reconocimiento va dentro de la aplicación.', 'it': 'DictaPro trasforma la voce in testo direttamente sul telefono. Registrazione, trascrizione, ricerca e riepiloghi sono elaborati sul dispositivo; il modello di riconoscimento è integrato nell\'app.',
+    },
+    'about_p2': {
+      'ru': 'Онлайн-расшифровка и онлайн-итоги выключены по умолчанию и включаются только вашим решением: тогда текст записи уходит на выбранный вами сервис по защищённому соединению.', 'en': 'Online transcription and online summaries are off by default and only enabled by your choice: then the recording text goes to the service you pick over a secure connection.', 'de': 'Online-Transkription und Online-Zusammenfassungen sind standardmäßig aus und werden nur auf Ihre Entscheidung aktiviert: dann geht der Aufnahmetext über eine gesicherte Verbindung an den von Ihnen gewählten Dienst.',
+      'fr': 'La transcription et les résumés en ligne sont désactivés par défaut et ne s\'activent que sur votre décision : le texte de l\'enregistrement part alors vers le service de votre choix via une connexion sécurisée.', 'es': 'La transcripción y los resúmenes online están desactivados por defecto y solo se activan por tu decisión: entonces el texto de la grabación se envía al servicio que elijas por conexión segura.', 'it': 'Trascrizione e riepiloghi online sono disattivati per impostazione predefinita e si attivano solo su tua decisione: il testo della registrazione va al servizio che scegli su connessione sicura.',
+    },
+    'about_licenses_title': {
+      'ru': 'Лицензии', 'en': 'Licenses', 'de': 'Lizenzen',
+      'fr': 'Licences', 'es': 'Licencias', 'it': 'Licenze',
+    },
+    'about_licenses_body': {
+      'ru': 'Шрифты Onest и JetBrains Mono — SIL Open Font License 1.1.\nМодель распознавания GigaAM — по лицензии правообладателя (см. карточку модели).', 'en': 'Fonts Onest and JetBrains Mono — SIL Open Font License 1.1.\nSpeech model GigaAM — under the rights holder\'s license (see the model card).', 'de': 'Schriften Onest und JetBrains Mono — SIL Open Font License 1.1.\nSprachmodell GigaAM — unter der Lizenz des Rechteinhabers (siehe Modellkarte).',
+      'fr': 'Polices Onest et JetBrains Mono — SIL Open Font License 1.1.\nModèle de reconnaissance GigaAM — sous licence du titulaire des droits (voir la fiche du modèle).', 'es': 'Fuentes Onest y JetBrains Mono — SIL Open Font License 1.1.\nModelo de reconocimiento GigaAM — bajo la licencia del titular (ver la ficha del modelo).', 'it': 'Font Onest e JetBrains Mono — SIL Open Font License 1.1.\nModello di riconoscimento GigaAM — con licenza del titolare (vedi la scheda del modello).',
+    },
+    'about_privacy_title': {
+      'ru': 'Приватность', 'en': 'Privacy', 'de': 'Datenschutz',
+      'fr': 'Confidentialité', 'es': 'Privacidad', 'it': 'Privacy',
+    },
+    'about_privacy_body': {
+      'ru': 'Рекламы нет, рекламный идентификатор не используется, аккаунт не нужен. Удаление записей и всех данных — средствами приложения или системы.', 'en': 'No ads, no advertising ID, no account needed. Recordings and all data can be deleted via the app or the system.', 'de': 'Keine Werbung, keine Werbe-ID, kein Konto nötig. Aufnahmen und alle Daten lassen sich über die App oder das System löschen.',
+      'fr': 'Pas de publicité, pas d\'identifiant publicitaire, pas de compte. Les enregistrements et toutes les données se suppriment via l\'application ou le système.', 'es': 'Sin anuncios, sin identificador publicitario, sin cuenta. Las grabaciones y todos los datos se borran desde la aplicación o el sistema.', 'it': 'Niente pubblicità, nessun identificatore pubblicitario, nessun account. Registrazioni e dati si eliminano dall\'app o dal sistema.',
+    },
+    'share_folder_row_sub': {
+      'ru': 'тексты и временные файлы для проверки', 'en': 'texts and temp files for review', 'de': 'Texte und temporäre Dateien zur Prüfung',
+      'fr': 'textes et fichiers temporaires pour vérification', 'es': 'textos y archivos temporales para revisión', 'it': 'testi e file temporanei per la verifica',
+    },
+    'diag_dialog_body': {
+      'ru': 'Android/data/com.dictapro.app/files\n\nЗдесь лежат тексты и временные WAV — чтобы проверить, что расшифровка сохраняется. В обычной работе папка не нужна.', 'en': 'Android/data/com.dictapro.app/files\n\nTexts and temporary WAVs are stored here — to verify that transcription is saved. In normal use the folder is not needed.', 'de': 'Android/data/com.dictapro.app/files\n\nHier liegen Texte und temporäre WAVs — um zu prüfen, dass die Transkription gespeichert wird. Im normalen Betrieb ist der Ordner nicht nötig.',
+      'fr': 'Android/data/com.dictapro.app/files\n\nLes textes et les WAV temporaires se trouvent ici — pour vérifier que la transcription est bien enregistrée. En usage normal, ce dossier est inutile.', 'es': 'Android/data/com.dictapro.app/files\n\nAquí están los textos y los WAV temporales — para comprobar que la transcripción se guarda. En el uso normal la carpeta no hace falta.', 'it': 'Android/data/com.dictapro.app/files\n\nQui ci sono testi e WAV temporanei — per verificare che la trascrizione venga salvata. Nell\'uso normale la cartella non serve.',
+    },
+    'got_it': {
+      'ru': 'Понятно', 'en': 'Got it', 'de': 'Verstanden',
+      'fr': 'Compris', 'es': 'Entendido', 'it': 'Capito',
+    },
+    'splash_tagline': {
+      'ru': 'Голос → Текст', 'en': 'Voice → Text', 'de': 'Stimme → Text',
+      'fr': 'Voix → Texte', 'es': 'Voz → Texto', 'it': 'Voce → Testo',
+    },
+    'splash_footer': {
+      'ru': 'модель внутри · интернет не нужен', 'en': 'model inside · no internet needed', 'de': 'Modell integriert · kein Internet nötig',
+      'fr': 'modèle intégré · sans internet', 'es': 'modelo integrado · sin internet', 'it': 'modello integrato · senza internet',
+    },
+    'ui_lang_title': {
+      'ru': 'Язык приложения', 'en': 'App language', 'de': 'App-Sprache',
+      'fr': 'Langue de l\'application', 'es': 'Idioma de la aplicación', 'it': 'Lingua dell\'app',
+    },
+    'ui_lang_system': {
+      'ru': 'Системный (как в телефоне)', 'en': 'System (like on the phone)', 'de': 'System (wie am Handy)',
+      'fr': 'Système (comme le téléphone)', 'es': 'Sistema (como el teléfono)', 'it': 'Sistema (come sul telefono)',
+    },
+    'asr_lang_title': {
+      'ru': 'Язык расшифровки', 'en': 'Transcription language', 'de': 'Transkriptionssprache',
+      'fr': 'Langue de transcription', 'es': 'Idioma de transcripción', 'it': 'Lingua di trascrizione',
+    },
+    'asr_lang_saved': {
+      'ru': 'Язык расшифровки сохранён', 'en': 'Transcription language saved', 'de': 'Transkriptionssprache gespeichert',
+      'fr': 'Langue de transcription enregistrée', 'es': 'Idioma de transcripción guardado', 'it': 'Lingua di trascrizione salvata',
+    },
+    'asr_gigaam_offline': {
+      'ru': 'офлайн-модель GigaAM', 'en': 'GigaAM offline model', 'de': 'GigaAM-Offline-Modell',
+      'fr': 'modèle GigaAM hors ligne', 'es': 'modelo GigaAM sin conexión', 'it': 'modello GigaAM offline',
+    },
+    'asr_whisper_offline': {
+      'ru': 'Whisper, офлайн', 'en': 'Whisper, offline', 'de': 'Whisper, offline',
+      'fr': 'Whisper, hors ligne', 'es': 'Whisper, sin conexión', 'it': 'Whisper, offline',
+    },
+    'unit_hz': {
+      'ru': 'Гц', 'en': 'Hz', 'de': 'Hz',
+      'fr': 'Hz', 'es': 'Hz', 'it': 'Hz',
+    },
+    'filter_all': {
+      'ru': 'Все', 'en': 'All', 'de': 'Alle',
+      'fr': 'Tous', 'es': 'Todos', 'it': 'Tutti',
+    },
+    'filter_today': {
+      'ru': 'Сегодня', 'en': 'Today', 'de': 'Heute',
+      'fr': 'Aujourd\'hui', 'es': 'Hoy', 'it': 'Oggi',
+    },
+    'filter_queued': {
+      'ru': 'В очереди', 'en': 'In queue', 'de': 'In Warteschlange',
+      'fr': 'En attente', 'es': 'En cola', 'it': 'In coda',
+    },
+    'texts_subtitle': {
+      'ru': 'расшифровки записей', 'en': 'recording transcripts', 'de': 'Aufnahme-Transkripte',
+      'fr': 'transcriptions des enregistrements', 'es': 'transcripciones de grabaciones', 'it': 'trascrizioni delle registrazioni',
+    },
+    'summaries_subtitle': {
+      'ru': 'конспекты', 'en': 'digests', 'de': 'Konspekte',
+      'fr': 'synthèses', 'es': 'resúmenes', 'it': 'sintesi',
+    },
+    'empty_no_transcripts_title': {
+      'ru': 'Пока нет расшифрованных записей', 'en': 'No transcribed recordings yet', 'de': 'Noch keine transkribierten Aufnahmen',
+      'fr': 'Aucun enregistrement transcrit', 'es': 'Aún no hay grabaciones transcritas', 'it': 'Ancora nessuna registrazione trascritta',
+    },
+    'empty_no_transcripts_body': {
+      'ru': 'Расшифруйте любую запись — и она появится здесь.', 'en': 'Transcribe any recording — and it will appear here.', 'de': 'Transkribieren Sie eine Aufnahme — und sie erscheint hier.',
+      'fr': 'Transcrivez un enregistrement — il apparaîtra ici.', 'es': 'Transcribe cualquier grabación — y aparecerá aquí.', 'it': 'Trascrivi una registrazione — e apparirà qui.',
+    },
+    'empty_no_summaries_title': {
+      'ru': 'Пока нет конспектов', 'en': 'No digests yet', 'de': 'Noch keine Konspekte',
+      'fr': 'Aucune synthèse pour l\'instant', 'es': 'Aún no hay resúmenes', 'it': 'Ancora nessuna sintesi',
+    },
+    'empty_no_summaries_body': {
+      'ru': 'Соберите «Итоги» на карточке записи — и они появятся здесь.', 'en': 'Generate "Summaries" on a recording card — and they will appear here.', 'de': 'Erstellen Sie „Zusammenfassungen“ auf der Aufnahmekarte — und sie erscheinen hier.',
+      'fr': 'Générez les « Résumés » sur la fiche d\'un enregistrement — ils apparaîtront ici.', 'es': 'Genera «Resúmenes» en la tarjeta de una grabación — y aparecerán aquí.', 'it': 'Genera i «Riepiloghi» dalla scheda di una registrazione — e appariranno qui.',
+    },
+    'asr_dialog_title': {
+      'ru': 'На каком языке расшифровать?', 'en': 'Which language should be transcribed?', 'de': 'In welcher Sprache transkribieren?',
+      'fr': 'Dans quelle langue transcrire ?', 'es': '¿En qué idioma transcribir?', 'it': 'In quale lingua trascrivere?',
+    },
+    'asr_dont_ask': {
+      'ru': 'Больше не спрашивать', 'en': 'Don\'t ask again', 'de': 'Nicht mehr fragen',
+      'fr': 'Ne plus demander', 'es': 'No volver a preguntar', 'it': 'Non chiedere più',
+    },
+    'model_prep_progress': {
+      'ru': '{c} из {t} МБ · {p}%', 'en': '{c} of {t} MB · {p}%', 'de': '{c} von {t} MB · {p}%',
+      'fr': '{c} sur {t} Mo · {p}%', 'es': '{c} de {t} MB · {p}%', 'it': '{c} di {t} MB · {p}%',
+    },
+    'rec_empty_file_msg': {
+      'ru': 'Файл записи пустой (0 байт) — расшифровывать нечего. Похоже, запись оборвалась в самом начале.', 'en': 'The recording file is empty (0 bytes) — nothing to transcribe. It looks like the recording stopped right at the start.', 'de': 'Die Aufnahmedatei ist leer (0 Bytes) — nichts zu transkribieren. Die Aufnahme wurde wohl ganz am Anfang abgebrochen.',
+      'fr': 'Le fichier d\'enregistrement est vide (0 octet) — rien à transcrire. L\'enregistrement s\'est probablement coupé au tout début.', 'es': 'El archivo de grabación está vacío (0 bytes) — no hay nada que transcribir. La grabación se cortó justo al principio.', 'it': 'Il file di registrazione è vuoto (0 byte) — niente da trascrivere. La registrazione si è interrotta subito all\'inizio.',
+    },
+    'rec_decode_failed_msg': {
+      'ru': 'Не удалось прочитать звук: файл пуст или повреждён. Запишите заново или импортируйте другой файл.', 'en': 'Could not read the audio: the file is empty or damaged. Record again or import another file.', 'de': 'Audio konnte nicht gelesen werden: Datei leer oder beschädigt. Nehmen Sie neu auf oder importieren Sie eine andere Datei.',
+      'fr': 'Impossible de lire l\'audio : fichier vide ou endommagé. Réenregistrez ou importez un autre fichier.', 'es': 'No se pudo leer el audio: el archivo está vacío o dañado. Vuelve a grabar o importa otro archivo.', 'it': 'Impossibile leggere l\'audio: file vuoto o danneggiato. Registra di nuovo o importa un altro file.',
+    },
+    'rec_no_speech_msg': {
+      'ru': 'В записи не найдена речь: возможно, начало пустое или звук слишком тихий. Проверьте запись и попробуйте снова.', 'en': 'No speech found in the recording: perhaps the start is empty or the sound is too quiet. Check the recording and try again.', 'de': 'In der Aufnahme wurde keine Sprache gefunden: Vielleicht ist der Anfang leer oder der Ton zu leise. Prüfen Sie die Aufnahme und versuchen Sie es erneut.',
+      'fr': 'Aucune parole détectée dans l\'enregistrement : le début est peut-être vide ou le son trop faible. Vérifiez l\'enregistrement et réessayez.', 'es': 'No se encontró voz en la grabación: puede que el inicio esté vacío o el sonido sea demasiado bajo. Revisa la grabación e inténtalo de nuevo.', 'it': 'Nessuna voce trovata nella registrazione: forse l\'inizio è vuoto o l\'audio è troppo basso. Controlla la registrazione e riprova.',
+    },
+    'audio_lost_banner': {
+      'ru': 'Аудио этой записи не найдено — файл был потерян старой версией приложения (исправлено с 29.09). Новые записи сохраняются.', 'en': 'The audio for this recording was not found — the file was lost by an old app version (fixed since 29.09). New recordings are kept.', 'de': 'Das Audio dieser Aufnahme fehlt — die Datei ging in einer alten App-Version verloren (behoben seit 29.09). Neue Aufnahmen bleiben erhalten.',
+      'fr': 'L\'audio de cet enregistrement est introuvable — le fichier a été perdu par une ancienne version de l\'application (corrigé depuis le 29.09). Les nouveaux enregistrements sont conservés.', 'es': 'No se encontró el audio de esta grabación — el archivo se perdió con una versión antigua de la aplicación (corregido desde el 29.09). Las grabaciones nuevas se conservan.', 'it': 'L\'audio di questa registrazione non è stato trovato — il file è andato perso con una vecchia versione dell\'app (corretto dal 29.09). Le nuove registrazioni vengono conservate.',
+    },
+    'import_tooltip': {
+      'ru': 'Импорт', 'en': 'Import', 'de': 'Importieren',
+      'fr': 'Importer', 'es': 'Importar', 'it': 'Importa',
+    },
+    'favorites_tooltip': {
+      'ru': 'Избранное', 'en': 'Favorites', 'de': 'Favoriten',
+      'fr': 'Favoris', 'es': 'Favoritos', 'it': 'Preferiti',
+    },
+    'audio_lost_snack': {
+      'ru': 'Аудио этой записи не найдено — файл потерян старой версией (исправлено 29.09)', 'en': 'The audio for this recording was not found — the file was lost by an old version (fixed 29.09)', 'de': 'Das Audio dieser Aufnahme fehlt — die Datei ging in einer alten Version verloren (behoben am 29.09)',
+      'fr': 'L\'audio de cet enregistrement est introuvable — fichier perdu par une ancienne version (corrigé le 29.09)', 'es': 'No se encontró el audio de esta grabación — el archivo se perdió con una versión antigua (corregido el 29.09)', 'it': 'L\'audio di questa registrazione non è stato trovato — file perso da una vecchia versione (corretto il 29.09)',
+    },
+    'player_speed': {
+      'ru': 'Скорость', 'en': 'Speed', 'de': 'Geschwindigkeit',
+      'fr': 'Vitesse', 'es': 'Velocidad', 'it': 'Velocità',
+    },
+    'sub_year_badge': {
+      'ru': 'выгоднее до 25%', 'en': 'up to 25% off', 'de': 'bis zu 25 % günstiger',
+      'fr': 'jusqu\'à 25 % d\'économie', 'es': 'hasta un 25 % de descuento', 'it': 'fino al 25% in meno',
+    },
+    'sub_hours_per_month': {
+      'ru': 'ИИ-часы: {h} ч в месяц', 'en': 'AI hours: {h} h per month', 'de': 'KI-Stunden: {h} h pro Monat',
+      'fr': 'Heures IA : {h} h par mois', 'es': 'Horas de IA: {h} h al mes', 'it': 'Ore AI: {h} h al mese',
+    },
+    'sub_best_price_year': {
+      'ru': 'ЛУЧШАЯ ЦЕНА ЗА ГОД', 'en': 'BEST PRICE PER YEAR', 'de': 'BESTPREIS PRO JAHR',
+      'fr': 'MEILLEUR PRIX DE L\'ANNÉE', 'es': 'MEJOR PRECIO DEL AÑO', 'it': 'MIGLIOR PREZZO DELL\'ANNO',
+    },
+    'sub_hours_short': {
+      'ru': '{n} ч', 'en': '{n} h', 'de': '{n} h',
+      'fr': '{n} h', 'es': '{n} h', 'it': '{n} h',
+    },
+    'summary_prep_text': {
+      'ru': 'Готовим текст…', 'en': 'Preparing text…', 'de': 'Text wird vorbereitet…',
+      'fr': 'Préparation du texte…', 'es': 'Preparando el texto…', 'it': 'Preparazione del testo…',
+    },
+    'export_btn': {
+      'ru': 'Экспорт', 'en': 'Export', 'de': 'Export',
+      'fr': 'Export', 'es': 'Exportar', 'it': 'Esporta',
+    },
+    'export_title': {
+      'ru': 'ДиктаПро — Транскрипция', 'en': 'DictaPro — Transcript', 'de': 'DictaPro — Transkription',
+      'fr': 'DictaPro — Transcription', 'es': 'DictaPro — Transcripción', 'it': 'DictaPro — Trascrizione',
+    },
+    'export_label_date': {
+      'ru': 'Дата: {v}', 'en': 'Date: {v}', 'de': 'Datum: {v}',
+      'fr': 'Date : {v}', 'es': 'Fecha: {v}', 'it': 'Data: {v}',
+    },
+    'export_label_duration': {
+      'ru': 'Длительность: {v}', 'en': 'Duration: {v}', 'de': 'Dauer: {v}',
+      'fr': 'Durée : {v}', 'es': 'Duración: {v}', 'it': 'Durata: {v}',
+    },
+    'export_label_duration_sec': {
+      'ru': 'Длительность: {v} сек', 'en': 'Duration: {v} sec', 'de': 'Dauer: {v} Sek.',
+      'fr': 'Durée : {v} s', 'es': 'Duración: {v} s', 'it': 'Durata: {v} s',
+    },
+    'export_full_text_sep': {
+      'ru': '--- Полный текст ---', 'en': '--- Full text ---', 'de': '--- Volltext ---',
+      'fr': '--- Texte complet ---', 'es': '--- Texto completo ---', 'it': '--- Testo completo ---',
+    },
+    'export_html_header': {
+      'ru': 'ДиктаПро | {d} | {s} сек', 'en': 'DictaPro | {d} | {s} sec', 'de': 'DictaPro | {d} | {s} Sek.',
+      'fr': 'DictaPro | {d} | {s} s', 'es': 'DictaPro | {d} | {s} s', 'it': 'DictaPro | {d} | {s} s',
+    },
+    'export_speaker_label': {
+      'ru': 'Говорящий {s}', 'en': 'Speaker {s}', 'de': 'Sprecher {s}',
+      'fr': 'Locuteur {s}', 'es': 'Hablante {s}', 'it': 'Parlante {s}',
+    },
+    'no_text': {
+      'ru': 'Нет текста', 'en': 'No text', 'de': 'Kein Text',
+      'fr': 'Pas de texte', 'es': 'Sin texto', 'it': 'Nessun testo',
+    },
+    'share_subject_transcript': {
+      'ru': 'Транскрипция записи', 'en': 'Recording transcript', 'de': 'Aufnahme-Transkript',
+      'fr': 'Transcription de l\'enregistrement', 'es': 'Transcripción de la grabación', 'it': 'Trascrizione della registrazione',
+    },
+    'share_audio_caption': {
+      'ru': 'Аудиозапись из ДиктаПро', 'en': 'Audio recording from DictaPro', 'de': 'Audioaufnahme aus DictaPro',
+      'fr': 'Enregistrement audio de DictaPro', 'es': 'Grabación de audio de DictaPro', 'it': 'Registrazione audio da DictaPro',
+    },
+    'default_title_recording': {
+      'ru': 'Запись {d}, {t}', 'en': 'Recording {d}, {t}', 'de': 'Aufnahme {d}, {t}',
+      'fr': 'Enregistrement {d}, {t}', 'es': 'Grabación {d}, {t}', 'it': 'Registrazione {d}, {t}',
+    },
+    'notif_recording_title': {
+      'ru': 'DictaPro — идёт запись', 'en': 'DictaPro — recording', 'de': 'DictaPro — Aufnahme läuft',
+      'fr': 'DictaPro — enregistrement en cours', 'es': 'DictaPro — grabando', 'it': 'DictaPro — registrazione in corso',
+    },
+    'notif_recording_text': {
+      'ru': 'Запись продолжается при выключенном экране', 'en': 'Recording continues with the screen off', 'de': 'Die Aufnahme läuft auch bei ausgeschaltetem Bildschirm weiter',
+      'fr': 'L\'enregistrement continue écran éteint', 'es': 'La grabación continúa con la pantalla apagada', 'it': 'La registrazione continua a schermo spento',
+    },
+    'notif_channel_transcription': {
+      'ru': 'Расшифровка', 'en': 'Transcription', 'de': 'Transkription',
+      'fr': 'Transcription', 'es': 'Transcripción', 'it': 'Trascrizione',
+    },
+    'notif_transcription_done': {
+      'ru': 'Расшифровка готова', 'en': 'Transcription ready', 'de': 'Transkription fertig',
+      'fr': 'Transcription terminée', 'es': 'Transcripción lista', 'it': 'Trascrizione pronta',
+    },
+    'notif_transcription_saved': {
+      'ru': 'Текст сохранён в записи', 'en': 'Text saved to the recording', 'de': 'Text in der Aufnahme gespeichert',
+      'fr': 'Texte enregistré dans l\'enregistrement', 'es': 'Texto guardado en la grabación', 'it': 'Testo salvato nella registrazione',
+    },
+    'keepalive_title': {
+      'ru': 'DictaPro — идёт расшифровка', 'en': 'DictaPro — transcribing', 'de': 'DictaPro — Transkription läuft',
+      'fr': 'DictaPro — transcription en cours', 'es': 'DictaPro — transcribiendo', 'it': 'DictaPro — trascrizione in corso',
+    },
+    'notif_channel_recording': {
+      'ru': 'Запись DictaPro', 'en': 'DictaPro recording', 'de': 'DictaPro-Aufnahme',
+      'fr': 'Enregistrement DictaPro', 'es': 'Grabación DictaPro', 'it': 'Registrazione DictaPro',
+    },
+    'untitled': {
+      'ru': 'Без названия', 'en': 'Untitled', 'de': 'Ohne Titel',
+      'fr': 'Sans titre', 'es': 'Sin título', 'it': 'Senza titolo',
+    },
+    'elapsed_seconds': {
+      'ru': 'прошло {n} с', 'en': 'elapsed {n} s', 'de': '{n} s vergangen',
+      'fr': 'écoulé : {n} s', 'es': 'transcurrido {n} s', 'it': 'trascorso {n} s',
+    },
+    'sum_type': {
+      'ru': 'Тип: {v}', 'en': 'Type: {v}', 'de': 'Typ: {v}',
+      'fr': 'Type : {v}', 'es': 'Tipo: {v}', 'it': 'Tipo: {v}',
+    },
+    'sum_dates': {
+      'ru': 'Даты: {v}', 'en': 'Dates: {v}', 'de': 'Daten: {v}',
+      'fr': 'Dates : {v}', 'es': 'Fechas: {v}', 'it': 'Date: {v}',
+    },
+    'sum_amounts': {
+      'ru': 'Суммы: {v}', 'en': 'Amounts: {v}', 'de': 'Beträge: {v}',
+      'fr': 'Montants : {v}', 'es': 'Importes: {v}', 'it': 'Importi: {v}',
+    },
+    'sum_contacts': {
+      'ru': 'Контакты: {v}', 'en': 'Contacts: {v}', 'de': 'Kontakte: {v}',
+      'fr': 'Contacts : {v}', 'es': 'Contactos: {v}', 'it': 'Contatti: {v}',
+    },
+    'sum_key_points': {
+      'ru': 'Ключевые моменты:', 'en': 'Key points:', 'de': 'Kernpunkte:',
+      'fr': 'Points clés :', 'es': 'Puntos clave:', 'it': 'Punti chiave:',
+    },
+    'sum_actions': {
+      'ru': 'Действия:', 'en': 'Actions:', 'de': 'Aktionen:',
+      'fr': 'Actions :', 'es': 'Acciones:', 'it': 'Azioni:',
+    },
+    'stt_bad_wav': {
+      'ru': 'Не удалось прочитать WAV-заголовок', 'en': 'Could not read the WAV header', 'de': 'WAV-Header konnte nicht gelesen werden',
+      'fr': 'Impossible de lire l\'en-tête WAV', 'es': 'No se pudo leer el encabezado WAV', 'it': 'Impossibile leggere l\'intestazione WAV',
+    },
+    'ai_hours_left': {
+      'ru': 'ИИ-часы: осталось {h} ч', 'en': 'AI hours left: {h} h', 'de': 'KI-Stunden übrig: {h} h',
+      'fr': 'Heures IA restantes : {h} h', 'es': 'Horas de IA restantes: {h} h', 'it': 'Ore AI rimaste: {h} h',
+    },
+    'ai_hours_breakdown': {
+      'ru': ' (по подписке {a}, пакеты {p})', 'en': ' ({a} plan, {p} packs)', 'de': ' (Abo {a}, Pakete {p})',
+      'fr': ' ({a} abonnement, {p} packs)', 'es': ' ({a} plan, {p} packs)', 'it': ' ({a} abbonamento, {p} pack)',
+    },
+    'usage_used_of': {
+      'ru': '{u} из {n}', 'en': '{u} of {n}', 'de': '{u} von {n}',
+      'fr': '{u} sur {n}', 'es': '{u} de {n}', 'it': '{u} di {n}',
+    },
+    'sum_t_audiobook': {
+      'ru': 'Аудиокнига / Лекция', 'en': 'Audiobook / Lecture', 'de': 'Hörbuch / Vorlesung', 'fr': 'Livre audio / Cours', 'es': 'Audiolibro / Clase', 'it': 'Audiolibro / Lezione',
+    },
+    'sum_t_document': {
+      'ru': 'Доклад / Документ', 'en': 'Report / Document', 'de': 'Vortrag / Dokument', 'fr': 'Rapport / Document', 'es': 'Informe / Documento', 'it': 'Rapporto / Documento',
+    },
+    'sum_t_lecture': {
+      'ru': 'Лекция / Образование', 'en': 'Lecture / Education', 'de': 'Vorlesung / Bildung', 'fr': 'Cours / Éducation', 'es': 'Clase / Educación', 'it': 'Lezione / Istruzione',
+    },
+    'sum_t_business': {
+      'ru': 'Бизнес-встреча', 'en': 'Business meeting', 'de': 'Geschäftstreffen', 'fr': 'Réunion d\'affaires', 'es': 'Reunión de negocios', 'it': 'Riunione di lavoro',
+    },
+    'sum_t_interview': {
+      'ru': 'Интервью', 'en': 'Interview', 'de': 'Interview', 'fr': 'Entretien', 'es': 'Entrevista', 'it': 'Intervista',
+    },
+    'sum_t_notes': {
+      'ru': 'Заметки', 'en': 'Notes', 'de': 'Notizen', 'fr': 'Notes', 'es': 'Notas', 'it': 'Note',
+    },
+    'diag_file_header': {
+      'ru': '=== ДиктаПро: диагностика прогона ===', 'en': '=== DictaPro: run diagnostics ===', 'de': '=== DictaPro: Diagnose des Durchlaufs ===', 'fr': '=== DictaPro : diagnostic d\'exécution ===', 'es': '=== DictaPro: diagnóstico de la ejecución ===', 'it': '=== DictaPro: diagnostica esecuzione ===',
+    },
+    'diag_file_source': {
+      'ru': 'источник: {v}', 'en': 'source: {v}', 'de': 'Quelle: {v}', 'fr': 'source : {v}', 'es': 'origen: {v}', 'it': 'origine: {v}',
+    },
+    'diag_file_counts': {
+      'ru': 'символов: {c}; слов: {w}', 'en': 'characters: {c}; words: {w}', 'de': 'Zeichen: {c}; Wörter: {w}', 'fr': 'caractères : {c} ; mots : {w}', 'es': 'caracteres: {c}; palabras: {w}', 'it': 'caratteri: {c}; parole: {w}',
+    },
+    'diag_file_time': {
+      'ru': 'время: {v} с', 'en': 'time: {v} s', 'de': 'Zeit: {v} s', 'fr': 'durée : {v} s', 'es': 'tiempo: {v} s', 'it': 'tempo: {v} s',
+    },
+    'diag_file_text_sep': {
+      'ru': '=== ТЕКСТ ===', 'en': '=== TEXT ===', 'de': '=== TEXT ===', 'fr': '=== TEXTE ===', 'es': '=== TEXTO ===', 'it': '=== TESTO ===',
+    },
+
   };
 
   static String _langCode(BuildContext context) {
@@ -1146,6 +1570,36 @@ class AppStrings {
   static String t(String key, BuildContext context) => _t(key, context);
   static String tf(String key, BuildContext context, Map<String, String> params) =>
       _fmt(_t(key, context), params);
+
+  /// ---------- Task 068-1: доступ к строкам без BuildContext ----------
+  /// Язык берём из настроек UI ('ui_lang'), иначе — язык системы
+  /// (PlatformDispatcher), иначе русский.
+  static String _globalLangCode() {
+    String? code;
+    final pinned = LocaleController.instance.locale.value;
+    if (pinned != null) {
+      code = pinned.languageCode;
+    } else {
+      try {
+        final box = Hive.box<dynamic>('settings');
+        final v = box.get('ui_lang')?.toString();
+        if (v != null && v.isNotEmpty && v != 'system') code = v;
+      } catch (_) {}
+    }
+    code ??= PlatformDispatcher.instance.locale.languageCode;
+    return _dict.values.first.containsKey(code) ? code : 'ru';
+  }
+
+  /// Публичный доступ к текущему языку UI (для DateFormat и т.п.).
+  static String globalLangCode() => _globalLangCode();
+
+  /// Как [t], но для мест без BuildContext (уведомления, сервисы, экспорт).
+  static String tGlobal(String key) =>
+      _dict[key]?[_globalLangCode()] ?? _dict[key]?['ru'] ?? key;
+
+  /// Как [tf], но без BuildContext.
+  static String tfGlobal(String key, Map<String, String> params) =>
+      _fmt(tGlobal(key), params);
 
   static String limitReachedTitle(BuildContext context) =>
       _t('limit_reached_title', context);

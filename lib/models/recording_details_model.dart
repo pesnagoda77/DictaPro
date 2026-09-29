@@ -1,3 +1,5 @@
+import '../app_strings.dart';
+
 /// Wrapper model for recording details passed to SummaryPage.
 /// Bridges between the old Recording model and the new SummaryPage API.
 class RecordingDetailsModel {
@@ -28,7 +30,7 @@ class RecordingDetailsModel {
           ? Duration(milliseconds: recording['durationMs'] as int)
           : null,
       filePath: recording['filePath']?.toString(),
-      title: recording['title']?.toString() ?? 'Без названия',
+      title: recording['title']?.toString() ?? AppStrings.tGlobal('untitled'),
     );
   }
 }

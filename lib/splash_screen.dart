@@ -79,14 +79,14 @@ class _SplashScreenState extends State<SplashScreen>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'ДиктаПро',
+                      AppStrings.t('app_title', context),
                       style: Theme.of(context).textTheme.displaySmall?.copyWith(
                             letterSpacing: -0.5,
                           ),
                     ),
                     const SizedBox(height: 13),
                     Text(
-                      'Голос → Текст',
+                      AppStrings.t('splash_tagline', context),
                       style: TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.w600,
@@ -113,7 +113,7 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      'модель внутри · интернет не нужен',
+                      AppStrings.t('splash_footer', context),
                       style: TextStyle(fontSize: 11, color: tk.ink3),
                     ),
                   ],
