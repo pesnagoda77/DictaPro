@@ -59,6 +59,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   bool _sttEnabled = false;
   String _sttProviderTitle = 'Groq (whisper-large-v3-turbo)';
+  String _asrLang = 'ru';
   int _tempBytes = 0;
 
   // Задача 038: фактическое состояние исключения из экономии батареи.
@@ -157,6 +158,46 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  String get _asrLangTitle => switch (_asrLang) {
+        'en' => 'English',
+        'de' => 'Deutsch',
+        _ => 'Русский',
+      };
+
+  Future<void> _pickAsrLang() async {
+    final res = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Язык расшифровки'),
+        children: [
+          for (final e in const [
+            ('ru', 'Русский', 'офлайн-модель GigaAM'),
+            ('en', 'English', 'Whisper, офлайн'),
+            ('de', 'Deutsch', 'Whisper, офлайн'),
+          ])
+            RadioListTile<String>(
+              value: e.$1,
+              groupValue: _asrLang,
+              title: Text(e.$2),
+              subtitle: Text(e.$3),
+              onChanged: (v) => Navigator.pop(ctx, v),
+            ),
+        ],
+      ),
+    );
+    if (res == null) return;
+    try {
+      final sbox = await Hive.openBox<dynamic>('settings');
+      await sbox.put('asr_lang', res);
+    } catch (_) {}
+    if (mounted) {
+      setState(() => _asrLang = res);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Язык расшифровки сохранён')),
+      );
+    }
+  }
+
   Future<void> _loadSettings() async {
     final box = await Hive.openBox<dynamic>(RecorderSettings.boxName);
     final raw = box.get('recorder');
@@ -166,6 +207,11 @@ class _SettingsPageState extends State<SettingsPage> {
           : RecorderSettings();
       _loaded = true;
     });
+    try {
+      final sbox = await Hive.openBox<dynamic>('settings');
+      final lang = (sbox.get('asr_lang') ?? 'ru').toString();
+      if (mounted) setState(() => _asrLang = lang);
+    } catch (_) {}
     final sttEnabled = await SttSettings.isEnabled();
     final prov = SttProvider.byId(await SttSettings.providerId());
     if (mounted) {
@@ -286,6 +332,13 @@ class _SettingsPageState extends State<SettingsPage> {
                     context,
                     title: AppStrings.t('engine_on_device', context),
                     sub: AppStrings.t('engine_on_device_sub', context),
+                  ),
+                  _tile(
+                    context,
+                    title: 'Язык расшифровки',
+                    sub: _asrLangTitle,
+                    trailing: _chevron(context),
+                    onTap: _pickAsrLang,
                   ),
                   _tile(
                     context,

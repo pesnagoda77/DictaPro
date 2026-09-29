@@ -841,8 +841,14 @@ class _HomePageState extends State<HomePage>
       stage.value = skipChunks > 0
           ? AppStrings.tf('stage_resume_skip', context, {'n': '$skipChunks'})
           : AppStrings.t('stage_transcribing', context);
+      String asrLang = 'ru';
+      try {
+        final sbox = await Hive.openBox<dynamic>('settings');
+        asrLang = (sbox.get('asr_lang') ?? 'ru').toString();
+      } catch (_) {}
       text = await GigaamService.transcribeWithGlossary(
         wav16k,
+        language: asrLang,
         skipChunks: skipChunks,
         onProgress: (done, all) {
           progress.value = (done, all);
