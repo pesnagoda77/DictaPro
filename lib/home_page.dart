@@ -948,7 +948,7 @@ class _HomePageState extends State<HomePage>
     if (text == null || text.trim().isEmpty) {
       throw StateError('GigaAM не справился с записью');
     }
-    return _gigaamResult(text);
+    return _gigaamResult(text, GigaamService.lastPartTimes);
   }
 
   /// Модальный прогресс копирования модели из сборки во внутреннее
@@ -1017,19 +1017,35 @@ class _HomePageState extends State<HomePage>
 
   /// GigaAM выдаёт один текст — режем на сегменты по предложениям,
   /// чтобы редактор и статистика спикеров работали унифицированно.
-  TranscriptionResult _gigaamResult(String text) {
+  TranscriptionResult _gigaamResult(String text,
+      [List<List<double>> times = const []]) {
     final sentences = text
         .split(RegExp(r'(?<=[.!?])\s+'))
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toList();
+    // Настоящие таймкоды: раскладываем предложения по реальному интервалу речи
+    // (от первого расшифрованного куска до последнего), пропорционально длине.
+    // Это лечит «тап по фразе попадает в пустое начало записи».
+    var t0 = 0.0;
+    var t1 = 0.0;
+    if (times.isNotEmpty) {
+      t0 = times.first[0];
+      t1 = times.last[1];
+    }
+    final totalChars =
+        sentences.fold<int>(0, (a, s) => a + (s.isEmpty ? 1 : s.length));
     final segs = <DialogueSegment>[];
+    var acc = 0;
     for (final s in sentences) {
+      final a = totalChars > 0 ? t0 + (t1 - t0) * acc / totalChars : 0.0;
+      acc += s.isEmpty ? 1 : s.length;
+      final b = totalChars > 0 ? t0 + (t1 - t0) * acc / totalChars : 0.0;
       segs.add(DialogueSegment(
         speaker: 'Speaker 1',
         text: s,
-        startTime: 0,
-        endTime: 0,
+        startTime: a,
+        endTime: b,
       ));
     }
     if (segs.isEmpty) {

@@ -327,6 +327,18 @@ class GigaamService {
             debugPrint('[gigaam] ${message[1]}');
             onLog?.call('${message[1]}');
           case 'done':
+            try {
+              final raw = message.length > 2 ? message[2] : null;
+              lastPartTimes = (raw is List)
+                  ? raw
+                      .map((e) => (e as List)
+                          .map((v) => (v as num).toDouble())
+                          .toList())
+                      .toList()
+                  : <List<double>>[];
+            } catch (_) {
+              lastPartTimes = <List<double>>[];
+            }
             completer.complete(message[1] as String?);
             receivePort.close();
             isolate.kill();
@@ -350,6 +362,10 @@ class GigaamService {
   /// Оставляем только глоссарий «Термины записи» (HotwordsStorage):
   /// пользовательские термины (в т.ч. латиница/аббревиатуры), которые модель
   /// не может выдать сама. Без списка текст не меняется.
+  /// Настоящие времена расшифрованных кусков последнего прогона:
+  /// [[start, end], ...] в секундах, в том же порядке, что и слова в тексте.
+  static List<List<double>> lastPartTimes = <List<double>>[];
+
   /// Спидтюнинг: число потоков задаётся файлом threads.txt (1..8)
   /// в папке приложения — без пересборки. Иначе дефолт 4.
   static Future<int> readThreadsOverride() async {
@@ -514,7 +530,9 @@ void _gigaamIsolateEntry(_GigaamJob job) {
       return bestIdx;
     }
 
-    void decodeOne(Float32List raw) {
+    final chunkTimes = <List<double>>[];
+
+    void decodeOne(Float32List raw, int gStart, int gEnd) {
       // Пустые/микроскопические куски в декодер не отдаём (роняют нативный ORT).
       if (raw.length < 1600) return; // < 0.1 с
       idx++; // абсолютный номер куска (с учётом пропущенных) — для прогресса
@@ -532,7 +550,10 @@ void _gigaamIsolateEntry(_GigaamJob job) {
         );
         recognizer.decode(stream);
         final text = recognizer.getResult(stream).text.trim();
-        if (text.isNotEmpty) parts.add(text);
+        if (text.isNotEmpty) {
+          parts.add(text);
+          chunkTimes.add([gStart / 16000.0, gEnd / 16000.0]);
+        }
         if (idx % 5 == 0) {
           // Задача 036: каждые 5 кусков отдаём накопленный текст наружу,
           // чтобы он сохранился на диск в обход изолята.
@@ -543,16 +564,17 @@ void _gigaamIsolateEntry(_GigaamJob job) {
       }
     }
 
-    void decodeSegment(Float32List raw) {
+    void decodeSegment(Float32List raw, int gStart) {
       if (raw.length <= maxSegSamples) {
-        decodeOne(raw);
+        decodeOne(raw, gStart, gStart + raw.length);
         return;
       }
       var start = 0;
       while (start < raw.length) {
         var end = start + maxSegSamples;
         if (end >= raw.length) {
-          decodeOne(Float32List.sublistView(raw, start, raw.length));
+          decodeOne(Float32List.sublistView(raw, start, raw.length),
+              gStart + start, gStart + raw.length);
           break;
         }
         final winFrom = (end - searchSamples) > (start + minSegSamples)
@@ -560,7 +582,8 @@ void _gigaamIsolateEntry(_GigaamJob job) {
             : (start + minSegSamples);
         final q = findQuiet(raw, winFrom, end);
         if (q > start + minSegSamples && q < end) end = q;
-        decodeOne(Float32List.sublistView(raw, start, end));
+        decodeOne(Float32List.sublistView(raw, start, end),
+            gStart + start, gStart + end);
         start = end;
       }
     }
@@ -577,6 +600,7 @@ void _gigaamIsolateEntry(_GigaamJob job) {
     // Как на эталонном прогоне: кормим по 512 сэмплов (32 мс), буфер 60 с.
     // Фаза 1 — нарезка (быстрая): собираем куски, чтобы потом показать честный прогресс.
     final segs = <Float32List>[];
+    final segStarts = <int>[];
     const chunk = 512;
     var offset = 0;
     while (offset < total) {
@@ -586,6 +610,7 @@ void _gigaamIsolateEntry(_GigaamJob job) {
       while (!vad.isEmpty()) {
         vadSegs++;
         segLens.add(vad.front().samples.length);
+        segStarts.add(vad.front().start);
         segs.add(Float32List.fromList(vad.front().samples));
         vad.pop();
       }
@@ -594,6 +619,7 @@ void _gigaamIsolateEntry(_GigaamJob job) {
     while (!vad.isEmpty()) {
       vadSegs++;
       segLens.add(vad.front().samples.length);
+      segStarts.add(vad.front().start);
       segs.add(Float32List.fromList(vad.front().samples));
       vad.pop();
     }
@@ -613,8 +639,8 @@ void _gigaamIsolateEntry(_GigaamJob job) {
       'покрытие: wav=${(total / 16000).toStringAsFixed(1)} c, речь=${(speechSamples / 16000).toStringAsFixed(1)} c '
           '(${(100 * speechSamples / total).toStringAsFixed(1)}% от файла), кусков=$vadSegs, planned=$planned'
     ]);
-    for (final s in segs) {
-      decodeSegment(s);
+    for (var i = 0; i < segs.length; i++) {
+      decodeSegment(segs[i], i < segStarts.length ? segStarts[i] : 0);
     }
 
     job.progressPort.send([
@@ -623,7 +649,7 @@ void _gigaamIsolateEntry(_GigaamJob job) {
           'lens=${segLens.take(40).join(',')}'
     ]);
 
-    job.progressPort.send(['done', parts.join(' ')]);
+    job.progressPort.send(['done', parts.join(' '), chunkTimes]);
   } catch (e) {
     job.progressPort.send(['error', e.toString()]);
   } finally {
