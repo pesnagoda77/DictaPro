@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'stt_provider.dart';
 
+import '../app_strings.dart';
+
 /// Онлайн-транскрипция: режет WAV (16 кГц моно 16 бит) на куски и
 /// отправляет провайдеру по очереди. Память константна (по одному куску).
 class OnlineTranscribeService {
@@ -90,7 +92,7 @@ class OnlineTranscribeService {
         }
         pos += 8 + size;
       }
-      throw SttException('Не удалось прочитать WAV-заголовок');
+      throw SttException(AppStrings.tGlobal('stt_bad_wav'));
     } finally {
       await raf.close();
     }

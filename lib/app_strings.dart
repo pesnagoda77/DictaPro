@@ -1525,6 +1525,111 @@ class AppStrings {
       'ru': '=== ТЕКСТ ===', 'en': '=== TEXT ===', 'de': '=== TEXT ===', 'fr': '=== TEXTE ===', 'es': '=== TEXTO ===', 'it': '=== TESTO ===',
     },
 
+    'sum_title_business': {
+      'ru': 'Результаты встречи', 'en': 'Meeting results', 'de': 'Besprechungsergebnisse',
+      'fr': 'Résultats de la réunion', 'es': 'Resultados de la reunión', 'it': 'Esiti della riunione',
+    },
+    'sum_title_lecture': {
+      'ru': 'Конспект лекции', 'en': 'Lecture notes', 'de': 'Vorlesungsnotizen',
+      'fr': 'Notes de cours', 'es': 'Apuntes de clase', 'it': 'Appunti della lezione',
+    },
+    'sum_title_personal': {
+      'ru': 'Личные заметки', 'en': 'Personal notes', 'de': 'Persönliche Notizen',
+      'fr': 'Notes personnelles', 'es': 'Notas personales', 'it': 'Note personali',
+    },
+    'sum_title_general': {
+      'ru': 'Саммари', 'en': 'Summary', 'de': 'Zusammenfassung',
+      'fr': 'Résumé', 'es': 'Resumen', 'it': 'Riassunto',
+    },
+    'sum_title_no_data': {
+      'ru': 'Нет данных', 'en': 'No data', 'de': 'Keine Daten',
+      'fr': 'Aucune donnée', 'es': 'Sin datos', 'it': 'Nessun dato',
+    },
+    'sum_text_too_short': {
+      'ru': 'Текст слишком короткий для саммари', 'en': 'Text is too short for a summary', 'de': 'Text zu kurz für eine Zusammenfassung',
+      'fr': 'Texte trop court pour un résumé', 'es': 'Texto demasiado corto para un resumen', 'it': 'Testo troppo breve per un riassunto',
+    },
+    'sum_t_narrative': {
+      'ru': 'История / Рассказ', 'en': 'Story / Narrative', 'de': 'Geschichte / Erzählung',
+      'fr': 'Histoire / Récit', 'es': 'Historia / Relato', 'it': 'Storia / Racconto',
+    },
+    'sum_t_general': {
+      'ru': 'Общая запись', 'en': 'General recording', 'de': 'Allgemeine Aufnahme',
+      'fr': 'Enregistrement général', 'es': 'Grabación general', 'it': 'Registrazione generica',
+    },
+    'sum_sec_topics': {
+      'ru': 'Темы:', 'en': 'Topics:', 'de': 'Themen:',
+      'fr': 'Sujets :', 'es': 'Temas:', 'it': 'Argomenti:',
+    },
+    'sum_sec_decisions': {
+      'ru': 'Решения:', 'en': 'Decisions:', 'de': 'Beschlüsse:',
+      'fr': 'Décisions :', 'es': 'Decisiones:', 'it': 'Decisioni:',
+    },
+    'sum_sec_finance': {
+      'ru': 'Финансы:', 'en': 'Finance:', 'de': 'Finanzen:',
+      'fr': 'Finances :', 'es': 'Finanzas:', 'it': 'Finanze:',
+    },
+    'sum_sec_deadlines': {
+      'ru': 'Сроки:', 'en': 'Deadlines:', 'de': 'Fristen:',
+      'fr': 'Échéances :', 'es': 'Plazos:', 'it': 'Scadenze:',
+    },
+    'sum_sec_contacts': {
+      'ru': 'Контакты:', 'en': 'Contacts:', 'de': 'Kontakte:',
+      'fr': 'Contacts :', 'es': 'Contactos:', 'it': 'Contatti:',
+    },
+    'sum_sec_actions': {
+      'ru': 'Что делать:', 'en': 'To do:', 'de': 'To-dos:',
+      'fr': 'À faire :', 'es': 'Por hacer:', 'it': 'Da fare:',
+    },
+    'sum_sec_key_points': {
+      'ru': 'Ключевые мысли:', 'en': 'Key points:', 'de': 'Kernpunkte:',
+      'fr': 'Points clés :', 'es': 'Puntos clave:', 'it': 'Punti chiave:',
+    },
+    'sum_sec_definitions': {
+      'ru': 'Определения:', 'en': 'Definitions:', 'de': 'Definitionen:',
+      'fr': 'Définitions :', 'es': 'Definiciones:', 'it': 'Definizioni:',
+    },
+    'sum_sec_concepts': {
+      'ru': 'Ключевые понятия:', 'en': 'Key concepts:', 'de': 'Schlüsselbegriffe:',
+      'fr': 'Concepts clés :', 'es': 'Conceptos clave:', 'it': 'Concetti chiave:',
+    },
+    'sum_sec_main_points': {
+      'ru': 'Основные тезисы:', 'en': 'Main points:', 'de': 'Kernthesen:',
+      'fr': 'Points principaux :', 'es': 'Puntos principales:', 'it': 'Punti principali:',
+    },
+    'sum_sec_questions': {
+      'ru': 'Вопросы:', 'en': 'Questions:', 'de': 'Fragen:',
+      'fr': 'Questions :', 'es': 'Preguntas:', 'it': 'Domande:',
+    },
+    'sum_sec_insights': {
+      'ru': 'Инсайты:', 'en': 'Insights:', 'de': 'Erkenntnisse:',
+      'fr': 'Aperçus :', 'es': 'Ideas clave:', 'it': 'Approfondimenti:',
+    },
+    'sum_sec_quotes': {
+      'ru': 'Цитаты:', 'en': 'Quotes:', 'de': 'Zitate:',
+      'fr': 'Citations :', 'es': 'Citas:', 'it': 'Citazioni:',
+    },
+    'sum_sec_briefly': {
+      'ru': 'Кратко:', 'en': 'Briefly:', 'de': 'Kurz:',
+      'fr': 'En bref :', 'es': 'En breve:', 'it': 'In breve:',
+    },
+    'sum_sec_ideas': {
+      'ru': 'Идеи:', 'en': 'Ideas:', 'de': 'Ideen:',
+      'fr': 'Idées :', 'es': 'Ideas:', 'it': 'Idee:',
+    },
+    'sum_sec_tasks': {
+      'ru': 'Задачи:', 'en': 'Tasks:', 'de': 'Aufgaben:',
+      'fr': 'Tâches :', 'es': 'Tareas:', 'it': 'Attività:',
+    },
+    'sum_sec_dates': {
+      'ru': 'Даты:', 'en': 'Dates:', 'de': 'Daten:',
+      'fr': 'Dates :', 'es': 'Fechas:', 'it': 'Date:',
+    },
+    'sum_sec_notes': {
+      'ru': 'Заметки:', 'en': 'Notes:', 'de': 'Notizen:',
+      'fr': 'Notes :', 'es': 'Notas:', 'it': 'Note:',
+    },
+
   };
 
   static String _langCode(BuildContext context) {
@@ -1574,7 +1679,15 @@ class AppStrings {
   /// ---------- Task 068-1: доступ к строкам без BuildContext ----------
   /// Язык берём из настроек UI ('ui_lang'), иначе — язык системы
   /// (PlatformDispatcher), иначе русский.
+  static String? _isolateLang;
+
+  /// Зафиксировать язык для фонового compute-изолята: там настройки
+  /// UI недоступны, и язык мог бы определиться как системный.
+  static void pinIsolateLang(String? code) => _isolateLang = code;
+
   static String _globalLangCode() {
+    final iso = _isolateLang;
+    if (iso != null) return iso;
     String? code;
     final pinned = LocaleController.instance.locale.value;
     if (pinned != null) {

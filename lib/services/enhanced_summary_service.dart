@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import '../app_strings.dart';
+
 /// Улучшенное саммари с контекстным анализом
 /// Определяет тип текста и применяет соответствующий шаблон
 /// Извлекает даты, суммы, контакты, экшн-айтемы
@@ -20,16 +22,17 @@ class EnhancedSummaryService {
     void Function(int done, int total)? onProgress,
   }) async {
     final chunks = _splitIntoChunks(text, _chunkThreshold);
+    final lang = AppStrings.globalLangCode();
     if (chunks.length == 1) {
       final r = await compute(
-          _generateSummaryIsolate, (chunks.first, forcedType));
+          _generateSummaryIsolate, (chunks.first, forcedType, lang));
       onProgress?.call(1, 1);
       return r;
     }
     final parts = <SummaryResult>[];
     for (var i = 0; i < chunks.length; i++) {
       parts.add(
-          await compute(_generateSummaryIsolate, (chunks[i], forcedType)));
+          await compute(_generateSummaryIsolate, (chunks[i], forcedType, lang)));
       onProgress?.call(i + 1, chunks.length);
     }
     return _mergeChunkResults(parts, text);
@@ -87,7 +90,7 @@ class EnhancedSummaryService {
         parts.every((p) => p.type == parts.first.type);
     final title = parts.every((p) => p.title == parts.first.title)
         ? parts.first.title
-        : 'Саммари';
+        : AppStrings.tGlobal('sum_title_general');
     List<String> uniq(Iterable<String> x) => x.toSet().toList();
     return SummaryResult(
       title: title,
@@ -193,7 +196,7 @@ class EnhancedSummaryService {
     // Темы (топ-3 предложения с ключевыми словами)
     final topics = _extractTopics(sentences, 3);
     if (topics.isNotEmpty) {
-      points.add('Темы:');
+      points.add(AppStrings.tGlobal('sum_sec_topics'));
       for (final t in topics) {
         points.add('  • $t');
       }
@@ -201,7 +204,7 @@ class EnhancedSummaryService {
 
     // Решения
     if (decisions.isNotEmpty) {
-      points.add('Решения:');
+      points.add(AppStrings.tGlobal('sum_sec_decisions'));
       for (final d in decisions.take(5)) {
         points.add('  • $d');
       }
@@ -209,7 +212,7 @@ class EnhancedSummaryService {
 
     // Суммы и цены
     if (amounts.isNotEmpty) {
-      points.add('Финансы:');
+      points.add(AppStrings.tGlobal('sum_sec_finance'));
       for (final a in amounts.take(3)) {
         points.add('  • $a');
       }
@@ -217,7 +220,7 @@ class EnhancedSummaryService {
 
     // Сроки
     if (deadlines.isNotEmpty) {
-      points.add('Сроки:');
+      points.add(AppStrings.tGlobal('sum_sec_deadlines'));
       for (final dl in deadlines.take(3)) {
         points.add('  • $dl');
       }
@@ -225,7 +228,7 @@ class EnhancedSummaryService {
 
     // Контакты
     if (contacts.isNotEmpty) {
-      points.add('Контакты:');
+      points.add(AppStrings.tGlobal('sum_sec_contacts'));
       for (final c in contacts.take(3)) {
         points.add('  • $c');
       }
@@ -233,7 +236,7 @@ class EnhancedSummaryService {
 
     // Экшн-айтемы
     if (actions.isNotEmpty) {
-      points.add('Что делать:');
+      points.add(AppStrings.tGlobal('sum_sec_actions'));
       for (final a in actions.take(5)) {
         points.add('  □ $a');
       }
@@ -242,14 +245,14 @@ class EnhancedSummaryService {
     // Если ничего не нашли — выводим ключевые мысли
     if (points.isEmpty) {
       final keyPoints = _textRankSummary(sentences, 3);
-      points.add('Ключевые мысли:');
+      points.add(AppStrings.tGlobal('sum_sec_key_points'));
       for (final p in keyPoints) {
         points.add('  • $p');
       }
     }
 
     return SummaryResult(
-      title: 'Результаты встречи',
+      title: AppStrings.tGlobal('sum_title_business'),
       type: TextType.business,
       points: points,
       fullText: text,
@@ -270,27 +273,27 @@ class EnhancedSummaryService {
     final points = <String>[];
 
     if (topics.isNotEmpty) {
-      points.add('Темы:');
+      points.add(AppStrings.tGlobal('sum_sec_topics'));
       for (final t in topics) {
         points.add('  • $t');
       }
     }
 
     if (definitions.isNotEmpty) {
-      points.add('Определения:');
+      points.add(AppStrings.tGlobal('sum_sec_definitions'));
       for (final d in definitions.take(3)) {
         points.add('  • $d');
       }
     }
 
     if (keyConcepts.isNotEmpty) {
-      points.add('Ключевые понятия: ${keyConcepts.take(5).join(', ')}');
+      points.add('${AppStrings.tGlobal('sum_sec_concepts')} ${keyConcepts.take(5).join(', ')}');
     }
 
     // Основные тезисы
     final mainPoints = _textRankSummary(sentences, 4);
     if (mainPoints.isNotEmpty) {
-      points.add('Основные тезисы:');
+      points.add(AppStrings.tGlobal('sum_sec_main_points'));
       for (final p in mainPoints) {
         points.add('  • $p');
       }
@@ -299,14 +302,14 @@ class EnhancedSummaryService {
     // Вопросы для повторения
     final questions = _extractQuestions(text);
     if (questions.isNotEmpty) {
-      points.add('Вопросы:');
+      points.add(AppStrings.tGlobal('sum_sec_questions'));
       for (final q in questions.take(3)) {
         points.add('  ? $q');
       }
     }
 
     return SummaryResult(
-      title: 'Конспект лекции',
+      title: AppStrings.tGlobal('sum_title_lecture'),
       type: TextType.educational,
       points: points,
       fullText: text,
@@ -323,21 +326,21 @@ class EnhancedSummaryService {
     final points = <String>[];
 
     if (questions.isNotEmpty) {
-      points.add('Вопросы:');
+      points.add(AppStrings.tGlobal('sum_sec_questions'));
       for (final q in questions.take(5)) {
         points.add('  Q: $q');
       }
     }
 
     if (insights.isNotEmpty) {
-      points.add('Инсайты:');
+      points.add(AppStrings.tGlobal('sum_sec_insights'));
       for (final i in insights.take(5)) {
         points.add('  • $i');
       }
     }
 
     if (quotes.isNotEmpty) {
-      points.add('Цитаты:');
+      points.add(AppStrings.tGlobal('sum_sec_quotes'));
       for (final q in quotes.take(3)) {
         points.add('  "${q.substring(0, math.min(100, q.length))}"');
       }
@@ -346,14 +349,14 @@ class EnhancedSummaryService {
     // Краткое содержание
     final summary = _textRankSummary(sentences, 3);
     if (summary.isNotEmpty) {
-      points.add('Кратко:');
+      points.add(AppStrings.tGlobal('sum_sec_briefly'));
       for (final s in summary) {
         points.add('  • $s');
       }
     }
 
     return SummaryResult(
-      title: 'Интервью',
+      title: AppStrings.tGlobal('sum_t_interview'),
       type: TextType.interview,
       points: points,
       fullText: text,
@@ -370,21 +373,21 @@ class EnhancedSummaryService {
     final points = <String>[];
 
     if (ideas.isNotEmpty) {
-      points.add('Идеи:');
+      points.add(AppStrings.tGlobal('sum_sec_ideas'));
       for (final i in ideas.take(5)) {
         points.add('  💡 $i');
       }
     }
 
     if (tasks.isNotEmpty) {
-      points.add('Задачи:');
+      points.add(AppStrings.tGlobal('sum_sec_tasks'));
       for (final t in tasks.take(5)) {
         points.add('  □ $t');
       }
     }
 
     if (dates.isNotEmpty) {
-      points.add('Даты:');
+      points.add(AppStrings.tGlobal('sum_sec_dates'));
       for (final d in dates.take(3)) {
         points.add('  📅 $d');
       }
@@ -393,14 +396,14 @@ class EnhancedSummaryService {
     // Краткое содержание
     if (points.isEmpty) {
       final summary = _textRankSummary(sentences, 3);
-      points.add('Заметки:');
+      points.add(AppStrings.tGlobal('sum_sec_notes'));
       for (final s in summary) {
         points.add('  • $s');
       }
     }
 
     return SummaryResult(
-      title: 'Личные заметки',
+      title: AppStrings.tGlobal('sum_title_personal'),
       type: TextType.personal,
       points: points,
       fullText: text,
@@ -418,13 +421,13 @@ class EnhancedSummaryService {
     final points = <String>[];
 
     if (topics.isNotEmpty) {
-      points.add('Темы:');
+      points.add(AppStrings.tGlobal('sum_sec_topics'));
       for (final t in topics) {
         points.add('  • $t');
       }
     }
 
-    points.add('Ключевые мысли:');
+    points.add(AppStrings.tGlobal('sum_sec_key_points'));
     if (summary.isEmpty) {
       points.add('  • ${text.substring(0, math.min(200, text.length))}');
     } else {
@@ -434,7 +437,7 @@ class EnhancedSummaryService {
     }
 
     return SummaryResult(
-      title: 'Саммари',
+      title: AppStrings.tGlobal('sum_title_general'),
       type: TextType.general,
       points: points,
       fullText: text,
@@ -813,9 +816,9 @@ class SummaryResult {
   });
 
   factory SummaryResult.empty() => SummaryResult(
-    title: 'Нет данных',
+    title: AppStrings.tGlobal('sum_title_no_data'),
     type: TextType.general,
-    points: ['Текст слишком короткий для саммари'],
+    points: [AppStrings.tGlobal('sum_text_too_short')],
     fullText: '',
   );
 
@@ -831,12 +834,12 @@ class SummaryResult {
 
   String get typeLabel {
     switch (type) {
-      case TextType.business: return 'Бизнес-встреча';
-      case TextType.educational: return 'Лекция / Образование';
-      case TextType.interview: return 'Интервью';
-      case TextType.personal: return 'Личные заметки';
-      case TextType.narrative: return 'История / Рассказ';
-      case TextType.general: return 'Общая запись';
+      case TextType.business: return AppStrings.tGlobal('sum_t_business');
+      case TextType.educational: return AppStrings.tGlobal('sum_t_lecture');
+      case TextType.interview: return AppStrings.tGlobal('sum_t_interview');
+      case TextType.personal: return AppStrings.tGlobal('sum_title_personal');
+      case TextType.narrative: return AppStrings.tGlobal('sum_t_narrative');
+      case TextType.general: return AppStrings.tGlobal('sum_t_general');
     }
   }
 }
@@ -844,6 +847,8 @@ class SummaryResult {
 // ========== Task 034: вход для compute() ==========
 
 /// SummaryResult содержит только строки, списки и enum — безопасно
-/// пересекает границу изолята. Аргумент — record (String, TextType?).
-SummaryResult _generateSummaryIsolate((String, TextType?) args) =>
-    EnhancedSummaryService.generateSummary(args.$1, forcedType: args.$2);
+/// пересекает границу изолята. Аргумент — record (String, TextType?, String).
+SummaryResult _generateSummaryIsolate((String, TextType?, String) args) {
+  AppStrings.pinIsolateLang(args.$3);
+  return EnhancedSummaryService.generateSummary(args.$1, forcedType: args.$2);
+}
