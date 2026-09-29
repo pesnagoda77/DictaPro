@@ -8,6 +8,7 @@ import 'main_shell.dart';
 import 'splash_screen.dart';
 import 'app_strings.dart';
 import 'theme/app_theme.dart';
+import 'locale_controller.dart';
 import 'services/purchase_service.dart';
 import 'services/local_notify.dart';
 
@@ -36,6 +37,7 @@ void main() async {
   await LocalNotify.instance.init();
   // Выбранная тема (тёмная/светлая) — из памяти устройства
   await ThemeController.instance.load();
+  await LocaleController.instance.load();
   // Модель GigaAM готовится лениво при первой расшифровке
   // (GigaamService.ensureModelReady) — старт приложения не блокируем.
   runApp(const DictaProApp());
@@ -48,12 +50,15 @@ class DictaProApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: ThemeController.instance.mode,
-      builder: (context, mode, _) => MaterialApp(
+      builder: (context, mode, _) => ValueListenableBuilder<Locale?>(
+        valueListenable: LocaleController.instance.locale,
+        builder: (context, loc, __) => MaterialApp(
         onGenerateTitle: (ctx) => AppStrings.t('app_title', ctx),
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),
         themeMode: mode,
+        locale: loc,
         // Task 060: без этого Flutter считал язык 'en' и новые строки
         // (сплэш-слоган, предупреждение о длинной записи) выходили по-английски.
         supportedLocales: const [
@@ -75,6 +80,7 @@ class DictaProApp extends StatelessWidget {
           return const Locale('ru'); // по умолчанию русский
         },
         home: const SplashWrapper(),
+      ),
       ),
     );
   }

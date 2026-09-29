@@ -1109,7 +1109,7 @@ class AppStrings {
   }
 
   static String _t(String key, BuildContext context) =>
-      _dict[key]![_langCode(context)]!;
+      _dict[key]?[_langCode(context)] ?? _dict[key]?['ru'] ?? key;
 
   /// `{placeholder}` в строке заменяются значениями из [params].
   static String _fmt(String s, Map<String, String> params) {
