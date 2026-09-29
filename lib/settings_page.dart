@@ -5,6 +5,7 @@ import 'services/purchase_service.dart';
 import 'services/stt_provider.dart';
 import 'subscription_page.dart';
 import 'theme/app_theme.dart';
+import 'locale_controller.dart';
 import 'app_strings.dart';
 
 class RecorderSettings {
@@ -60,6 +61,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _sttEnabled = false;
   String _sttProviderTitle = 'Groq (whisper-large-v3-turbo)';
   String _asrLang = 'ru';
+  String _uiLang = 'system';
   int _tempBytes = 0;
 
   // Задача 038: фактическое состояние исключения из экономии батареи.
@@ -164,6 +166,47 @@ class _SettingsPageState extends State<SettingsPage> {
         _ => 'Русский',
       };
 
+  String get _uiLangTitle => switch (_uiLang) {
+        'ru' => 'Русский',
+        'en' => 'English',
+        'de' => 'Deutsch',
+        _ => 'Системный (как в телефоне)',
+      };
+
+  Future<void> _pickUiLang() async {
+    final res = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Язык приложения'),
+        children: [
+          for (final e in const [
+            ('system', 'Системный (как в телефоне)'),
+            ('ru', 'Русский'),
+            ('en', 'English'),
+            ('de', 'Deutsch'),
+          ])
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, e.$1),
+              child: Row(children: [
+                Icon(
+                  _uiLang == e.$1
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_off,
+                  size: 18,
+                  color: DictaTokens.of(context).mint,
+                ),
+                const SizedBox(width: 10),
+                Text(e.$2),
+              ]),
+            ),
+        ],
+      ),
+    );
+    if (res == null) return;
+    await LocaleController.instance.setLang(res);
+    if (mounted) setState(() => _uiLang = res);
+  }
+
   Future<void> _pickAsrLang() async {
     final res = await showDialog<String>(
       context: context,
@@ -210,7 +253,11 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       final sbox = await Hive.openBox<dynamic>('settings');
       final lang = (sbox.get('asr_lang') ?? 'ru').toString();
-      if (mounted) setState(() => _asrLang = lang);
+      final ui = (sbox.get('ui_lang') ?? 'system').toString();
+      if (mounted) setState(() {
+        _asrLang = lang;
+        _uiLang = ui;
+      });
     } catch (_) {}
     final sttEnabled = await SttSettings.isEnabled();
     final prov = SttProvider.byId(await SttSettings.providerId());
@@ -283,6 +330,13 @@ class _SettingsPageState extends State<SettingsPage> {
 
                   // ── Оформление ────────────────────────────────────────
                   _groupTitle(context, AppStrings.t('group_appearance', context)),
+                  _tile(
+                    context,
+                    title: 'Язык приложения',
+                    sub: _uiLangTitle,
+                    trailing: _chevron(context),
+                    onTap: _pickUiLang,
+                  ),
                   _tile(
                     context,
                     title: AppStrings.t('light_theme', context),
