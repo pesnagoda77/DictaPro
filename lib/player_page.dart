@@ -16,6 +16,7 @@ class PlayerPage extends StatefulWidget {
 class _PlayerPageState extends State<PlayerPage> {
   final _player = AudioPlayer();
   bool _isPlaying = false;
+  bool _audioMissing = false;
   double _speed = 1.0;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
@@ -44,9 +45,15 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   Future<void> _initPlayer() async {
-    final resolved = await AudioService.resolveFilePath(widget.recording.filePath);
-    await _player.setFilePath(resolved);
-    _duration = _player.duration ?? Duration.zero;
+    try {
+      final resolved =
+          await AudioService.resolveFilePath(widget.recording.filePath);
+      await _player.setFilePath(resolved);
+      _duration = _player.duration ?? Duration.zero;
+    } catch (_) {
+      _audioMissing = true;
+    }
+    if (mounted) setState(() {});
 
     _player.positionStream.listen((pos) {
       if (mounted) setState(() => _position = pos);
@@ -70,6 +77,15 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   Future<void> _togglePlay() async {
+    if (_audioMissing) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Аудио этой записи не найдено — файл потерян старой версией (исправлено 29.09)'),
+        ),
+      );
+      return;
+    }
     if (_isPlaying) {
       await _player.pause();
     } else {
@@ -225,6 +241,24 @@ class _PlayerPageState extends State<PlayerPage> {
               sliver: SliverToBoxAdapter(
                 child: Column(
                   children: [
+                    if (_audioMissing) ...[
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(11),
+                        decoration: BoxDecoration(
+                          color: tk.red.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(12),
+                          border:
+                              Border.all(color: tk.red.withValues(alpha: 0.30)),
+                        ),
+                        child: Text(
+                          'Аудио этой записи не найдено — файл был потерян старой версией приложения (исправлено с 29.09). Новые записи сохраняются.',
+                          style: TextStyle(
+                              fontSize: 11.5, color: tk.ink2, height: 1.5),
+                        ),
+                      ),
+                    ],
                     _progressBar(tk, progress),
                     const SizedBox(height: 2),
                     Row(
@@ -433,8 +467,11 @@ class _PlayerPageState extends State<PlayerPage> {
 
     return InkWell(
       borderRadius: BorderRadius.circular(8),
-      onTap: () =>
-          _player.seek(Duration(milliseconds: (start * 1000).round())),
+      onTap: () async {
+        if (_audioMissing) return;
+        await _player.seek(Duration(milliseconds: (start * 1000).round()));
+        if (!_isPlaying) await _player.play();
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 11),
         padding: const EdgeInsets.only(left: 10),
