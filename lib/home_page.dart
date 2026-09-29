@@ -1455,6 +1455,12 @@ class _HomePageState extends State<HomePage>
       return;
     }
 
+    // Task 054: дневной лимит бесплатной расшифровки — и для одиночных
+    // записей («В текст»/«Заново»), не только для пакетного запуска.
+    if (!await _checkTranscribeLimit(rec.durationMs as int? ?? 0)) {
+      return;
+    }
+
     final asrLang = await _chooseAsrLang();
     if (asrLang == null) return;
 
