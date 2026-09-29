@@ -43,7 +43,7 @@ def main():
     moved = move_out()
     print('временно убрано из ассетов: %d файлов (модель остаётся в пакете gigaam_pack)' % len(moved))
     try:
-        r = subprocess.run([r'C:\flutter\bin\flutter.bat', 'build', 'appbundle', '--release'], cwd=A, shell=True)
+        r = subprocess.run([r'C:\flutter\bin\flutter.bat', 'build', 'appbundle', '--release'] + sys.argv[1:], cwd=A, shell=True)
         print('сборка завершена, код:', r.returncode)
         return r.returncode
     finally:
