@@ -2203,7 +2203,7 @@ class _HomePageState extends State<HomePage>
                                         ],
                                       ),
                                     ),
-                                    if (hasTranscription)
+                                    if (hasTranscription && widget.tab != 2)
                                       Padding(
                                         padding: const EdgeInsets.fromLTRB(
                                             16, 8, 16, 0),
@@ -2239,8 +2239,9 @@ class _HomePageState extends State<HomePage>
                                           ).toList(),
                                         ),
                                       ),
-                                    // AI Summary Preview
-                                    if (hasTranscription)
+                                    // AI Summary Preview (на вкладке «Итоги» —
+                                    // единственный превью-блок; на «Текстах» скрыт)
+                                    if (hasTranscription && widget.tab != 1)
                                       GestureDetector(
                                         onTap: () => _openSummaryPage(rec),
                                         child: Container(
