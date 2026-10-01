@@ -61,8 +61,23 @@ jobs:
         run: |
           IPA=$(ls build/ios/ipa/*.ipa | head -1)
           echo "загружаю: $IPA"
+          set +e
+          echo "== попытка 1: --apple-id (обход бага altool с выбором приложения) =="
           xcrun altool --upload-app --type ios -f "$IPA" \
-            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER"
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER" \
+            --apple-id "6817420548" --verbose
+          RC1=$?
+          if [ $RC1 -ne 0 ]; then
+            echo "== попытка 2: --use-old-altool =="
+            xcrun altool --upload-app --type ios -f "$IPA" \
+              --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER" \
+              --apple-id "6817420548" --use-old-altool --verbose
+            RC2=$?
+          fi
+          echo "rc попыток: ${RC1:-?} ${RC2:-?}"
+          echo "== хвост служебного лога altool =="
+          for f in ~/Library/Logs/ContentDelivery/com.apple.itunes.altool/*.txt; do
+            echo "--- $f"; tail -120 "$f"; done 2>/dev/null || true
 
       - uses: actions/upload-artifact@v4
         with:
