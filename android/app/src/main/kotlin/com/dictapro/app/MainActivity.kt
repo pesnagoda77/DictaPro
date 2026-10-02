@@ -124,6 +124,43 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     }
                 }
+                // Task 067: fast-follow — пакет догружается Play ПОСЛЕ установки.
+                // Отдаём статус доставки и прогресс, чтобы UI показывал
+                // «модель загружается» и не падал на первом запуске.
+                "getGigaamPackState" -> {
+                    try {
+                        val pm: AssetPackManager = AssetPackManagerFactory.getInstance(this)
+                        val states = pm.getPackStates(listOf(PACK_NAME))
+                        val s = states.packStates()[PACK_NAME]
+                        if (s == null) {
+                            result.success(null)
+                        } else {
+                            val m = hashMapOf<String, Any>(
+                                "status" to s.status(),
+                                "name" to s.name(),
+                                "totalBytes" to s.totalBytesToDownload(),
+                                "bytesDownloaded" to s.bytesDownloaded()
+                            )
+                            if (s.status() == AssetPackStatus.FAILED) {
+                                m["errorCode"] = s.errorCode()
+                            }
+                            result.success(m)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "pack state unavailable: ${e.message}")
+                        result.success(null)
+                    }
+                }
+                "requestGigaamPack" -> {
+                    try {
+                        val pm: AssetPackManager = AssetPackManagerFactory.getInstance(this)
+                        pm.fetch(listOf(PACK_NAME))
+                        result.success(true)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "pack fetch failed: ${e.message}")
+                        result.success(false)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

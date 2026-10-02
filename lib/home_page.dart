@@ -930,16 +930,26 @@ class _HomePageState extends State<HomePage>
         return StatefulBuilder(
           builder: (ctx, setState) {
             setDialogState = setState;
-            final pct = total > 0 ? (copied / total).clamp(0.0, 1.0) : 0.0;
+            // Task 067: fast-follow — пока Play догружает пакет, показываем
+            // скачивание; total==0 — размер ещё неизвестен, индетерминатно.
+            final downloading = GigaamService.phase == 'download';
+            final known = total > 0;
+            final pct = known ? (copied / total).clamp(0.0, 1.0) : null;
             return AlertDialog(
-              title: Text(AppStrings.t('model_prep_title', context)),
+              title: Text(
+                downloading
+                    ? AppStrings.t('model_prep_download', context)
+                    : AppStrings.t('model_prep_title', context),
+              ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   LinearProgressIndicator(value: pct),
                   const SizedBox(height: 8),
                   Text(
-                    '${(copied / 1048576).round()} из ${(total / 1048576).round()} МБ · ${(pct * 100).round()}%',
+                    known
+                        ? '${(copied / 1048576).round()} из ${(total / 1048576).round()} МБ · ${(pct! * 100).round()}%'
+                        : AppStrings.t('model_prep_download', context),
                     style: const TextStyle(fontSize: 12, color: Colors.white54),
                   ),
                 ],

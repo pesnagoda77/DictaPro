@@ -53,7 +53,7 @@ Productivity (Производительность)
 4+ (нет контента для взрослых, нет сбора данных)
 
 ## Контакт
-[EMAIL], [URL]
+pesnagoda77@gmail.com, https://sites.google.com/view/dictapro-privacy
 
 ## Скриншоты (обязательные размеры)
 - 6.7": 1290×2796 (iPhone 15 Pro Max и др.) — мин 3

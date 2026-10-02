@@ -42,5 +42,5 @@ Productivity
 Everyone — no personal data collection, no UGC
 
 ## Contact
-Email: [EMAIL]
-Support site: [URL]
+Email: pesnagoda77@gmail.com
+Support site: https://sites.google.com/view/dictapro-privacy

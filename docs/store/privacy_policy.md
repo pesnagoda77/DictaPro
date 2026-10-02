@@ -1,6 +1,6 @@
 # Политика конфиденциальности — ДиктаПро / DictaPro (проект)
 
-Дата вступления в силу: [ДАТА ПУБЛИКАЦИИ]
+Дата вступления в силу: 28 сентября 2026 г.
 
 ## Русский
 
@@ -19,7 +19,7 @@
 Все данные — на устройстве. Удаление приложения удаляет все данные.
 
 ### Контакты
-[EMAIL]
+pesnagoda77@gmail.com
 
 ## English
 
@@ -38,4 +38,4 @@ Optional online transcription (if you provide a provider key) sends audio direct
 All data lives on the device. Uninstalling the app deletes all data.
 
 ### Contact
-[EMAIL]
+pesnagoda77@gmail.com
