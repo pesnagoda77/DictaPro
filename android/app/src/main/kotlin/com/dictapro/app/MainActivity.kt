@@ -130,22 +130,30 @@ class MainActivity : FlutterActivity() {
                 "getGigaamPackState" -> {
                     try {
                         val pm: AssetPackManager = AssetPackManagerFactory.getInstance(this)
-                        val states = pm.getPackStates(listOf(PACK_NAME))
-                        val s = states.packStates()[PACK_NAME]
-                        if (s == null) {
-                            result.success(null)
-                        } else {
-                            val m = hashMapOf<String, Any>(
-                                "status" to s.status(),
-                                "name" to s.name(),
-                                "totalBytes" to s.totalBytesToDownload(),
-                                "bytesDownloaded" to s.bytesDownloaded()
-                            )
-                            if (s.status() == AssetPackStatus.FAILED) {
-                                m["errorCode"] = s.errorCode()
+                        // Task 067: getPackStates — асинхронный (Task<AssetPackStates>),
+                        // результат отдаём колбэком (main thread).
+                        pm.getPackStates(listOf(PACK_NAME))
+                            .addOnSuccessListener { states ->
+                                val s = states.packStates()[PACK_NAME]
+                                if (s == null) {
+                                    result.success(null)
+                                } else {
+                                    val m = hashMapOf<String, Any>(
+                                        "status" to s.status(),
+                                        "name" to s.name(),
+                                        "totalBytes" to s.totalBytesToDownload(),
+                                        "bytesDownloaded" to s.bytesDownloaded()
+                                    )
+                                    if (s.status() == AssetPackStatus.FAILED) {
+                                        m["errorCode"] = s.errorCode()
+                                    }
+                                    result.success(m)
+                                }
                             }
-                            result.success(m)
-                        }
+                            .addOnFailureListener { e ->
+                                Log.w(TAG, "pack state unavailable: ${e.message}")
+                                result.success(null)
+                            }
                     } catch (e: Exception) {
                         Log.w(TAG, "pack state unavailable: ${e.message}")
                         result.success(null)
