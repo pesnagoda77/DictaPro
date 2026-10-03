@@ -220,7 +220,7 @@ class GigaamService {
     } catch (e) {
       debugPrint('[whisper] bundle assets unavailable: $e');
     }
-    throw const StateError(
+    throw StateError(
       'Мультиязычная модель повреждена и не может быть восстановлена '
       'из установленного пакета. Переустановите приложение.',
     );
@@ -475,7 +475,7 @@ class GigaamService {
   }
 
   static Future<String> _sha256File(File f) async {
-    final sink = DigestSink();
+    final sink = _DigestCollector();
     final hasher = sha256.startChunkedConversion(sink);
     await for (final chunk in f.openRead()) {
       hasher.add(chunk);
@@ -1097,4 +1097,19 @@ void _gigaamIsolateEntry(_GigaamJob job) {
       recognizer?.free();
     } catch (_) {}
   }
+}
+
+
+/// Локальный коллектор одного Digest для chunked-хеширования
+/// (замена DigestSink — исправление ошибки компиляции при приёмке 078, 03.10).
+class _DigestCollector implements Sink<Digest> {
+  Digest? value;
+
+  @override
+  void add(Digest data) {
+    value = data;
+  }
+
+  @override
+  void close() {}
 }
