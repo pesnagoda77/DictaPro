@@ -10,20 +10,99 @@
 // android/gigaam_pack/src/main/assets/models/gigaam_v3_punct/.
 // Исследование: docs/research/Исследование_Whisper_GigaAM_2026.md.
 // Качество (модель/нарезка/VAD) заморожено — см. git-историю, не менять.
+// Задача 078: манифест целостности (ModelManifest) — валидация размеров+
+// sha256 ДО загрузки движка; самопочинка рабочей копии; без крашей.
+// Сохранено с линии task-068: whisper (ensureWhisperReady) и fast-follow
+// (_waitForPack/phase, task 067).
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'keep_alive.dart';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 
 import 'glossary_service.dart';
+
+/// Задача 078: манифест целостности моделей.
+/// Эталон снят 03.10 с файлов fast-follow пакета
+/// (android/gigaam_pack/src/main/assets/models/...). Файлы моделей
+/// НЕ менять (качество заморожено); при обновлении модели обновить манифест
+/// и поднять [ModelManifest.version].
+abstract final class ModelManifest {
+  /// Версия манифеста. Пишется в маркер verified.json; смена версии
+  /// инвалидирует старые маркеры и заставляет прогнать полную проверку.
+  static const version = 1;
+
+  static const gigaamPrefix = 'gigaam_v3_punct';
+  static const whisperPrefix = 'whisper-small';
+
+  /// Эталонные размеры + sha256. Формат: путь относительно models/,
+  /// размер в байтах, sha256 (hex, регистр не важен).
+  static const items = [
+    ModelFileSpec(
+      'gigaam_v3_punct/encoder.int8.onnx',
+      224570820,
+      '369f35a71bf288d3b8e0391fabd8dba5f2314088d440bca474056b7b4b6e66bf',
+    ),
+    ModelFileSpec(
+      'gigaam_v3_punct/decoder.onnx',
+      4600132,
+      '38fc7475443ea2a26f63211ca350f73ac50fff824ab7a3876ee2bd610c53bbc4',
+    ),
+    ModelFileSpec(
+      'gigaam_v3_punct/joiner.onnx',
+      2712896,
+      '602ff7017a93311aad34df1437c8d7f49911353c13d6eaea7a6ee7b041339465c',
+    ),
+    ModelFileSpec(
+      'gigaam_v3_punct/tokens.txt',
+      13354,
+      '39abae20e692998290c574e606f11a9edef2902a1995463fcff63d1490cf22b7',
+    ),
+    ModelFileSpec(
+      'gigaam_v3_punct/silero_vad.onnx',
+      643854,
+      '9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6',
+    ),
+    ModelFileSpec(
+      'whisper-small/small-encoder.int8.onnx',
+      112442483,
+      '4cbe7b22fa9026b843b60a68640c747de05bafb1a11b57edc0e66c232d9f33a9',
+    ),
+    ModelFileSpec(
+      'whisper-small/small-decoder.int8.onnx',
+      262226114,
+      'acad50b5c782696e91b55914cc5ab4f756f1532f76e22aa6fc615f39fb69a8ee',
+    ),
+    ModelFileSpec(
+      'whisper-small/small-tokens.txt',
+      866987,
+      'febeed8e568f92d9ca984580bc2e6b605b867dc5ba4486f9646de381b44a8226',
+    ),
+  ];
+
+  static List<ModelFileSpec> forPrefix(String prefix) => items
+      .where((e) => e.relPath.startsWith('$prefix/'))
+      .toList(growable: false);
+}
+
+class ModelFileSpec {
+  final String relPath;
+  final int size;
+  final String sha256;
+  const ModelFileSpec(this.relPath, this.size, this.sha256);
+
+  /// Имя файла без директории (рабочая копия лежит плоско в modelDir).
+  String get basename => relPath.split('/').last;
+}
 
 class GigaamService {
   /// Файлы модели GigaAM v3 + Silero VAD.
@@ -75,56 +154,76 @@ class GigaamService {
     return dir;
   }
 
-  static bool _allPresentW(Directory d) {
-    for (final f in whisperFiles) {
-      final file = File('${d.path}/$f');
-      if (!file.existsSync() || file.lengthSync() < 1024) return false;
-    }
-    return true;
-  }
-
   /// Готовит мультиязычную модель (EN/DE): копирует из asset pack (AAB) или
   /// из flutter-ассетов (APK). Повторный вызов бесплатен.
+  /// Task 078: та же целостность, что у GigaAM — быстрая сверка (маркер +
+  /// размеры) на старте, полная (размер+sha256) при копировании/починке;
+  /// битый источник → понятная ошибка без нативного краша.
   static Future<void> ensureWhisperReady({
     void Function(int copied, int total)? onProgress,
   }) async {
     final dir = await whisperModelDir();
-    if (_allPresentW(dir)) return;
+    final specs = ModelManifest.forPrefix(ModelManifest.whisperPrefix);
+
+    if (_sizesMatch(dir, specs) && await _markerValid(dir, specs)) return;
+
+    debugPrint('[whisper] рабочая копия не прошла проверку — самопочинка');
+    await _logSizes(dir, specs, prefix: 'whisper-work(broken)');
+    _deleteFiles(dir, specs);
+    await _deleteMarker(dir);
 
     try {
       final packDir = await _assetPackDir();
       if (packDir != null) {
         final src = Directory('$packDir/models/whisper-small');
-        if (_allPresentW(src)) {
+        if (await _sourceVerified(src, specs)) {
           phase = 'copy';
           await _copyList(src, dir, whisperFiles, onProgress);
           phase = null;
-          debugPrint('[whisper] prepared from asset pack');
+          await _verifyAndMark(dir, specs);
+          debugPrint('[whisper] prepared from asset pack (verified)');
           return;
         }
+        debugPrint('[whisper] asset pack: whisper повреждена (манифест не сошёлся)');
+        await _logSizes(src, specs, prefix: 'whisper-pack(broken)');
       }
     } catch (_) {}
 
     try {
-      const approxTotal = 375 * 1024 * 1024;
-      var doneFiles = 0;
-      for (final f in whisperFiles) {
-        final data = await rootBundle.load('assets/models/whisper-small/$f');
-        final bytes = data.buffer.asUint8List();
-        await File('${dir.path}/$f').writeAsBytes(bytes, flush: true);
-        doneFiles++;
-        onProgress?.call(
-            (approxTotal * doneFiles / whisperFiles.length).round(),
-            approxTotal);
+      var totalBytes = 0;
+      for (final s in specs) {
+        totalBytes += s.size;
       }
-      if (_allPresentW(dir)) {
-        debugPrint('[whisper] prepared from bundle assets');
+      var copied = 0;
+      var bundleOk = true;
+      for (final s in specs) {
+        final data = await rootBundle
+            .load('assets/models/whisper-small/${s.basename}');
+        final bytes = data.buffer.asUint8List();
+        if (bytes.length != s.size || !_hashMatchesBytes(bytes, s.sha256)) {
+          debugPrint('[whisper] bundle assets: ${s.basename} битый '
+              '(размер ${bytes.length}, эталон ${s.size})');
+          bundleOk = false;
+          break;
+        }
+        await File('${dir.path}/${s.basename}').writeAsBytes(bytes, flush: true);
+        copied += bytes.length;
+        onProgress?.call(copied, totalBytes);
+      }
+      if (bundleOk) {
+        await _verifyAndMark(dir, specs);
+        debugPrint('[whisper] prepared from bundle assets (verified)');
         return;
       }
+      // Битый источник — чистим полукопии; следующий запуск повторит починку.
+      _deleteFiles(dir, specs);
     } catch (e) {
       debugPrint('[whisper] bundle assets unavailable: $e');
     }
-    throw StateError('Мультиязычная модель не найдена в сборке.');
+    throw const StateError(
+      'Мультиязычная модель повреждена и не может быть восстановлена '
+      'из установленного пакета. Переустановите приложение.',
+    );
   }
 
   /// Копирование списка файлов из [src] в [dst] с прогрессом.
@@ -165,36 +264,61 @@ class GigaamService {
     }
   }
 
-  /// Гарантирует, что все файлы модели лежат в [modelDir].
+  /// Гарантирует, что все файлы модели лежат в [modelDir] и целы.
   /// Вызывать перед каждой транскрибацией — повторный вызов бесплатен.
   /// [onProgress] — (скопировано байт, всего байт) для экрана
   /// «Подготовка модели» при первом запуске (копирование локальное,
   /// без сети, отмены нет — модель обязана оказаться на месте).
-  /// Бросает исключение, если модель недоступна (не подложили в сборку).
+  ///
+  /// Задача 078 (краш русской расшифровки у тестера: оборванный
+  /// encoder.int8.onnx → нативный abort sherpa-onnx, который из Dart не
+  /// перехватывается). Защита — валидация ДО загрузки движка:
+  ///   • обычный старт — быстрая сверка: маркер нужной версии + размеры
+  ///     (хэши не гоняем);
+  ///   • при (пере)копировании/починке — полная проверка источника
+  ///     (размер + sha256 по абсолютным эталонам манифеста), после копия —
+  ///     такая же полная проверка рабочей копии + маркер;
+  ///   • рабочая копия битая — самопочинка: удалить и скопировать заново;
+  ///   • источник битый/неполный — понятная ошибка (без краша), битая
+  ///     рабочая копия удаляется, чтобы следующий запуск повторил починку.
+  /// Task 067 (fast-follow) сохранён: ожидание доставки пакета и phase.
   static Future<void> ensureModelReady({
     void Function(int copied, int total)? onProgress,
   }) async {
     if (_prepared) return;
     final dir = await modelDir();
-    if (_allPresent(dir)) {
+    final specs = ModelManifest.forPrefix(ModelManifest.gigaamPrefix);
+
+    // Быстрый путь (обычный старт): размеры сошлись + маркер той же версии.
+    if (_sizesMatch(dir, specs) && await _markerValid(dir, specs)) {
       _prepared = true;
       return;
     }
 
-    // 1) Play asset pack (AAB). Task 067: пакет стал fast-follow — Play
-    //    догружает его ПОСЛЕ установки. Если файлов ещё нет, ждём появления
-    //    с прогрессом, а не падаем на первом запуске.
+    // Рабочая копия битая/устарела — самопочинка с нуля.
+    debugPrint('[gigaam] рабочая копия не прошла проверку — самопочинка');
+    await _logSizes(dir, specs, prefix: 'work(broken)');
+    _deleteFiles(dir, specs);
+    await _deleteMarker(dir);
+
+    // 1) Play asset pack (AAB). Task 067: пакет fast-follow — Play
+    //    догружает его ПОСЛЕ установки. Сначала полная проверка
+    //    ИСТОЧНИКА (размер+sha256), потом копирование.
     var packDir = await _assetPackDir();
     if (packDir != null) {
       final src = Directory('$packDir/models/gigaam_v3_punct');
-      if (_allPresent(src)) {
+      if (await _sourceVerified(src, specs)) {
+        await _logSizes(src, specs, prefix: 'pack');
         phase = 'copy';
-        await _copyFrom(src, dir, onProgress);
+        await _copyFrom(src, dir, specs, onProgress);
         phase = null;
+        await _verifyAndMark(dir, specs);
         _prepared = true;
-        debugPrint('[gigaam] model prepared from asset pack');
+        debugPrint('[gigaam] model prepared from asset pack (verified)');
         return;
       }
+      debugPrint('[gigaam] asset pack повреждён (манифест не сошёлся)');
+      await _logSizes(src, specs, prefix: 'pack(broken)');
     } else if (Platform.isAndroid) {
       // Пакета на диске нет. Либо он ещё догружается (fast-follow),
       // либо это APK-раздача без пакета — разберёмся по статусу.
@@ -207,17 +331,20 @@ class GigaamService {
         packDir = await _assetPackDir();
         if (packDir != null) {
           final src = Directory('$packDir/models/gigaam_v3_punct');
-          if (_allPresent(src)) {
+          if (await _sourceVerified(src, specs)) {
             phase = 'copy';
-            await _copyFrom(src, dir, onProgress);
+            await _copyFrom(src, dir, specs, onProgress);
             phase = null;
+            await _verifyAndMark(dir, specs);
             _prepared = true;
-            debugPrint('[gigaam] model prepared after fast-follow delivery');
+            debugPrint('[gigaam] model prepared after fast-follow delivery (verified)');
             return;
           }
+          debugPrint('[gigaam] pack arrived but failed verification (broken)');
+          await _logSizes(src, specs, prefix: 'pack-arrived(broken)');
         }
-        // Догрузился, но модели в нём нет — нештатно, идём к bundle assets.
-        debugPrint('[gigaam] pack arrived without complete model');
+        // Догрузился, но модели в нём нет/битая — нештатно, идём к bundle.
+        debugPrint('[gigaam] pack arrived without valid model');
       } else if (info.status == GigaamPackStatus.failed) {
         debugPrint('[gigaam] pack delivery failed (code=${info.errorCode})');
       }
@@ -225,57 +352,73 @@ class GigaamService {
     }
 
     // 2) Flutter assets (APK, прямая раздача): bundle читается целиком
-    //    в память, поэтому прогресс по файлам (порция = total/5).
+    //    в память; каждый файл сверяем размером+хэшем ДО записи.
     try {
-      const approxTotal = 244 * 1024 * 1024; // ~222 МБ модель + запас
-      var doneFiles = 0;
-      for (final f in modelFiles) {
-        final data = await rootBundle.load('assets/models/gigaam_v3_punct/$f');
-        final bytes = data.buffer.asUint8List();
-        final out = File('${dir.path}/$f');
-        await out.writeAsBytes(bytes, flush: true);
-        doneFiles++;
-        onProgress?.call(
-          (approxTotal * doneFiles / modelFiles.length).round(),
-          approxTotal,
-        );
+      var totalBytes = 0;
+      for (final s in specs) {
+        totalBytes += s.size;
       }
-      if (_allPresent(dir)) {
+      var copiedBytes = 0;
+      var bundleOk = true;
+      for (final s in specs) {
+        final data =
+            await rootBundle.load('assets/models/gigaam_v3_punct/${s.basename}');
+        final bytes = data.buffer.asUint8List();
+        if (bytes.length != s.size || !_hashMatchesBytes(bytes, s.sha256)) {
+          debugPrint('[gigaam] bundle assets: ${s.basename} битый '
+              '(размер ${bytes.length}, эталон ${s.size})');
+          bundleOk = false;
+          break;
+        }
+        final out = File('${dir.path}/${s.basename}');
+        await out.writeAsBytes(bytes, flush: true);
+        copiedBytes += bytes.length;
+        onProgress?.call(copiedBytes, totalBytes);
+      }
+      if (bundleOk) {
+        await _verifyAndMark(dir, specs);
         _prepared = true;
-        debugPrint('[gigaam] model prepared from bundle assets');
+        debugPrint('[gigaam] model prepared from bundle assets (verified)');
         return;
       }
+      // Битый источник в bundle — чистим недописанное, чтобы не осталось
+      // полукопий; следующий запуск повторит попытку.
+      _deleteFiles(dir, specs);
     } catch (e) {
       debugPrint('[gigaam] bundle assets unavailable: $e');
     }
 
+    // Оба источника неисправны. Битая рабочая копия уже удалена —
+    // движок не увидит оборванный файл и не упадёт; пользователь получает
+    // понятную ошибку вместо краша.
+    final report = await integrityReport();
     throw StateError(
-      'Модель распознавания не найдена в сборке. '
-      'Перед сборкой запустите tools/fetch_model.py (см. docs/СБОРКА.md).',
+      'Модель распознавания повреждена и не может быть восстановлена '
+      'из установленного пакета. Переустановите приложение. '
+      'Диагностика: $report',
     );
   }
 
   /// Потоковое копирование модели из [src] в [dst] с точным прогрессом.
+  /// Источник к моменту вызова уже полностью проверен (размер+sha256).
+  /// Каждый записанный файл сверяется по размеру сразу; sha256 рабочей
+  /// копии — в [_verifyAndMark] после копирования всех файлов (ТЗ 078:
+  /// хэши при копировании, но не при каждом старте).
   static Future<void> _copyFrom(
     Directory src,
     Directory dst,
+    List<ModelFileSpec> specs,
     void Function(int copied, int total)? onProgress,
   ) async {
     var total = 0;
-    for (final f in modelFiles) {
-      total += File('${src.path}/$f').lengthSync();
+    for (final s in specs) {
+      total += File('${src.path}/${s.basename}').lengthSync();
     }
     var copied = 0;
-    for (final f in modelFiles) {
-      final s = File('${src.path}/$f');
-      final d = File('${dst.path}/$f');
-      final expected = s.lengthSync();
-      if (d.existsSync() && d.lengthSync() == expected) {
-        copied += expected;
-        onProgress?.call(copied, total);
-        continue;
-      }
-      final reader = s.openRead();
+    for (final s in specs) {
+      final sf = File('${src.path}/${s.basename}');
+      final d = File('${dst.path}/${s.basename}');
+      final reader = sf.openRead();
       final writer = d.openWrite();
       try {
         await for (final chunk in reader) {
@@ -286,18 +429,156 @@ class GigaamService {
       } finally {
         await writer.close();
       }
-      if (d.lengthSync() != expected) {
-        throw StateError('Ошибка копирования модели: $f');
+      if (d.lengthSync() != s.size) {
+        throw StateError('Ошибка копирования модели: ${s.basename}');
       }
     }
   }
 
-  static bool _allPresent(Directory d) {
-    for (final f in modelFiles) {
-      final file = File('${d.path}/$f');
-      if (!file.existsSync() || file.lengthSync() == 0) return false;
+  /// Файлы существуют и размеры точно совпадают с манифестом
+  /// (раньше было «есть и >0 байт» — оборванная закачка проходила).
+  static bool _sizesMatch(Directory d, List<ModelFileSpec> specs) {
+    for (final s in specs) {
+      final f = File('${d.path}/${s.basename}');
+      if (!f.existsSync() || f.lengthSync() != s.size) return false;
     }
     return true;
+  }
+
+  static void _deleteFiles(Directory d, List<ModelFileSpec> specs) {
+    for (final s in specs) {
+      final f = File('${d.path}/${s.basename}');
+      if (f.existsSync()) f.deleteSync();
+    }
+  }
+
+  /// Полная проверка директории: размер + sha256 каждого файла.
+  static Future<bool> _verifyFully(
+    Directory d,
+    List<ModelFileSpec> specs,
+  ) async {
+    for (final s in specs) {
+      final f = File('${d.path}/${s.basename}');
+      if (!f.existsSync() || f.lengthSync() != s.size) return false;
+      if (!await _hashMatchesFile(f, s.sha256)) return false;
+    }
+    return true;
+  }
+
+  /// Источник пригоден для копирования: все файлы целы по манифесту.
+  static Future<bool> _sourceVerified(
+    Directory src,
+    List<ModelFileSpec> specs,
+  ) async {
+    if (!src.existsSync()) return false;
+    return _verifyFully(src, specs);
+  }
+
+  static Future<String> _sha256File(File f) async {
+    final sink = DigestSink();
+    final hasher = sha256.startChunkedConversion(sink);
+    await for (final chunk in f.openRead()) {
+      hasher.add(chunk);
+    }
+    hasher.close();
+    return sink.value.toString();
+  }
+
+  static Future<bool> _hashMatchesFile(File f, String sha256hex) async {
+    final h = await _sha256File(f);
+    return h.toLowerCase() == sha256hex.toLowerCase();
+  }
+
+  static bool _hashMatchesBytes(Uint8List bytes, String sha256hex) {
+    final h = sha256.convert(bytes).toString();
+    return h.toLowerCase() == sha256hex.toLowerCase();
+  }
+
+  // ---------- Маркер verified.json ----------
+
+  static File _markerFile(Directory dir) => File('${dir.path}/verified.json');
+
+  /// Маркер: версия манифеста + эталонные размеры. Быстрый путь доверяет
+  /// маркеру только вместе со сверкой фактических размеров — подмена
+  /// маркера без целых файлов не проходит.
+  static Future<bool> _markerValid(
+    Directory dir,
+    List<ModelFileSpec> specs,
+  ) async {
+    final f = _markerFile(dir);
+    if (!f.existsSync()) return false;
+    try {
+      final j = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
+      if (j['v'] != ModelManifest.version) return false;
+      final files = j['files'];
+      if (files is! Map) return false;
+      for (final s in specs) {
+        if (files[s.basename] != s.size) return false;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> _writeMarker(
+    Directory dir,
+    List<ModelFileSpec> specs,
+  ) async {
+    final files = <String, int>{
+      for (final s in specs) s.basename: s.size,
+    };
+    final f = _markerFile(dir);
+    await f
+        .writeAsString(jsonEncode({'v': ModelManifest.version, 'files': files}));
+  }
+
+  static Future<void> _deleteMarker(Directory dir) async {
+    final f = _markerFile(dir);
+    if (f.existsSync()) f.deleteSync();
+  }
+
+  /// Копия готова: полная проверка (размер + sha256) и только потом маркер.
+  static Future<void> _verifyAndMark(
+    Directory dir,
+    List<ModelFileSpec> specs,
+  ) async {
+    if (!await _verifyFully(dir, specs)) {
+      await _logSizes(dir, specs, prefix: 'work(after-copy,broken)');
+      throw StateError(
+        'Модель распознавания повреждена при копировании. '
+        'Перезапустите приложение — копирование повторится.',
+      );
+    }
+    await _writeMarker(dir, specs);
+  }
+
+  /// Диагностика (ТЗ 078 п.5): ожидаемый/фактический размер каждого файла
+  /// GigaAM + состояние маркера. Для whisper — то же самое по её спекам,
+  /// если понадобится расширить экран диагностики.
+  static Future<Map<String, String>> integrityReport() async {
+    final dir = await modelDir();
+    final specs = ModelManifest.forPrefix(ModelManifest.gigaamPrefix);
+    final out = <String, String>{};
+    for (final s in specs) {
+      final f = File('${dir.path}/${s.basename}');
+      final actual = f.existsSync() ? f.lengthSync() : -1;
+      out[s.relPath] = '$actual/${s.size}';
+    }
+    out['verified'] = (await _markerValid(dir, specs)) ? 'yes' : 'no';
+    return out;
+  }
+
+  static Future<void> _logSizes(
+    Directory d,
+    List<ModelFileSpec> specs, {
+    required String prefix,
+  }) async {
+    for (final s in specs) {
+      final f = File('${d.path}/${s.basename}');
+      final actual = f.existsSync() ? f.lengthSync() : -1;
+      debugPrint('[gigaam] $prefix ${s.basename}: $actual/${s.size}');
+    }
   }
 
   /// Путь к директории файлов asset pack из нативной прослойки.

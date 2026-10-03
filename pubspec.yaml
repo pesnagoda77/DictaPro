@@ -16,6 +16,8 @@ dependencies:
   hive: 2.2.3
   hive_flutter: 1.1.0
   path_provider: 2.1.5
+  # Task 078: sha256 для манифеста целостности моделей.
+  crypto: ^3.0.3
   shared_preferences: ^2.2.3
   permission_handler: 10.4.5
   flutter_foreground_task: ^8.15.0
