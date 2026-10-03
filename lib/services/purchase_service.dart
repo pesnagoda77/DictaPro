@@ -1,6 +1,19 @@
 // Task 059: подписки и пакеты ИИ-часов для онлайн-итогов.
 // Task 066: год в Google Play покупается как базовый план внутри подписки,
 //           а не как отдельный товар (iOS: год — отдельный продукт, как раньше).
+// Task 079: пакеты ИИ-часов — расходуемые (consumable) + строго одно
+//           зачисление на один платёж:
+//   • buyConsumable(autoConsume: false) — consume делаем сами после
+//     зачисления часов, иначе повторная покупка пакета заблокирована
+//     («У вас уже есть этот контент»), а restore перезачисляет часы;
+//   • дедупликация по токену покупки (purchaseID) в prefs — красная
+//     доставка того же платежа часов НЕ добавляет;
+//   • приём «не того» типа покупок отключён: продукты вне каталога
+//     (full_unlock / pack_* / sub_*) не применяются, только acknowledge;
+//   • restore расходуемые не возвращает → баланс стабилен между запусками;
+//   • дружелюпные тексты ошибок в [lastError] вместо сырых из магазина.
+// iOS-ветка тот же Dart-код (StoreKit через in_app_purchase): consumable
+// завершается completePurchase, логика идентична — отдельного фока нет.
 //
 // Модель (из ТЗ 059, цены/лимиты подтвердил Славан):
 //   тарифы:      Дневник 10 ч/мес · Ассистент 20 ч/мес · Безлимит 40 ч/мес
@@ -66,6 +79,9 @@ class PurchaseService {
 
   static const _kUnlocked = 'purchase_unlocked_v1';
   static const _kActiveSubs = 'subscription_products_v1'; // Set<String>
+  // Task 079: токены уже зачисленных покупок пакетов (Set<String>) —
+  // защита от перезачисления при redelivery/restore.
+  static const _kAppliedPacks = 'applied_pack_tokens_v1';
 
   /// Task 066 п.5: Play не сообщает basePlanId в покупке — период, выбранный
   /// пользователем, запоминаем локально. Точная дата продления — только
@@ -80,6 +96,10 @@ class PurchaseService {
   /// Task 059: активный тариф подписки (максимальный из активных).
   final ValueNotifier<SubscriptionTier> tier =
       ValueNotifier<SubscriptionTier>(SubscriptionTier.none);
+
+  /// Task 079: последняя ошибка покупки человекочитаемым текстом
+  /// (null — всё чисто). UI показывает вместе с общим «магазин недоступен».
+  final ValueNotifier<String?> lastError = ValueNotifier<String?>(null);
 
   StreamSubscription<List<PurchaseDetails>>? _sub;
   List<ProductDetails> _products = [];
@@ -194,8 +214,10 @@ class PurchaseService {
     return p.getString('$_kPeriodPrefix$subId');
   }
 
-  /// Пакет часов (одноразовая покупка, часы падают в кошелёк).
-  Future<bool> buyPack(String packId) => _buy(packId);
+  /// Пакет часов (task 079): расходуемая покупка — часы зачисляются при
+  /// доставке ровно один раз, затем purchase consume-ится. Повторная
+  /// покупка того же пакета работает, restore баланс не раздувает.
+  Future<bool> buyPack(String packId) => _buy(packId, consumable: true);
 
   String? priceOf(String productId) => _priceOf(productId);
 
@@ -206,16 +228,31 @@ class PurchaseService {
     return null;
   }
 
-  Future<bool> _buy(String productId) async {
+  Future<bool> _buy(String productId, {bool consumable = false}) async {
     final matches = _products.where((p) => p.id == productId);
     if (matches.isEmpty) {
       debugPrint('[purchase] товар $productId не загружен');
+      lastError.value = 'Товар не найден в магазине. Попробуйте позже.';
       return false;
     }
     final param = PurchaseParam(productDetails: matches.first);
-    // full_unlock и пакеты — одноразовые покупки; подписки проходят через
-    // buySubscription() (task 066: на Android с offerToken базового плана).
-    return _iap.buyNonConsumable(purchaseParam: param);
+    try {
+      if (consumable) {
+        // Task 079: autoConsume: false — consume сами после зачисления
+        // часов (см. _applyPack). С autoConsume магазин съедает покупку
+        // до зачисления, а без consume повторная покупка невозможна.
+        return await _iap.buyConsumable(
+            purchaseParam: param, autoConsume: false);
+      }
+      // full_unlock и подписки — non-consumable: restore легитимно
+      // возвращает их каждый запуск, обработка идемпотентна (task 066:
+      // подписки на Android идут через buySubscription с offerToken).
+      return await _iap.buyNonConsumable(purchaseParam: param);
+    } catch (e) {
+      debugPrint('[purchase] buy $productId failed: $e');
+      lastError.value = _friendlyErrorText(e.toString());
+      return false;
+    }
   }
 
   Future<void> restore() async {
@@ -231,12 +268,15 @@ class PurchaseService {
       switch (purchase.status) {
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
-          await _applyPurchase(purchase.productID);
+          await _applyPurchase(purchase);
         case PurchaseStatus.pending:
           break;
         case PurchaseStatus.error:
-          debugPrint('[purchase] error: ${purchase.error?.message}');
+          lastError.value = _friendlyError(purchase.error);
+          debugPrint('[purchase] error: ${purchase.error?.code} '
+              '${purchase.error?.message}');
         case PurchaseStatus.canceled:
+          lastError.value = 'Покупка отменена.';
           break;
       }
       if (purchase.pendingCompletePurchase) {
@@ -249,16 +289,18 @@ class PurchaseService {
     }
   }
 
-  Future<void> _applyPurchase(String productId) async {
+  /// Task 079: приём только «своего» типа покупок. Продукты вне каталога
+  /// (full_unlock / pack_* / sub_* и их *_year) не применяются — только
+  /// acknowledge (completePurchase ниже), чтобы посторонняя/устаревшая
+  /// доставка не меняла состояние приложения.
+  Future<void> _applyPurchase(PurchaseDetails purchase) async {
+    final productId = purchase.productID;
     if (productId == fullUnlockId) {
       await _grantUnlock();
       return;
     }
     if (packIds.containsKey(productId)) {
-      // Одноразовая покупка пакета: часы сразу в кошелёк. Повторная
-      // доставка того же purchase не должна зачислить дважды — отсев
-      // по transaction id оставляем Store (pendingCompletePurchase).
-      await AiHoursService.instance.addPackHours(packIds[productId]!);
+      await _applyPack(purchase);
       return;
     }
     final t = _tierOfProduct(productId);
@@ -267,7 +309,53 @@ class PurchaseService {
       final set = (p.getStringList(_kActiveSubs) ?? []).toSet()..add(productId);
       await p.setStringList(_kActiveSubs, set.toList());
       tier.value = _tierFromProducts(set.toList());
+      return;
     }
+    debugPrint('[purchase] неизвестный продукт $productId — приём отключён');
+  }
+
+  /// Task 079: зачислить пакет ровно один раз на один платёж.
+  /// Дедупликация по токену покупки (purchaseID стабилен для транзакции;
+  /// fallback — productID + transactionDate). Consume вызывает вызывающий
+  /// код через completePurchase сразу после зачисления — при redelivery
+  /// того же токена (сбой consume, перезапуск) часы не начисляются,
+  /// магазин просто получает повторный completePurchase.
+  Future<void> _applyPack(PurchaseDetails purchase) async {
+    final productId = purchase.productID;
+    final token = purchase.purchaseID ??
+        '${purchase.productID}:${purchase.transactionDate}';
+    final p = await SharedPreferences.getInstance();
+    final applied = (p.getStringList(_kAppliedPacks) ?? []).toSet();
+    if (applied.contains(token)) {
+      debugPrint('[purchase] пакет $productId уже зачислен ($token) — skip');
+      return;
+    }
+    await AiHoursService.instance.addPackHours(packIds[productId]!);
+    applied.add(token);
+    await p.setStringList(_kAppliedPacks, applied.toList());
+    debugPrint('[purchase] пакет $productId зачислен: '
+        '+${packIds[productId]} ч (токен $token)');
+  }
+
+  /// Дружелюбные тексты вместо сырых сообщений магазина (task 079).
+  String _friendlyError(IAPError? error) =>
+      _friendlyErrorText('${error?.code ?? ''} ${error?.message ?? ''}');
+
+  String _friendlyErrorText(String raw) {
+    final s = raw.toLowerCase();
+    if (s.contains('already_owned') || s.contains('already owned')) {
+      return 'Это уже куплено. Если покупка не отображается — '
+          'нажмите «Восстановить покупки».';
+    }
+    if (s.contains('cancel')) return 'Покупка отменена.';
+    if (s.contains('network') ||
+        s.contains('unavailable') ||
+        s.contains('service') ||
+        s.contains('timeout')) {
+      return 'Не удалось связаться с магазином. '
+          'Проверьте интернет и попробуйте снова.';
+    }
+    return 'Ошибка покупки. Попробуйте позже.';
   }
 
   Future<void> _grantUnlock() async {
