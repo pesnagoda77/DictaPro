@@ -863,9 +863,45 @@ class AppStrings {
       'ru': 'Все тарифы и пакеты', 'es': 'Todos los planes y paquetes', 'fr': 'Toutes les formules et packs', 'en': 'All plans and packs',
       'de': 'Alle Tarife und Pakete', 'it': 'Tutti i piani e i pacchetti',
     },
+    // Task 083: restore с результатом.
+    'sub_restore_checking': {
+      'ru': 'Проверяем покупки…', 'es': 'Verificando compras…', 'fr': 'Vérification des achats…', 'en': 'Checking purchases…',
+      'de': 'Käufe werden geprüft…', 'it': 'Verifica degli acquisti…',
+    },
+    'sub_restore_found_packs': {
+      'ru': 'Есть купленные пакеты часов', 'es': 'Hay paquetes de horas comprados', 'fr': 'Des packs d\'heures achetés trouvés', 'en': 'Purchased hour packs found',
+      'de': 'Gekaufte Stundenpakete gefunden', 'it': 'Trovati pacchetti di ore acquistati',
+    },
+    'sub_restore_not_found': {
+      'ru': 'Покупки не найдены. Если вы покупали на другом устройстве, войдите в тот же аккаунт магазина.', 'es': 'No se encontraron compras. Si compraste en otro dispositivo, inicia sesión con la misma cuenta de la tienda.', 'fr': 'Aucun achat trouvé. Si vous avez acheté sur un autre appareil, connectez-vous au même compte de la boutique.',
+      'en': 'No purchases found. If you bought on another device, sign in with the same store account.',
+      'de': 'Keine Käufe gefunden. Falls Sie auf einem anderen Gerät gekauft haben, melden Sie sich mit demselben Store-Konto an.',
+      'it': 'Nessun acquisto trovato. Se hai acquistato su un altro dispositivo, accedi con lo stesso account dello store.',
+    },
     'sub_row_title': {
       'ru': 'Подписка и ИИ-часы', 'es': 'Suscripción y horas de IA', 'fr': 'Abonnement et heures IA', 'en': 'Subscription & AI hours',
       'de': 'Abo & KI-Stunden', 'it': 'Abbonamento e ore AI',
+    },
+    // Task 083: скрытая диагностика и упрощённые настройки.
+    'diag_title': {
+      'ru': 'Диагностика', 'es': 'Diagnóstico', 'fr': 'Diagnostic', 'en': 'Diagnostics',
+      'de': 'Diagnose', 'it': 'Diagnostica',
+    },
+    'group_privacy': {
+      'ru': 'Конфиденциальность', 'es': 'Privacidad', 'fr': 'Confidentialité', 'en': 'Privacy',
+      'de': 'Datenschutz', 'it': 'Privacy',
+    },
+    'group_about': {
+      'ru': 'О приложении', 'es': 'Acerca de', 'fr': 'À propos', 'en': 'About',
+      'de': 'Über', 'it': 'Info',
+    },
+    'version_row': {
+      'ru': 'Версия', 'es': 'Versión', 'fr': 'Version', 'en': 'Version',
+      'de': 'Version', 'it': 'Versione',
+    },
+    'version_row_sub': {
+      'ru': 'Удерживайте для диагностики', 'es': 'Mantén pulsado para diagnóstico', 'fr': 'Maintenez pour le diagnostic', 'en': 'Long-press for diagnostics',
+      'de': 'Für Diagnose gedrückt halten', 'it': 'Tieni premuto per la diagnostica',
     },
     'sub_settings_sub': {
       'ru': 'Тарифы, ИИ-часы, пакеты', 'es': 'Planes, horas de IA, paquetes', 'fr': 'Formules, heures IA, packs',
