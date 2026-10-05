@@ -791,6 +791,7 @@ class GigaamService {
     String wavPath, {
     int skipChunks = 0,
     String language = 'ru',
+    List<String>? extraTerms,
     void Function(int done, int total)? onProgress,
     void Function(int done, int total, String text)? onPartial,
     void Function(String line)? onLog,
@@ -803,7 +804,18 @@ class GigaamService {
         onLog: onLog);
     if (text == null) return null;
     var out = text;
-    final terms = await HotwordsStorage.recent();
+    // 05.10.2026 (тест 72): глоссарий = термины из поля экрана (extraTerms)
+    // + недавние. Раньше брались только «недавние», куда поле попадало лишь
+    // при СТАРТЕ ЗАПИСИ — поэтому повторный прогон с новыми терминами
+    // ничего не менял, а очистка поля не влияла на уже готовый текст.
+    final seen = <String>{};
+    final terms = <String>[
+      ...?extraTerms,
+      ...await HotwordsStorage.recent(),
+    ]
+        .map((w) => w.trim())
+        .where((w) => w.isNotEmpty && seen.add(w.toLowerCase()))
+        .toList();
     if (terms.isNotEmpty) {
       out = GlossaryService.apply(out, terms);
     }

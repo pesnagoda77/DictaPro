@@ -90,9 +90,8 @@ class _HomePageState extends State<HomePage>
   final _searchController = TextEditingController();
   final _hotwordsController = TextEditingController();
   List<String> _recentHotwords = [];
-  // Одна строка состояния распознавания (task 019, дизайн V3):
-  // движок один — GigaAM v3, модель вложена в сборку.
-  String get _engineLabel => AppStrings.t('engine_label', context);
+  // 05.10.2026 (тест 72): бейдж «модель внутри» убран по отзыву — дублирует
+  // строку прямо над собой и непонятен пользователю.
 
   /// Task 056: расшифровка завершилась, пока приложение было в фоне —
   /// при возврате показываем плашку «готово» (уведомление уже ушло в шторку).
@@ -808,7 +807,8 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<TranscriptionResult> _transcribeOffline(String filePath,
-      {bool resumeFromPartial = false, String asrLang = 'ru'}) async {
+      {bool resumeFromPartial = false, String asrLang = 'ru',
+      List<String>? hotwords}) async {
     if (!GigaamService.isPrepared) {
       await _showModelPreparingDialog();
     }
@@ -919,6 +919,7 @@ class _HomePageState extends State<HomePage>
         wav16k,
         language: asrLang,
         skipChunks: skipChunks,
+        extraTerms: hotwords,
         onProgress: (done, all) {
           progress.value = (done, all);
           // Задача 036: прогресс виден в уведомлении даже с погасшим экраном.
@@ -1241,7 +1242,9 @@ class _HomePageState extends State<HomePage>
           if (asrLangRec == null) return;
           final onlineText = await _onlineTranscript(latest.filePath);
           final result = onlineText == null
-              ? await _transcribeOffline(latest.filePath, asrLang: asrLangRec)
+              ? await _transcribeOffline(latest.filePath,
+                  asrLang: asrLangRec,
+                  hotwords: HotwordsStorage.parse(_hotwordsController.text))
               : null;
           final fullText = onlineText ?? result!.fullText;
 
@@ -1422,12 +1425,9 @@ class _HomePageState extends State<HomePage>
 
   /// «3аново»: сбрасываем прошлый результат и запускаем распознавание ещё раз.
   Future<void> _retranscribe(rec) async {
-    rec.transcription = null;
-    rec.segments = null;
-    rec.summary = null;
-    rec.tags = null;
-    rec.decisions = null;
-    await AudioService().updateRecording(rec);
+    // 05.10.2026 (тест 72): старый текст НЕ стираем до нового прогона.
+    // Раньше «Заново» сразу обнулял запись: любой обрыв (лимит минут, отмена,
+    // ошибка) оставлял запись пустой. Успешный прогон сам перезапишет поля.
     // Частичный прогресс НЕ стираем: если прошлый прогон обрывался (вылет),
     // штатный поток предложит «Продолжить с куска N / Начать заново».
     await _transcribeRecording(rec);
@@ -1480,7 +1480,8 @@ class _HomePageState extends State<HomePage>
       final onlineText = await _onlineTranscript(filePath);
       final result = onlineText == null
           ? await _transcribeOffline(filePath,
-              resumeFromPartial: resumeFromPartial, asrLang: asrLang)
+              resumeFromPartial: resumeFromPartial, asrLang: asrLang,
+              hotwords: HotwordsStorage.parse(_hotwordsController.text))
           : null;
 
       final punctuatedText = onlineText ?? result!.fullText;
@@ -2034,30 +2035,6 @@ class _HomePageState extends State<HomePage>
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Column(
               children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.mint.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: AppColors.mint.withValues(alpha: 0.22)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                            color: AppColors.mint, shape: BoxShape.circle),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(_engineLabel,
-                          style: Theme.of(context).textTheme.bodySmall),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
                 if (_isRecording) ...[
                   // Живой уровень звука: заполняется по реальной амплитуде с микрофона.
                   SizedBox(
