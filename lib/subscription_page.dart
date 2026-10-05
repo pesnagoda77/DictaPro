@@ -256,6 +256,10 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
         AppStrings.tf('sub_status_balance', context,
             {'h': _balanceHours.toStringAsFixed(1)}),
         style: TextStyle(fontSize: 12, color: tk.ink3)));
+    // 05.10 fix: что даёт подписка (расшифровка без дневного лимита).
+    rows.add(const SizedBox(height: 6));
+    rows.add(Text(AppStrings.t('sub_includes_note', context),
+        style: TextStyle(fontSize: 12, color: tk.ink2)));
     rows.add(const SizedBox(height: 6));
     rows.add(Text(AppStrings.t('sub_status_next', context),
         style: TextStyle(fontSize: 12, color: tk.ink2)));

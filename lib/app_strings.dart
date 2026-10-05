@@ -130,20 +130,22 @@ class AppStrings {
       'it': 'Limite giornaliero raggiunto',
     },
     'limit_reached_body': {
-      'ru': 'Сегодня использовано {u} из {n} минут расшифровки.\n\n', 'es': 'Hoy has usado {u} de {n} minutos de transcripción.\n\nVersión completa — todo sin límites: transcripción en el dispositivo, resúmenes, etiquetas, exportación, búsqueda. Compra única.', 'fr': 'Aujourd\'hui, {u} minutes de transcription utilisées sur {n}.\n\nVersion complète — tout sans limites : transcription sur l\'appareil, résumés, tags, export, recherche. Achat unique.'
-          'Полная версия — всё без лимитов: расшифровка на устройстве, итоги, теги, экспорт, поиск. Разовая покупка.',
+      'ru': 'Сегодня использовано {u} из {n} минут расшифровки.\n\n'
+          'Подписка снимает дневной лимит — расшифровка без ограничений, плюс ИИ-часы для онлайн-итогов.',
       'en': 'You have used {u} of {n} transcription minutes today.\n\n'
-          'Full version — everything without limits: on-device transcription, summaries, tags, export, search. One-time purchase.',
-      'de': 'Heute wurden {u} von {n} Transkriptionsminuten verbraucht.\n\n'
-          'Vollversion — alles ohne Limit: Transkription auf dem Gerät, Zusammenfassungen, Tags, Export, Suche. Einmaliger Kauf.',
-      'it': 'Oggi hai usato {u} dei {n} minuti di trascrizione.\n\n'
-          'Versione completa — tutto senza limiti: trascrizione sul dispositivo, riepiloghi, tag, esportazione, ricerca. Acquisto una tantum.',
+          'A subscription removes the daily limit — unlimited on-device transcription, plus AI hours for online summaries.',
+      'de': 'Heute wurden {u} von {n} Transkriptionsminuten genutzt.\n\n'
+          'Ein Abo hebt das Tageslimit auf — unbegrenzte Transkription auf dem Gerät, plus KI-Stunden für Online-Zusammenfassungen.',
+      'es': 'Hoy has usado {u} de {n} minutos de transcripción.\n\n'
+          'La suscripción elimina el límite diario: transcripción sin límites en el dispositivo y horas de IA para resúmenes online.',
+      'fr': "Aujourd'hui : {u} minutes de transcription sur {n} utilisées.\\n\\n"
+          "L'abonnement supprime la limite quotidienne : transcription illimitée sur l'appareil, plus d'heures IA pour les résumés en ligne.",
+      'it': "Oggi hai usato {u} di {n} minuti di trascrizione.\\n\\n"
+          "L'abbonamento rimuove il limite giornaliero: trascrizione illimitata sul dispositivo, più ore AI per i riepiloghi online.",
     },
     'buy_full': {
-      'ru': 'Купить полную версию', 'es': 'Comprar versión completa', 'fr': 'Acheter la version complète',
-      'en': 'Buy full version',
-      'de': 'Vollversion kaufen',
-      'it': 'Acquista versione completa',
+      'ru': 'Выбрать тариф', 'es': 'Elegir plan', 'fr': 'Choisir une formule',
+      'en': 'Choose a plan', 'de': 'Tarif wählen', 'it': 'Scegli un piano',
     },
     'restore_purchase': {
       'ru': 'Восстановить покупку', 'es': 'Restaurar compra', 'fr': 'Restaurer l\'achat',
@@ -926,6 +928,11 @@ class AppStrings {
     'sub_status_balance': {
       'ru': 'ИИ-часы: {h} ч', 'es': 'Horas de IA: {h} h', 'fr': 'Heures IA : {h} h', 'en': 'AI hours: {h} h',
       'de': 'KI-Stunden: {h} h', 'it': 'Ore AI: {h} h',
+    },
+    // 05.10 fix: подписка = всё включено (расшифровка без дневного лимита).
+    'sub_includes_note': {
+      'ru': 'Подписка включает расшифровку без дневного лимита', 'es': 'La suscripción incluye transcripción sin límite diario', 'fr': "L'abonnement inclut la transcription sans limite quotidienne", 'en': 'Subscription includes transcription without the daily limit',
+      'de': 'Abo beinhaltet Transkription ohne Tageslimit', 'it': "L'abbonamento include la trascrizione senza limite giornaliero",
     },
     'sub_status_next': {
       'ru': 'Списание и продление — в магазине приложений', 'es': 'El cobro y la renovación se gestionan en la tienda de aplicaciones', 'fr': 'Facturation et renouvellement dans la boutique d\'applications',

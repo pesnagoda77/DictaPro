@@ -113,6 +113,11 @@ class PurchaseService {
   List<ProductDetails> _products = [];
   bool _storeAvailable = false;
 
+  /// 05.10 fix: во время restore копим ПОДТВЕРЖДЁННЫЕ магазином подписки,
+  /// затем пересобираем набор с нуля — отменённые/истёкшие отпадают.
+  bool _rebuild = false;
+  final Set<String> _rebuildBuf = {};
+
   /// Task 083: true пока идёт restore-проверка (для индикатора в UI).
   final ValueNotifier<bool> restoring = ValueNotifier<bool>(false);
 
@@ -274,30 +279,40 @@ class PurchaseService {
   /// из подтверждённых покупок.
   Future<void> restore() async {
     restoring.value = true;
+    _rebuild = true;
+    _rebuildBuf.clear();
+    var verified = false;
     try {
       await _iap.restorePurchases();
       // restorePurchases() асинхронно шлёт события в purchaseStream.
-      // Даём им 3 секунды прийти, затем финализируем набор.
-      await Future.delayed(const Duration(seconds: 3));
-      await _finalizeRestore();
+      // Даём им время прийти (4 c), затем финализируем набор.
+      await Future.delayed(const Duration(seconds: 4));
+      verified = true;
     } catch (e) {
       debugPrint('[purchase] restore failed: $e');
     } finally {
+      _rebuild = false;
+      await _finalizeRestore(rebuild: verified);
       restoring.value = false;
     }
   }
 
-  /// Task 083: после restore-задержки собираем финальный набор активных
-  /// подписок. Все подтверждённые покупки уже обработаны _onPurchases и
-  /// записаны в _kActiveSubs. Теперь проверяем грейс и пересобираем tier.
-  Future<void> _finalizeRestore() async {
+  /// Task 083 + fix 05.10: после restore-задержки пересобираем набор активных
+  /// подписок ИЗ ПОДТВЕРЖДЁННЫХ (_rebuildBuf). Если проверка не удалась —
+  /// оставляем прежний набор (дальше решит офлайн-грейс).
+  Future<void> _finalizeRestore({required bool rebuild}) async {
     final p = await SharedPreferences.getInstance();
-    final active = (p.getStringList(_kActiveSubs) ?? []).toSet();
-    // Записываем время последней успешной проверки.
-    await p.setInt(_kLastVerifiedMs, DateTime.now().millisecondsSinceEpoch);
-    // Пересчитываем tier из актуального набора.
-    tier.value = _tierFromProducts(active.toList());
-    debugPrint('[purchase] restore финализирован: активны $active, tier=${tier.value}');
+    if (rebuild) {
+      final rebuilt = _rebuildBuf.toList();
+      await p.setStringList(_kActiveSubs, rebuilt);
+      await p.setInt(_kLastVerifiedMs, DateTime.now().millisecondsSinceEpoch);
+      tier.value = _tierFromProducts(rebuilt);
+      debugPrint('[purchase] restore пересобрал набор: $rebuilt, tier=${tier.value}');
+    } else {
+      final active = p.getStringList(_kActiveSubs) ?? [];
+      tier.value = _tierFromProducts(active);
+      debugPrint('[purchase] restore не подтверждён — оставлен набор: $active');
+    }
   }
 
   /// Task 083: офлайн-грейс. Если store недоступен — держим текущий тариф
@@ -359,6 +374,11 @@ class PurchaseService {
     }
     final t = _tierOfProduct(productId);
     if (t != SubscriptionTier.none) {
+      if (_rebuild) {
+        // Идёт пересборка — копим подтверждённые подписки до финализации.
+        _rebuildBuf.add(productId);
+        return;
+      }
       final p = await SharedPreferences.getInstance();
       final set = (p.getStringList(_kActiveSubs) ?? []).toSet()..add(productId);
       await p.setStringList(_kActiveSubs, set.toList());

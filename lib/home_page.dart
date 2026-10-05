@@ -1431,7 +1431,12 @@ class _HomePageState extends State<HomePage>
   /// Дневной лимит бесплатной расшифровки (15 мин/день, task 054).
   /// true — можно расшифровывать (полная версия или лимит не исчерпан).
   Future<bool> _checkTranscribeLimit(int durationMs) async {
-    if (PurchaseService.instance.unlocked.value) return true;
+    // 05.10 fix: любой активный тариф снимает дневной лимит («подписка = всё
+    // включено», задача 057) — наравне с legacy-«полной версией».
+    final ps = PurchaseService.instance;
+    if (ps.unlocked.value || ps.tier.value != SubscriptionTier.none) {
+      return true;
+    }
     final ok = await UsageLimitService.instance.canTranscribe(durationMs);
     if (!ok) {
       await _showPaywall();
@@ -1442,7 +1447,8 @@ class _HomePageState extends State<HomePage>
 
   /// Фиксация траты минут после УСПЕШНОЙ расшифровки (только бесплатный режим).
   Future<void> _recordTranscribeUsage(int durationMs) async {
-    if (PurchaseService.instance.unlocked.value) return;
+    final ps = PurchaseService.instance;
+    if (ps.unlocked.value || ps.tier.value != SubscriptionTier.none) return;
     await UsageLimitService.instance.recordUsage(durationMs);
   }
 
