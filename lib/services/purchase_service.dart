@@ -1,6 +1,8 @@
 // Task 059: подписки и пакеты ИИ-часов для онлайн-итогов.
 // Task 066: год в Google Play покупается как базовый план внутри подписки,
 //           а не как отдельный товар (iOS: год — отдельный продукт, как раньше).
+// Task 083: жизненный цикл подписок — restore пересобирает набор, отменённые
+//           подписки снимаются, офлайн-грейс 7 дней, разовые покупки не трогаем.
 //
 // Модель (из ТЗ 059, цены/лимиты подтвердил Славан):
 //   тарифы:      Дневник 10 ч/мес · Ассистент 20 ч/мес · Безлимит 40 ч/мес
@@ -67,6 +69,12 @@ class PurchaseService {
   static const _kUnlocked = 'purchase_unlocked_v1';
   static const _kActiveSubs = 'subscription_products_v1'; // Set<String>
 
+  /// Task 083: время последней успешной проверки подписок (мс с эпохи).
+  /// Офлайн-грейс: если store недоступен, держим текущий тариф не дольше
+  /// [_graceDays] с этой даты, потом честно отключаем.
+  static const _kLastVerifiedMs = 'subscription_last_verified_ms_v1';
+  static const int _graceDays = 7;
+
   /// Task 066 п.5: Play не сообщает basePlanId в покупке — период, выбранный
   /// пользователем, запоминаем локально. Точная дата продления — только
   /// серверной проверкой (Play Developer API) — отдельная задача.
@@ -84,6 +92,9 @@ class PurchaseService {
   StreamSubscription<List<PurchaseDetails>>? _sub;
   List<ProductDetails> _products = [];
   bool _storeAvailable = false;
+
+  /// Task 083: true пока идёт restore-проверка (для индикатора в UI).
+  final ValueNotifier<bool> restoring = ValueNotifier<bool>(false);
 
   bool get storeAvailable => _storeAvailable;
   List<ProductDetails> get products => _products;
@@ -127,6 +138,8 @@ class PurchaseService {
     } catch (e) {
       debugPrint('[purchase] store недоступен ($e) — работаем на локальном кэше');
       _storeAvailable = false;
+      // Task 083: store недоступен — проверяем грейс-период.
+      await _applyOfflineGrace();
     }
   }
 
@@ -218,11 +231,52 @@ class PurchaseService {
     return _iap.buyNonConsumable(purchaseParam: param);
   }
 
+  /// Task 083: restore с индикатором и пересборкой набора подписок.
+  /// Раньше только добавлял productId в локальный набор — отменённые
+  /// подписки продолжали «гореть». Теперь собираем фактический набор
+  /// из подтверждённых покупок.
   Future<void> restore() async {
+    restoring.value = true;
     try {
       await _iap.restorePurchases();
+      // restorePurchases() асинхронно шлёт события в purchaseStream.
+      // Даём им 3 секунды прийти, затем финализируем набор.
+      await Future.delayed(const Duration(seconds: 3));
+      await _finalizeRestore();
     } catch (e) {
       debugPrint('[purchase] restore failed: $e');
+    } finally {
+      restoring.value = false;
+    }
+  }
+
+  /// Task 083: после restore-задержки собираем финальный набор активных
+  /// подписок. Все подтверждённые покупки уже обработаны _onPurchases и
+  /// записаны в _kActiveSubs. Теперь проверяем грейс и пересобираем tier.
+  Future<void> _finalizeRestore() async {
+    final p = await SharedPreferences.getInstance();
+    final active = (p.getStringList(_kActiveSubs) ?? []).toSet();
+    // Записываем время последней успешной проверки.
+    await p.setInt(_kLastVerifiedMs, DateTime.now().millisecondsSinceEpoch);
+    // Пересчитываем tier из актуального набора.
+    tier.value = _tierFromProducts(active.toList());
+    debugPrint('[purchase] restore финализирован: активны $active, tier=${tier.value}');
+  }
+
+  /// Task 083: офлайн-грейс. Если store недоступен — держим текущий тариф
+  /// не дольше [_graceDays] с последней успешной проверки, потом снимаем.
+  Future<void> _applyOfflineGrace() async {
+    final p = await SharedPreferences.getInstance();
+    final lastMs = p.getInt(_kLastVerifiedMs) ?? 0;
+    if (lastMs == 0) return; // никогда не проверяли — не трогаем
+    final elapsed = DateTime.now().millisecondsSinceEpoch - lastMs;
+    if (elapsed > Duration(days: _graceDays).inMilliseconds) {
+      // Грейс истёк — честно снимаем подписки.
+      await p.setStringList(_kActiveSubs, []);
+      tier.value = SubscriptionTier.none;
+      debugPrint('[purchase] офлайн-грейс ${_graceDays}д истёк — подписки сняты');
+    } else {
+      debugPrint('[purchase] офлайн-грейс: ${elapsed ~/ Duration.millisecondsPerDay}д из $_graceDays — тариф держим');
     }
   }
 
@@ -301,6 +355,17 @@ class PurchaseService {
       if (t.index > best.index) best = t;
     }
     return best;
+  }
+
+  /// Task 083: снять конкретный тариф (для будущего использования при
+  /// server-side валидации subscriptionsv2 — задача 080 этап 2).
+  Future<void> _deactivateTier(SubscriptionTier t) async {
+    final subId = tierSubscriptionId[t];
+    if (subId == null) return;
+    final p = await SharedPreferences.getInstance();
+    final set = (p.getStringList(_kActiveSubs) ?? []).toSet()..remove(subId);
+    await p.setStringList(_kActiveSubs, set.toList());
+    tier.value = _tierFromProducts(set.toList());
   }
 
   Future<void> dispose() async {

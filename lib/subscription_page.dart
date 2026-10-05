@@ -85,14 +85,36 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
     }
   }
 
+  // Task 083: restore с индикатором и результатом — не заглушка.
   Future<void> _restore() async {
+    setState(() => _busy = true);
     await _purchases.restore();
     await _refreshBalance();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppStrings.t('sub_purchased', context))),
-      );
+    if (!mounted) return;
+    setState(() => _busy = false);
+
+    final tier = _purchases.tier.value;
+    final unlocked = _purchases.unlocked.value;
+    final hasPacks = _balanceHours > 0;
+
+    String message;
+    if (tier != SubscriptionTier.none || unlocked || hasPacks) {
+      final parts = <String>[];
+      if (tier != SubscriptionTier.none) {
+        parts.add(AppStrings.tf('sub_status_tier', context, {
+          't': _tierName(context, tier),
+        }));
+      }
+      if (unlocked) parts.add(AppStrings.t('sub_full_unlock_status', context));
+      if (hasPacks) parts.add(AppStrings.t('sub_restore_found_packs', context));
+      message = parts.join('\n');
+    } else {
+      message = AppStrings.t('sub_restore_not_found', context);
     }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 4)),
+    );
   }
 
   Future<void> _promo() async {
@@ -166,10 +188,38 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        TextButton(
-                          onPressed: _busy ? null : _restore,
-                          child: Text(AppStrings.t('sub_restore', context),
-                              style: TextStyle(color: DictaTokens.of(context).mint)),
+                        // Task 083: restore с индикатором.
+                        ValueListenableBuilder<bool>(
+                          valueListenable: _purchases.restoring,
+                          builder: (context, restoring, _) {
+                            if (restoring) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const SizedBox(
+                                      width: 14, height: 14,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      AppStrings.t('sub_restore_checking', context),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: DictaTokens.of(context).ink3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+                            return TextButton(
+                              onPressed: _busy ? null : _restore,
+                              child: Text(AppStrings.t('sub_restore', context),
+                                  style: TextStyle(color: DictaTokens.of(context).mint)),
+                            );
+                          },
                         ),
                         Text('·', style: TextStyle(color: DictaTokens.of(context).ink3)),
                         TextButton(

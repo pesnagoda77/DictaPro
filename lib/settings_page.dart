@@ -364,6 +364,19 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
 
+                  // ── Конфиденциальность (информация, не настройки) ───
+                  _groupTitle(context, AppStrings.t('group_privacy', context)),
+                  _tile(
+                    context,
+                    title: AppStrings.t('engine_on_device', context),
+                    sub: AppStrings.t('engine_on_device_sub', context),
+                  ),
+                  _tile(
+                    context,
+                    title: AppStrings.t('all_on_device', context),
+                    sub: AppStrings.t('all_on_device_sub', context),
+                  ),
+
                   // ── Запись ────────────────────────────────────────────
                   _groupTitle(context, AppStrings.t('group_recording', context)),
                   _choiceTile<int>(
@@ -394,12 +407,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   _notePlate(context, AppStrings.t('quality_note', context)),
 
                   // ── Распознавание ─────────────────────────────────────
+                  // Task 083: служебные настройки (провайдер/ключи) убраны из
+                  // видимого списка — вынесены в скрытую диагностику (long tap
+                  // на версии внизу экрана). Оставляем только язык и тумблер.
                   _groupTitle(context, AppStrings.t('group_recognition', context)),
-                  _tile(
-                    context,
-                    title: AppStrings.t('engine_on_device', context),
-                    sub: AppStrings.t('engine_on_device_sub', context),
-                  ),
                   _tile(
                     context,
                     title: AppStrings.t('asr_lang_title', context),
@@ -419,38 +430,24 @@ class _SettingsPageState extends State<SettingsPage> {
                       },
                     ),
                   ),
-                  _tile(
-                    context,
-                    title: AppStrings.t('provider', context),
-                    sub: _sttProviderTitle,
-                    trailing: _chevron(context),
-                    onTap: _pickSttProvider,
-                  ),
-                  for (final pr in SttProvider.all)
-                    _tile(
-                      context,
-                      title: AppStrings.tf('key_for', context, {'p': pr.title}),
-                      sub: AppStrings.t('key_stored_local', context),
-                      trailing: _chevron(context),
-                      onTap: () => _editSttKey(pr),
-                    ),
 
                   // ── Фон и память ──────────────────────────────────────
                   _groupTitle(context, AppStrings.t('group_background', context)),
                   _miuiTile(context),
                   _tempTile(context),
 
-                  // ── Данные ────────────────────────────────────────────
-                  _groupTitle(context, AppStrings.t('group_data', context)),
-                  _tile(
-                    context,
-                    title: AppStrings.t('all_on_device', context),
-                    sub: AppStrings.t('all_on_device_sub', context),
-                  ),
-                  _tile(
-                    context,
-                    title: AppStrings.t('share_folder_diag', context),
-                    sub: AppStrings.t('share_folder_sub', context),
+                  // ── Версия и диагностика ──────────────────────────────
+                  // Task 083: служебная информация (провайдер, ключи, папка
+                  // обмена) — по долгому тапу на версии. Обычный пользователь
+                  // этого не видит.
+                  _groupTitle(context, AppStrings.t('group_about', context)),
+                  GestureDetector(
+                    onLongPress: _showDiagnostics,
+                    child: _tile(
+                      context,
+                      title: AppStrings.t('version_row', context),
+                      sub: AppStrings.t('version_row_sub', context),
+                    ),
                   ),
 
                   // ── Подписка и ИИ-часы (вход в раздел) ────────────────
@@ -486,6 +483,84 @@ class _SettingsPageState extends State<SettingsPage> {
                 ],
               ),
       ),
+    );
+  }
+
+  // Task 083: скрытая диагностика — провайдер, ключи, папка обмена.
+  // Открывается по долгому тапу на строке версии.
+  Future<void> _showDiagnostics() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: DictaTokens.of(context).surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final tk = DictaTokens.of(ctx);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36, height: 4,
+                    decoration: BoxDecoration(
+                      color: tk.line,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  AppStrings.t('diag_title', ctx),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                // Провайдер
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(AppStrings.t('provider', ctx),
+                      style: const TextStyle(fontSize: 13)),
+                  subtitle: Text(_sttProviderTitle,
+                      style: TextStyle(fontSize: 11.5, color: tk.ink3)),
+                  trailing: Icon(Icons.chevron_right_rounded, size: 19, color: tk.ink3),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickSttProvider();
+                  },
+                ),
+                // Ключи
+                for (final pr in SttProvider.all)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                        AppStrings.tf('key_for', ctx, {'p': pr.title}),
+                        style: const TextStyle(fontSize: 13)),
+                    subtitle: Text(AppStrings.t('key_stored_local', ctx),
+                        style: TextStyle(fontSize: 11.5, color: tk.ink3)),
+                    trailing: Icon(Icons.chevron_right_rounded, size: 19, color: tk.ink3),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _editSttKey(pr);
+                    },
+                  ),
+                const Divider(),
+                // Папка обмена
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(AppStrings.t('share_folder_diag', ctx),
+                      style: const TextStyle(fontSize: 13)),
+                  subtitle: Text(AppStrings.t('share_folder_sub', ctx),
+                      style: TextStyle(fontSize: 11.5, color: tk.ink3)),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

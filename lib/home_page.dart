@@ -20,6 +20,7 @@ import 'services/glossary_service.dart';
 import 'services/online_transcribe_service.dart';
 import 'services/keep_alive.dart';
 import 'services/purchase_service.dart';
+import 'services/ai_hours_service.dart';
 import 'services/usage_limit_service.dart';
 import 'services/local_notify.dart';
 import 'dialogue_editor.dart';
@@ -1326,7 +1327,7 @@ class _HomePageState extends State<HomePage>
         content: Text(AppStrings.limitReachedBody(ctx,
             used: used, limit: UsageLimitService.dailyMinutesLimit)),
         actions: [
-          // Task 065: ссылка на полный экран подписки (тарифы и пакеты).
+          // Task 083: «Все тарифы» — открывает экран подписки (тарифы и пакеты).
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
@@ -1336,26 +1337,81 @@ class _HomePageState extends State<HomePage>
             },
             child: Text(AppStrings.t('sub_all_plans', ctx)),
           ),
+          // Task 083: «Восстановить» — реальный restore с индикатором и результатом.
           TextButton(
-            onPressed: () {
-              PurchaseService.instance.restore();
+            onPressed: () async {
               Navigator.pop(ctx);
+              await _doRestoreWithFeedback(context);
             },
             child: Text(AppStrings.restorePurchase(ctx)),
           ),
+          // Task 083: «Купить полную версию» — сразу открывает экран тарифов,
+          // а не пытается buyFullUnlock() со снекбаром «магазин недоступен».
           FilledButton(
-            onPressed: () async {
-              final ok = await PurchaseService.instance.buyFullUnlock();
-              if (!ok && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text(AppStrings.storeUnavailable(context))));
-              }
-              if (ctx.mounted) Navigator.pop(ctx);
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SubscriptionPage()),
+              );
             },
             child: Text(AppStrings.buyFull(ctx)),
           ),
         ],
       ),
+    );
+  }
+
+  /// Task 083: restore с индикатором и понятным результатом.
+  Future<void> _doRestoreWithFeedback(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    // Показываем индикатор
+    messenger.showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 12),
+            Text(AppStrings.t('sub_restore_checking', context)),
+          ],
+        ),
+        duration: const Duration(seconds: 30),
+      ),
+    );
+
+    await PurchaseService.instance.restore();
+
+    if (!context.mounted) return;
+    messenger.hideCurrentSnackBar();
+
+    final tier = PurchaseService.instance.tier.value;
+    final unlocked = PurchaseService.instance.unlocked.value;
+    final hasPacks = await AiHoursService.instance.packMinutesLeft() > 0;
+
+    String message;
+    if (tier != SubscriptionTier.none || unlocked || hasPacks) {
+      final parts = <String>[];
+      if (tier != SubscriptionTier.none) {
+        parts.add(AppStrings.tf('sub_status_tier', context, {
+          't': switch (tier) {
+            SubscriptionTier.diary => AppStrings.t('sub_tier_diary', context),
+            SubscriptionTier.assistant => AppStrings.t('sub_tier_assistant', context),
+            SubscriptionTier.unlimited => AppStrings.t('sub_tier_unlimited', context),
+            SubscriptionTier.none => '',
+          },
+        }));
+      }
+      if (unlocked) parts.add(AppStrings.t('sub_full_unlock_status', context));
+      if (hasPacks) parts.add(AppStrings.t('sub_restore_found_packs', context));
+      message = parts.join('\n');
+    } else {
+      message = AppStrings.t('sub_restore_not_found', context);
+    }
+
+    messenger.showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 4)),
     );
   }
 
