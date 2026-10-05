@@ -1340,16 +1340,6 @@ class _HomePageState extends State<HomePage>
         content: Text(AppStrings.limitReachedBody(ctx,
             used: used, limit: UsageLimitService.dailyMinutesLimit)),
         actions: [
-          // Task 083: «Все тарифы» — открывает экран подписки (тарифы и пакеты).
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SubscriptionPage()),
-              );
-            },
-            child: Text(AppStrings.t('sub_all_plans', ctx)),
-          ),
           // Task 083: «Восстановить» — реальный restore с индикатором и результатом.
           TextButton(
             onPressed: () async {
