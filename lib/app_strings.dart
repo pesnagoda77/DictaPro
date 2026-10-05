@@ -138,9 +138,9 @@ class AppStrings {
           'Ein Abo hebt das Tageslimit auf — unbegrenzte Transkription auf dem Gerät, plus KI-Stunden für Online-Zusammenfassungen.',
       'es': 'Hoy has usado {u} de {n} minutos de transcripción.\n\n'
           'La suscripción elimina el límite diario: transcripción sin límites en el dispositivo y horas de IA para resúmenes online.',
-      'fr': "Aujourd'hui : {u} minutes de transcription sur {n} utilisées.\\n\\n"
+      'fr': "Aujourd'hui : {u} minutes de transcription sur {n} utilisées.\n\n"
           "L'abonnement supprime la limite quotidienne : transcription illimitée sur l'appareil, plus d'heures IA pour les résumés en ligne.",
-      'it': "Oggi hai usato {u} di {n} minuti di trascrizione.\\n\\n"
+      'it': "Oggi hai usato {u} di {n} minuti di trascrizione.\n\n"
           "L'abbonamento rimuove il limite giornaliero: trascrizione illimitata sul dispositivo, più ore AI per i riepiloghi online.",
     },
     'buy_full': {
