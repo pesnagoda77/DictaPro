@@ -42,7 +42,10 @@ class AppStrings {
       'de': 'Fortfahren',
       'it': 'Continuare',
     },
-    'long_transcribe_cancel': {
+    'asr_dialog_ok': {
+    'ru': 'ОК', 'en': 'OK', 'de': 'OK', 'fr': 'OK', 'es': 'OK', 'it': 'OK',
+  },
+  'long_transcribe_cancel': {
       'ru': 'Отмена', 'es': 'Cancelar', 'fr': 'Annuler',
       'en': 'Cancel',
       'de': 'Abbrechen',

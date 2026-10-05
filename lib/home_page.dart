@@ -785,6 +785,16 @@ class _HomePageState extends State<HomePage>
               ),
             ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: Text(AppStrings.t('long_transcribe_cancel', ctx)),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, saved),
+              child: Text(AppStrings.t('asr_dialog_ok', ctx)),
+            ),
+          ],
         ),
       ),
     );

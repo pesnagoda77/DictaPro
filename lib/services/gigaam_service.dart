@@ -60,7 +60,7 @@ abstract final class ModelManifest {
     ModelFileSpec(
       'gigaam_v3_punct/joiner.onnx',
       2712896,
-      '602ff7017a93311aad34df1437c8d7f49911353c13d6eaea7a6ee7b041339465c',
+      '602ff7017a93311aad34df1437c8d7f49911353c13d6eae7a6ee7b041339465c',
     ),
     ModelFileSpec(
       'gigaam_v3_punct/tokens.txt',
