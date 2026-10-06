@@ -104,6 +104,17 @@ class AiHoursService {
     await p.setDouble(_kPackMinutes, cur + hours * 60.0);
   }
 
+  /// Task 087: списать неиспользованные часы пакета при возврате.
+  /// Списываем минимум(текущий пакетный баланс, объём пакета).
+  Future<void> revokePackHours(double hours) async {
+    final p = await SharedPreferences.getInstance();
+    final cur = p.getDouble(_kPackMinutes) ?? 0;
+    final revokeMin = hours * 60.0;
+    final newVal = (cur - revokeMin).clamp(0.0, double.infinity);
+    await p.setDouble(_kPackMinutes, newVal);
+    debugPrint('[ai-hours] возврат пакета: списано $hours ч, остаток ${newVal / 60} ч');
+  }
+
   /// Строка для UI: «осталось 12.5 ч (вкл. 10 + пакеты 2.5)».
   Future<String> balanceLabel() async {
     final incl = includedHours();
