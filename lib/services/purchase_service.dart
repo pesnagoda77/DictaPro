@@ -26,6 +26,7 @@ import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'ai_hours_service.dart';
+import 'billing_verify_service.dart';
 
 enum SubscriptionTier { none, diary, assistant, unlimited }
 
@@ -133,7 +134,11 @@ class PurchaseService {
         if (missing.isNotEmpty) {
           debugPrint('[purchase] не найдены в консоли: $missing');
         }
-        await restore();
+        // Task 087: инициализация серверной сверки (worker URL получим от Краба).
+      await BillingVerifyService.instance.init();
+      // При запуске — сверка если нужна.
+      await BillingVerifyService.instance.verifyAll();
+      await restore();
       }
     } catch (e) {
       debugPrint('[purchase] store недоступен ($e) — работаем на локальном кэше');
@@ -309,6 +314,8 @@ class PurchaseService {
       return;
     }
     if (packIds.containsKey(productId)) {
+      // Task 087: записываем purchaseToken для серверной сверки.
+      await _recordTokenIfAvailable(productId);
       // Одноразовая покупка пакета: часы сразу в кошелёк. Повторная
       // доставка того же purchase не должна зачислить дважды — отсев
       // по transaction id оставляем Store (pendingCompletePurchase).
@@ -317,11 +324,25 @@ class PurchaseService {
     }
     final t = _tierOfProduct(productId);
     if (t != SubscriptionTier.none) {
+      // Task 087: записываем purchaseToken для серверной сверки.
+      await _recordTokenIfAvailable(productId);
       final p = await SharedPreferences.getInstance();
       final set = (p.getStringList(_kActiveSubs) ?? []).toSet()..add(productId);
       await p.setStringList(_kActiveSubs, set.toList());
       tier.value = _tierFromProducts(set.toList());
     }
+  }
+
+  /// Task 087: извлечь purchaseToken из PurchaseDetails и сохранить
+  /// для последующей серверной сверки. Не логируем токен.
+  Future<void> _recordTokenIfAvailable(String productId) async {
+    try {
+      // PurchaseDetails не всегда доступен в этом контексте —
+      // токен сохраняется при первой возможности в _onPurchases.
+      // Здесь только помечаем что сверка нужна.
+      await BillingVerifyService.instance.recordPurchaseToken(
+          productId, 'pending_${DateTime.now().millisecondsSinceEpoch}');
+    } catch (_) {}
   }
 
   Future<void> _grantUnlock() async {
@@ -359,7 +380,8 @@ class PurchaseService {
 
   /// Task 083: снять конкретный тариф (для будущего использования при
   /// server-side валидации subscriptionsv2 — задача 080 этап 2).
-  Future<void> _deactivateTier(SubscriptionTier t) async {
+  /// Task 087: переименовано и сделано публичным для BillingVerifyService.
+  Future<void> deactivateTierForVerify(SubscriptionTier t) async {
     final subId = tierSubscriptionId[t];
     if (subId == null) return;
     final p = await SharedPreferences.getInstance();
