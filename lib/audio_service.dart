@@ -22,6 +22,9 @@ class Recording {
   int fileSize;
   String? title;
   String? transcription;
+  /// Термины ЭТОЙ записи (глоссарий GigaAM) — вводятся в карточке текста
+  /// («Термины этой записи» → «Заново»), хранятся вместе с записью.
+  String? hotwords;
   List<Map<String, dynamic>>? segments;
   bool isFavorite;
 
@@ -38,6 +41,7 @@ class Recording {
     required this.fileSize,
     this.title,
     this.transcription,
+    this.hotwords,
     this.segments,
     this.isFavorite = false,
     this.tags,
@@ -54,6 +58,7 @@ class Recording {
         'fileSize': fileSize,
         'title': title,
         'transcription': transcription,
+        'hotwords': hotwords,
         'segments': segments,
         'isFavorite': isFavorite,
         'tags': tags,
@@ -70,6 +75,7 @@ class Recording {
         fileSize: map['fileSize'] as int,
         title: map['title'] as String?,
         transcription: map['transcription'] as String?,
+        hotwords: map['hotwords'] as String?,
         segments: map['segments'] != null
             ? (map['segments'] as List)
                 .map((item) => Map<String, dynamic>.from(item as Map))

@@ -234,6 +234,22 @@ class AppStrings {
       'de': 'Begriffe dieser Aufnahme (Namen, Abkürzungen — kommagetrennt)',
       'it': 'Termini di questa registrazione (nomi, abbreviazioni — separati da virgola)',
     },
+    'terms_title': {
+      'ru': 'Термины этой записи', 'es': 'Términos de esta grabación', 'fr': 'Termes de cet enregistrement', 'en': 'Terms for this recording',
+      'de': 'Begriffe für diese Aufnahme', 'it': 'Termini di questa registrazione',
+    },
+    'terms_note': {
+      'ru': 'Внесите термины и нажмите «Заново» — расшифровка пройдёт ещё раз с ними.',
+      'en': 'Add terms and tap “Redo” — the transcription will run again with them.',
+      'de': 'Begriffe eingeben und „Erneut“ tippen — die Transkription läuft damit erneut.',
+      'es': 'Añade términos y pulsa «Regenerar»: la transcripción se repetirá con ellos.',
+      'fr': 'Saisissez des termes puis appuyez sur « Refaire » — la transcription sera relancée avec eux.',
+      'it': 'Inserisci i termini e premi «Rifai»: la trascrizione verrà rieseguita con essi.',
+    },
+    'terms_done': {
+      'ru': 'Готово — текст обновлён', 'en': 'Done — text updated', 'de': 'Fertig — Text aktualisiert',
+      'es': 'Listo: texto actualizado', 'fr': 'Terminé — texte mis à jour', 'it': 'Fatto: testo aggiornato',
+    },
     'engine_label': {
       'ru': 'Распознавание: на устройстве · модель внутри', 'es': 'Reconocimiento: en el dispositivo · modelo integrado', 'fr': 'Reconnaissance : sur l\'appareil · modèle intégré',
       'en': 'Recognition: on-device · model inside',

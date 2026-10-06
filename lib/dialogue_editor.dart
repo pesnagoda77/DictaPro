@@ -2,12 +2,18 @@ import 'package:flutter/material.dart';
 import 'app_strings.dart';
 import 'audio_service.dart';
 import 'export_service.dart';
+import 'services/glossary_service.dart';
 import 'theme/app_theme.dart';
 
 class DialogueEditor extends StatefulWidget {
   final Recording recording;
 
-  const DialogueEditor({super.key, required this.recording});
+  /// 06.10: «Заново» из карточки текста — повторная расшифровка с терминами
+  /// этой записи (передаётся из home_page).
+  final Future<bool> Function(String terms)? onRetranscribe;
+
+  const DialogueEditor(
+      {super.key, required this.recording, this.onRetranscribe});
 
   @override
   State<DialogueEditor> createState() => _DialogueEditorState();
@@ -19,10 +25,23 @@ class _DialogueEditorState extends State<DialogueEditor> {
   final _focusNodes = <FocusNode>[];
   final _lastCursorPositions = <int>[];
   int _activeIndex = 0;
+  late final TextEditingController _termsController;
+  List<String> _recentTerms = [];
+  bool _retranscribing = false;
 
   @override
   void initState() {
     super.initState();
+    _termsController =
+        TextEditingController(text: widget.recording.hotwords ?? '');
+    _rebuildFromRecording();
+    _initControllers();
+    HotwordsStorage.recent().then((w) {
+      if (mounted && w.isNotEmpty) setState(() => _recentTerms = w);
+    });
+  }
+
+  void _rebuildFromRecording() {
     _segments = widget.recording.segments?.map((s) {
           return DialogueSegment.fromMap(Map<String, dynamic>.from(s));
         }).toList() ??
@@ -33,8 +52,6 @@ class _DialogueEditorState extends State<DialogueEditor> {
         DialogueSegment(speaker: 'A', text: widget.recording.transcription!)
       ];
     }
-
-    _initControllers();
   }
 
   void _initControllers() {
@@ -157,6 +174,7 @@ class _DialogueEditorState extends State<DialogueEditor> {
     final fullText = _segments.map((s) => _segments.map((x) => x.speaker).toSet().length > 1 ? '${s.speaker}: ${s.text}' : s.text).join('\n');
     widget.recording.transcription = fullText;
     widget.recording.segments = _segments.map((s) => s.toMap()).toList();
+    widget.recording.hotwords = _termsController.text.trim();
 
     await AudioService().updateRecording(widget.recording);
 
@@ -190,6 +208,7 @@ class _DialogueEditorState extends State<DialogueEditor> {
 
   @override
   void dispose() {
+    _termsController.dispose();
     for (var c in _textControllers) {
       c.dispose();
     }
@@ -325,12 +344,15 @@ class _DialogueEditorState extends State<DialogueEditor> {
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-                itemCount: _segments.length + 1,
+                itemCount: _segments.length + 2,
                 itemBuilder: (context, index) {
-                  if (index == _segments.length) {
+                  if (index == 0) {
+                    return _termsBlock(tk);
+                  }
+                  if (index == _segments.length + 1) {
                     return _footerNote(tk);
                   }
-                  return _segmentBlock(tk, index, speakerNo);
+                  return _segmentBlock(tk, index - 1, speakerNo);
                 },
               ),
             ),
@@ -410,6 +432,109 @@ class _DialogueEditorState extends State<DialogueEditor> {
             ),
           ),
           const SizedBox(height: 2),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _retranscribeNow() async {
+    final cb = widget.onRetranscribe;
+    if (cb == null || _retranscribing) return;
+    setState(() => _retranscribing = true);
+    try {
+      final ok = await cb(_termsController.text.trim());
+      if (!mounted) return;
+      if (ok) {
+        _rebuildFromRecording();
+        _initControllers();
+        _recentTerms = await HotwordsStorage.recent();
+        if (!mounted) return;
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppStrings.t('terms_done', context))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _retranscribing = false);
+    }
+  }
+
+  Widget _termsBlock(DictaTokens tk) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: tk.surface2,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: tk.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.spellcheck, size: 15, color: tk.mint),
+            const SizedBox(width: 6),
+            Text(AppStrings.t('terms_title', context),
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w700, color: tk.ink)),
+          ]),
+          const SizedBox(height: 4),
+          TextField(
+            controller: _termsController,
+            maxLines: 2,
+            cursorColor: tk.mint,
+            style: TextStyle(fontSize: 12.5, height: 1.35, color: tk.ink),
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+              hintText: AppStrings.t('hotwords_hint', context),
+              hintStyle: TextStyle(color: tk.ink3, fontSize: 12),
+            ),
+          ),
+          if (_recentTerms.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Wrap(spacing: 6, runSpacing: 6, children: [
+              for (final w in _recentTerms)
+                GestureDetector(
+                  onTap: () {
+                    final cur = _termsController.text;
+                    if (!cur.toLowerCase().contains(w.toLowerCase())) {
+                      _termsController.text =
+                          cur.trim().isEmpty ? w : '$cur, $w';
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 9, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: tk.surface,
+                      borderRadius: BorderRadius.circular(99),
+                      border: Border.all(color: tk.line),
+                    ),
+                    child: Text(w,
+                        style: TextStyle(fontSize: 10.5, color: tk.ink2)),
+                  ),
+                ),
+            ]),
+          ],
+          const SizedBox(height: 7),
+          Text(AppStrings.t('terms_note', context),
+              style: TextStyle(fontSize: 10.5, height: 1.35, color: tk.ink3)),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _retranscribing ? null : _retranscribeNow,
+              icon: _retranscribing
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.refresh, size: 16),
+              label: Text(AppStrings.t('btn_redo', context)),
+            ),
+          ),
         ],
       ),
     );

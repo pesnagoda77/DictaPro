@@ -89,8 +89,6 @@ class _HomePageState extends State<HomePage>
   Timer? _timer;
   late AnimationController _pulseController;
   final _searchController = TextEditingController();
-  final _hotwordsController = TextEditingController();
-  List<String> _recentHotwords = [];
   // 05.10.2026 (тест 72): бейдж «модель внутри» убран по отзыву — дублирует
   // строку прямо над собой и непонятен пользователю.
 
@@ -110,7 +108,6 @@ class _HomePageState extends State<HomePage>
     )..repeat(reverse: true);
     _loadRecordings();
     _loadSortPreference();
-    _loadRecentHotwords();
     // Задача 038: баннер о незаконченной расшифровке показываем сразу
     // при открытии приложения, а не только при повторном запуске того
     // же файла.
@@ -356,12 +353,7 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Future<void> _loadRecentHotwords() async {
-    final words = await HotwordsStorage.recent();
-    if (mounted && words.isNotEmpty) {
-      setState(() => _recentHotwords = words);
-    }
-  }
+
 
   Future<void> _loadSortPreference() async {
     try {
@@ -1245,7 +1237,7 @@ class _HomePageState extends State<HomePage>
           final result = onlineText == null
               ? await _transcribeOffline(latest.filePath,
                   asrLang: asrLangRec,
-                  hotwords: HotwordsStorage.parse(_hotwordsController.text))
+                  hotwords: HotwordsStorage.parse(latest.hotwords ?? ''))
               : null;
           final fullText = onlineText ?? result!.fullText;
 
@@ -1290,12 +1282,8 @@ class _HomePageState extends State<HomePage>
         _hideTranscribingDialog();
       }
     } else {
-      // «Термины этой записи» → глоссарий GigaAM (task 019; раньше — VOSK AddWord)
-      final hotwords = HotwordsStorage.parse(_hotwordsController.text);
-      if (hotwords.isNotEmpty) {
-        await HotwordsStorage.remember(hotwords);
-        _recentHotwords = await HotwordsStorage.recent();
-      }
+      // 06.10: термины больше не спрашиваем на старте — они вводятся в карточке
+      // текста записи («Термины этой записи» → «Заново»).
       await AudioService().startRecording();
       _startTimer();
       setState(() => _isRecording = true);
@@ -1506,7 +1494,7 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _transcribeRecording(rec,
-      {bool resumeFromPartial = false}) async {
+      {bool resumeFromPartial = false, bool openEditor = true}) async {
     // Путь может содержать старый UUID контейнера (iOS меняет его при
     // переустановке) — вычисляем актуальный.
     final filePath = await AudioService.resolveFilePath(rec.filePath);
@@ -1553,7 +1541,7 @@ class _HomePageState extends State<HomePage>
       final result = onlineText == null
           ? await _transcribeOffline(filePath,
               resumeFromPartial: resumeFromPartial, asrLang: asrLang,
-              hotwords: HotwordsStorage.parse(_hotwordsController.text))
+              hotwords: HotwordsStorage.parse(rec.hotwords ?? ''))
           : null;
 
       final punctuatedText = onlineText ?? result!.fullText;
@@ -1590,7 +1578,9 @@ class _HomePageState extends State<HomePage>
       await LocalNotify.instance.showTranscriptionDone();
 
       _hideTranscribingDialog();
-      _openDialogueEditor(rec);
+      if (openEditor) {
+        _openDialogueEditor(rec);
+      }
     } on PlatformException catch (e) {
       _hideTranscribingDialog();
       final msg = e.message ?? AppStrings.t('platform_error', context);
@@ -1630,7 +1620,21 @@ class _HomePageState extends State<HomePage>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => DialogueEditor(recording: rec),
+        builder: (context) => DialogueEditor(
+          recording: rec,
+          // 06.10: «Заново» прямо из карточки текста — термины этой записи.
+          onRetranscribe: (terms) async {
+            rec.hotwords = terms;
+            final parsed = HotwordsStorage.parse(terms);
+            if (parsed.isNotEmpty) {
+              await HotwordsStorage.remember(parsed);
+            }
+            await AudioService().updateRecording(rec);
+            await _transcribeRecording(rec, openEditor: false);
+            _loadRecordings();
+            return ((rec.transcription ?? '').trim().isNotEmpty);
+          },
+        ),
       ),
     ).then((saved) {
       if (saved == true) {
@@ -2038,7 +2042,6 @@ class _HomePageState extends State<HomePage>
     _timer?.cancel();
     _pulseController.dispose();
     _searchController.dispose();
-    _hotwordsController.dispose();
     _opStage.dispose();
     AudioService().dispose();
     super.dispose();
@@ -2191,68 +2194,7 @@ class _HomePageState extends State<HomePage>
                 if (AudioService().sleepDurationMinutes != null)
                   const SizedBox(height: 4),
 
-                if (!_isRecording) ...[
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _hotwordsController,
-                    decoration: InputDecoration(
-                      hintText:
-                          AppStrings.t('hotwords_hint', context),
-                      hintStyle: TextStyle(
-                          fontSize: 14,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant),
-                      isDense: true,
-                      filled: true,
-                      fillColor:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
-                      ),
-                      prefixIcon: Icon(Icons.spellcheck,
-                          size: 18, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45)),
-                    ),
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  if (_recentHotwords.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          for (final w in _recentHotwords)
-                            GestureDetector(
-                              onTap: () {
-                                final cur = _hotwordsController.text;
-                                if (!cur
-                                    .toLowerCase()
-                                    .contains(w.toLowerCase())) {
-                                  _hotwordsController.text =
-                                      cur.trim().isEmpty ? w : '$cur, $w';
-                                }
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: DictaTokens.of(context).surface2,
-                                  borderRadius: BorderRadius.circular(99),
-                                  border: Border.all(
-                                      color: DictaTokens.of(context).line),
-                                ),
-                                child: Text(w,
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        color: DictaTokens.of(context).ink2)),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
+
                 const SizedBox(height: 12),
                 // (нижняя кнопка записи убрана — одна большая кнопка выше)
                 const SizedBox(height: 8),
