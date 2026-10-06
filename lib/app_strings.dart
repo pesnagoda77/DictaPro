@@ -131,17 +131,17 @@ class AppStrings {
     },
     'limit_reached_body': {
       'ru': 'Сегодня использовано {u} из {n} минут расшифровки.\n\n'
-          'Подписка снимает дневной лимит — расшифровка без ограничений, плюс ИИ-часы для онлайн-итогов.',
+          'Оформите подписку — от 24 часов расшифровки в месяц, плюс ИИ-часы для онлайн-итогов.',
       'en': 'You have used {u} of {n} transcription minutes today.\n\n'
-          'A subscription removes the daily limit — unlimited on-device transcription, plus AI hours for online summaries.',
+          'Subscribe — from 24 hours of transcription per month, plus AI hours for online summaries.',
       'de': 'Heute wurden {u} von {n} Transkriptionsminuten genutzt.\n\n'
-          'Ein Abo hebt das Tageslimit auf — unbegrenzte Transkription auf dem Gerät, plus KI-Stunden für Online-Zusammenfassungen.',
+          'Abonnieren Sie — ab 24 Stunden Transkription pro Monat, plus KI-Stunden für Online-Zusammenfassungen.',
       'es': 'Hoy has usado {u} de {n} minutos de transcripción.\n\n'
-          'La suscripción elimina el límite diario: transcripción sin límites en el dispositivo y horas de IA para resúmenes online.',
+          'Suscríbete: desde 24 horas de transcripción al mes, más horas de IA para resúmenes online.',
       'fr': "Aujourd'hui : {u} minutes de transcription sur {n} utilisées.\n\n"
-          "L'abonnement supprime la limite quotidienne : transcription illimitée sur l'appareil, plus d'heures IA pour les résumés en ligne.",
+          "Abonnez-vous : à partir de 24 heures de transcription par mois, plus des heures IA pour les résumés en ligne.",
       'it': "Oggi hai usato {u} di {n} minuti di trascrizione.\n\n"
-          "L'abbonamento rimuove il limite giornaliero: trascrizione illimitata sul dispositivo, più ore AI per i riepiloghi online.",
+          "Abbonati: da 24 ore di trascrizione al mese, più ore AI per i riepiloghi online.",
     },
     'buy_full': {
       'ru': 'Выбрать тариф', 'es': 'Elegir plan', 'fr': 'Choisir une formule',
@@ -931,8 +931,8 @@ class AppStrings {
     },
     // 05.10 fix: подписка = всё включено (расшифровка без дневного лимита).
     'sub_includes_note': {
-      'ru': 'Подписка включает расшифровку без дневного лимита', 'es': 'La suscripción incluye transcripción sin límite diario', 'fr': "L'abonnement inclut la transcription sans limite quotidienne", 'en': 'Subscription includes transcription without the daily limit',
-      'de': 'Abo beinhaltet Transkription ohne Tageslimit', 'it': "L'abbonamento include la trascrizione senza limite giornaliero",
+      'ru': 'Расшифровка по тарифу (от 24 ч/мес) + ИИ-часы для онлайн-итогов', 'es': 'Transcripción según el plan (desde 24 h/mes) + horas de IA para resúmenes online', 'fr': 'Transcription selon la formule (dès 24 h/mois) + heures IA pour les résumés en ligne', 'en': 'Transcription per plan (from 24 h/mo) + AI hours for online summaries',
+      'de': 'Transkription je Tarif (ab 24 Std./Monat) + KI-Stunden für Online-Zusammenfassungen', 'it': 'Trascrizione secondo il piano (da 24 h/mese) + ore AI per i riepiloghi online',
     },
     'sub_status_next': {
       'ru': 'Списание и продление — в магазине приложений', 'es': 'El cobro y la renovación se gestionan en la tienda de aplicaciones', 'fr': 'Facturation et renouvellement dans la boutique d\'applications',
@@ -967,22 +967,37 @@ class AppStrings {
       'de': 'Unbegrenzt', 'it': 'Illimitato',
     },
     'sub_tier_diary_desc': {
-      'ru': '10 ИИ-часов в месяц для онлайн-итогов', 'es': '10 horas de IA al mes para resúmenes online', 'fr': '10 heures IA par mois pour les résumés en ligne',
-      'en': '10 AI hours per month for online summaries',
-      'de': '10 KI-Stunden pro Monat für Online-Zusammenfassungen',
-      'it': '10 ore AI al mese per riepiloghi online',
+      'ru': 'заметки, лекции, интервью', 'es': 'notas, clases, entrevistas', 'fr': 'notes, cours, entretiens',
+      'en': 'notes, lectures, interviews', 'de': 'Notizen, Vorlesungen, Interviews', 'it': 'note, lezioni, interviste',
     },
     'sub_tier_assistant_desc': {
-      'ru': '20 ИИ-часов в месяц для онлайн-итогов', 'es': '20 horas de IA al mes para resúmenes online', 'fr': '20 heures IA par mois pour les résumés en ligne',
-      'en': '20 AI hours per month for online summaries',
-      'de': '20 KI-Stunden pro Monat für Online-Zusammenfassungen',
-      'it': '20 ore AI al mese per riepiloghi online',
+      'ru': 'встречи, протоколы, консультации', 'es': 'reuniones, actas, consultas', 'fr': 'réunions, comptes rendus, consultations',
+      'en': 'meetings, minutes, consultations', 'de': 'Meetings, Protokolle, Beratungen', 'it': 'riunioni, verbali, consulenze',
     },
     'sub_tier_unlimited_desc': {
-      'ru': '40 ИИ-часов в месяц для онлайн-итогов', 'es': '40 horas de IA al mes para resúmenes online', 'fr': '40 heures IA par mois pour les résumés en ligne',
-      'en': '40 AI hours per month for online summaries',
-      'de': '40 KI-Stunden pro Monat für Online-Zusammenfassungen',
-      'it': '40 ore AI al mese per riepiloghi online',
+      'ru': 'кто работает голосом каждый день', 'es': 'para quien trabaja con la voz a diario', 'fr': 'pour ceux qui travaillent à la voix au quotidien',
+      'en': 'for those who work by voice every day', 'de': 'für alle, die täglich mit Stimme arbeiten', 'it': 'per chi lavora con la voce ogni giorno',
+    },
+    // 06.10: карточка тарифа = [суть] + [часы расшифровки] + [бонус ИИ-часы]
+    'sub_transcr_included': {
+      'ru': 'Расшифровка: {h} ч в месяц', 'es': 'Transcripción: {h} h al mes', 'fr': 'Transcription : {h} h par mois',
+      'en': 'Transcription: {h} h per month', 'de': 'Transkription: {h} Std./Monat', 'it': 'Trascrizione: {h} h al mese',
+    },
+    'sub_transcr_unlimited': {
+      'ru': 'Расшифровка: без ограничений', 'es': 'Transcripción: sin límites', 'fr': 'Transcription : illimitée',
+      'en': 'Transcription: unlimited', 'de': 'Transkription: unbegrenzt', 'it': 'Trascrizione: illimitata',
+    },
+    'sub_ai_bonus': {
+      'ru': '+ {h} ИИ-часов в подарок каждый месяц', 'es': '+ {h} horas de IA de regalo cada mes', 'fr': '+ {h} heures IA offertes chaque mois',
+      'en': '+ {h} AI hours per month as a bonus', 'de': '+ {h} KI-Stunden monatlich als Bonus', 'it': '+ {h} ore AI in regalo ogni mese',
+    },
+    'limit_reached_tier': {
+      'ru': 'Месячный лимит расшифровки по вашему тарифу исчерпан.\n\nПерейдите на старший тариф или дождитесь следующего месяца — лимит обновится.',
+      'en': 'Your monthly transcription limit for this plan is exhausted.\n\nUpgrade your plan or wait for the next month — the limit resets.',
+      'de': 'Das monatliche Transkriptionslimit Ihres Tarifs ist aufgebraucht.\n\nUpgraden Sie oder warten Sie auf den nächsten Monat — das Limit wird zurückgesetzt.',
+      'es': 'Has agotado el límite mensual de transcripción de tu plan.\n\nMejora tu plan o espera al próximo mes: el límite se renueva.',
+      'fr': 'La limite mensuelle de transcription de votre formule est épuisée.\n\nChangez de formule ou attendez le mois prochain — la limite sera réinitialisée.',
+      'it': 'Hai esaurito il limite mensile di trascrizione del tuo piano.\n\nPassa a un piano superiore o attendi il mese prossimo: il limite si rinnova.',
     },
     'sub_current_badge': {
       'ru': 'Текущий тариф', 'es': 'Plan actual', 'fr': 'Formule actuelle', 'en': 'Current plan',
@@ -1779,6 +1794,9 @@ class AppStrings {
   }) =>
       _fmt(_t('limit_reached_body', context),
           {'u': '$used', 'n': '$limit'});
+
+  static String limitReachedTierBody(BuildContext context) =>
+      _t('limit_reached_tier', context);
 
   static String buyFull(BuildContext context) => _t('buy_full', context);
 

@@ -353,7 +353,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
         border: Border.all(
           color: best
               ? tk.gold
-              : (current ? tk.mint.withValues(alpha: 0.45) : tk.line),
+              : (current ? tk.mint.withValues(alpha: 0.9) : tk.line),
         ),
         gradient: best
             ? LinearGradient(
@@ -396,25 +396,45 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
               ),
           ]),
           const SizedBox(height: 9),
-          Text(AppStrings.tf('sub_hours_per_month', context, {'h': '$hours'}),
+          // Главное — включённые часы расшифровки (Дневник 24 ч · Ассистент 120 ч · Безлимит ∞)
+          Text(
+              t == SubscriptionTier.unlimited
+                  ? AppStrings.t('sub_transcr_unlimited', context)
+                  : AppStrings.tf('sub_transcr_included', context,
+                      {'h': '${PurchaseService.includedTranscriptionHours[t]}'}),
               style: TextStyle(
                   fontSize: 12.5, fontWeight: FontWeight.w700, color: tk.ink)),
+          const SizedBox(height: 3),
+          // Бонус — ИИ-часы для онлайн-итогов (одной строкой, без дубля)
+          Text(AppStrings.tf('sub_ai_bonus', context, {'h': '$hours'}),
+              style: TextStyle(fontSize: 11, color: tk.ink3)),
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
-            child: best
-                ? ElevatedButton(
-                    onPressed: (current || _busy) ? null : () => _buyTier(t),
-                    child: Text(current
-                        ? AppStrings.t('sub_current_badge', context)
-                        : '${AppStrings.t('sub_buy', context)} · ${price ?? ''}'),
+            child: current
+                ? Container(
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    decoration: BoxDecoration(
+                      color: tk.mint,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text('✓ ' + AppStrings.t('sub_current_badge', context),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF06251C))),
                   )
-                : OutlinedButton(
-                    onPressed: (current || _busy) ? null : () => _buyTier(t),
-                    child: Text(current
-                        ? AppStrings.t('sub_current_badge', context)
-                        : AppStrings.t('sub_buy', context)),
-                  ),
+                : (best
+                    ? ElevatedButton(
+                        onPressed: _busy ? null : () => _buyTier(t),
+                        child: Text(
+                            '${AppStrings.t('sub_buy', context)} · ${price ?? ''}'),
+                      )
+                    : OutlinedButton(
+                        onPressed: _busy ? null : () => _buyTier(t),
+                        child: Text(AppStrings.t('sub_buy', context)),
+                      )),
           ),
         ]),
         if (best)

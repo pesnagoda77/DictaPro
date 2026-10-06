@@ -1330,15 +1330,17 @@ class _HomePageState extends State<HomePage>
   // ---------- Task 054: монетизация (разовая покупка) ----------
 
   /// Paywall: лимит исчерпан → «Купить полную версию» / «Восстановить покупку».
-  Future<void> _showPaywall() async {
+  Future<void> _showPaywall({bool tierQuota = false}) async {
     final used = await UsageLimitService.instance.usedMinutesToday();
     if (!mounted) return;
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(AppStrings.limitReachedTitle(ctx)),
-        content: Text(AppStrings.limitReachedBody(ctx,
-            used: used, limit: UsageLimitService.dailyMinutesLimit)),
+        content: Text(tierQuota
+            ? AppStrings.limitReachedTierBody(ctx)
+            : AppStrings.limitReachedBody(ctx,
+                used: used, limit: UsageLimitService.dailyMinutesLimit)),
         actions: [
           // Task 083: «Восстановить» — реальный restore с индикатором и результатом.
           TextButton(
@@ -1421,10 +1423,21 @@ class _HomePageState extends State<HomePage>
   /// Дневной лимит бесплатной расшифровки (15 мин/день, task 054).
   /// true — можно расшифровывать (полная версия или лимит не исчерпан).
   Future<bool> _checkTranscribeLimit(int durationMs) async {
-    // 05.10 fix: любой активный тариф снимает дневной лимит («подписка = всё
-    // включено», задача 057) — наравне с legacy-«полной версией».
+    // 06.10 (логика холста V1): тарифы дают включённые часы расшифровки —
+    // Дневник 24 ч/мес, Ассистент 120 ч/мес, Безлимит — без ограничений;
+    // бесплатно — 15 минут в день. Legacy-«полная версия» — без лимитов.
     final ps = PurchaseService.instance;
-    if (ps.unlocked.value || ps.tier.value != SubscriptionTier.none) {
+    if (ps.unlocked.value) return true;
+    final tier = ps.tier.value;
+    if (tier != SubscriptionTier.none) {
+      final quotaHours = PurchaseService.includedTranscriptionHours[tier];
+      if (quotaHours == null) return true; // Безлимит
+      final ok = await UsageLimitService.instance
+          .canTranscribeMonthly(durationMs, quotaHours);
+      if (!ok) {
+        await _showPaywall(tierQuota: true);
+        return false;
+      }
       return true;
     }
     final ok = await UsageLimitService.instance.canTranscribe(durationMs);
@@ -1438,7 +1451,14 @@ class _HomePageState extends State<HomePage>
   /// Фиксация траты минут после УСПЕШНОЙ расшифровки (только бесплатный режим).
   Future<void> _recordTranscribeUsage(int durationMs) async {
     final ps = PurchaseService.instance;
-    if (ps.unlocked.value || ps.tier.value != SubscriptionTier.none) return;
+    if (ps.unlocked.value) return;
+    final tier = ps.tier.value;
+    if (tier != SubscriptionTier.none) {
+      if (PurchaseService.includedTranscriptionHours[tier] != null) {
+        await UsageLimitService.instance.recordMonthlyUsage(durationMs);
+      }
+      return;
+    }
     await UsageLimitService.instance.recordUsage(durationMs);
   }
 
@@ -2374,7 +2394,8 @@ class _HomePageState extends State<HomePage>
                                   color: Theme.of(context).colorScheme.surface,
                                   borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
-                                    color: Theme.of(context).dividerColor,
+                                    // 06.10: рамка чуть заметнее (просьба Славана)
+                                    color: Colors.white.withValues(alpha: 0.14),
                                     width: 1,
                                   ),
                                 ),

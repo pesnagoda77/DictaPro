@@ -2,8 +2,9 @@
 //
 // Модель (из ТЗ, цену/лимит подтвердил владелец):
 //   бесплатно навсегда — 15 минут расшифровки в день + запись/хранение/экспорт
-//   без ограничений; лимит снимает legacy-«полная версия» или ЛЮБОЙ активный
-//   тариф подписки (задача 057: «подписка = всё включено», fix 05.10).
+//   без ограничений; тарифы дают включённые часы расшифровки в месяц:
+//   Дневник — 24 ч, Ассистент — 120 ч, Безлимит — без ограничений
+//   (логика холста V1, подтверждено 06.10); legacy-«полная версия» — навсегда.
 //
 // Счётчик — локальный (SharedPreferences). Защита от сброса времени:
 // храним дату последнего использования; если системные часы ПЕРЕВЕДЕНЫ
@@ -69,6 +70,42 @@ class UsageLimitService {
     await p.setString(_kDay, today);
     await p.setInt(_kMinutes, used + need);
     await p.setInt(_kLastSeen, now.millisecondsSinceEpoch);
+  }
+
+  // ——— Месячные лимиты расшифровки по тарифам (Дневник 24 ч · Ассистент 120 ч) ———
+
+  static const _kMonth = 'usage_month_v1'; // 'YYYY-MM' последней траты
+  static const _kMonthMinutes = 'usage_month_minutes_v1'; // минут за месяц
+
+  static String _thisMonth() {
+    final n = DateTime.now();
+    return '${n.year.toString().padLeft(4, '0')}-${n.month.toString().padLeft(2, '0')}';
+  }
+
+  /// Сколько минут уже расшифровано в этом месяце.
+  Future<int> usedMinutesThisMonth() async {
+    final p = await SharedPreferences.getInstance();
+    final m = p.getString(_kMonth);
+    if (m != _thisMonth()) return 0;
+    return p.getInt(_kMonthMinutes) ?? 0;
+  }
+
+  /// Хватит ли месячного лимита тарифа на запись длиной [audioMs].
+  Future<bool> canTranscribeMonthly(int audioMs, int limitHours) async {
+    final used = await usedMinutesThisMonth();
+    final need = (audioMs / 60000).ceil();
+    return used + need <= limitHours * 60;
+  }
+
+  /// Фиксирует трату минут после успешной расшифровки (платный тариф).
+  Future<void> recordMonthlyUsage(int audioMs) async {
+    final p = await SharedPreferences.getInstance();
+    final m = _thisMonth();
+    final stored = p.getString(_kMonth);
+    final used = stored == m ? (p.getInt(_kMonthMinutes) ?? 0) : 0;
+    final need = (audioMs / 60000).ceil();
+    await p.setString(_kMonth, m);
+    await p.setInt(_kMonthMinutes, used + need);
   }
 
   /// Для paywall-диалога: «сегодня использовано X из Y минут».

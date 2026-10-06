@@ -130,6 +130,14 @@ class PurchaseService {
     SubscriptionTier.unlimited: 40,
   };
 
+  /// Включённые часы РАСШИФРОВКИ в месяц по тарифам (логика холста V1):
+  /// Дневник — 24 ч, Ассистент — 120 ч, Безлимит — без ограничений (null).
+  static const Map<SubscriptionTier, int?> includedTranscriptionHours = {
+    SubscriptionTier.diary: 24,
+    SubscriptionTier.assistant: 120,
+    SubscriptionTier.unlimited: null,
+  };
+
   Future<void> init() async {
     final p = await SharedPreferences.getInstance();
     unlocked.value = p.getBool(_kUnlocked) ?? false;
