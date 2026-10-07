@@ -31,9 +31,16 @@ class BillingVerifyService {
   BillingVerifyService._();
   static final BillingVerifyService instance = BillingVerifyService._();
 
-  /// URL воркера Краба. Пока воркера нет — null, сверка не выполняется.
-  /// Краб выдаёт URL и тестовые токены.
-  String? workerUrl;
+  /// Task 090: боевой URL воркера (task 087 часть А — Краб).
+  /// Был: String? workerUrl — теперь константа.
+  static const String? _workerUrl =
+      String.fromEnvironment('BILLING_API_URL', defaultValue: '');
+
+  String? get workerUrl {
+    final url = _workerUrl;
+    if (url == null || url.isEmpty) return null;
+    return url;
+  }
 
   /// Минимальный интервал между сверками (часы).
   static const int _verifyIntervalHours = 24;
@@ -213,10 +220,9 @@ class BillingVerifyService {
     await p.setStringList(_kPendingTokens, list);
   }
 
-  /// Установить URL воркера (вызывается при получении от Краба).
-  void setWorkerUrl(String url) {
-    workerUrl = url;
-  }
+  /// Task 090: URL больше не устанавливается вручную — берётся из
+  /// --dart-define=BILLING_API_URL. Метод оставлен для совместимости (no-op).
+  void setWorkerUrl(String url) {}
 }
 
 class VerifyResult {
