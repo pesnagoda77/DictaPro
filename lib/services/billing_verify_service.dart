@@ -120,7 +120,7 @@ class BillingVerifyService {
         Uri.parse('$workerUrl/verify'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'package': 'com.pesnagoda.dictapro',
+          'package': 'com.dictapro.app',
           'productId': productId,
           'purchaseToken': purchaseToken,
         }),
