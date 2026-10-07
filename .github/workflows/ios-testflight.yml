@@ -49,7 +49,7 @@ jobs:
         run: python3 tools/fetch_model.py
 
       - name: Сборка IPA (App Store)
-        run: flutter build ipa --release --dart-define=DICTA_APP_KEY=${{ secrets.DICTA_APP_KEY }} --export-options-plist=ios/ExportOptions-appstore.plist
+        run: flutter build ipa --release --dart-define=DICTA_APP_KEY=${{ secrets.DICTA_APP_KEY }} --export-options-plist=ios/ExportOptions-appstore.plist --dart-define=CODE_KEY=${{ secrets.CODE_KEY }} --dart-define=BILLING_API_URL=https://billing-api.pesnagoda77.workers.dev
 
       - name: Что получилось
         run: ls -la build/ios/ipa/ || true
