@@ -5,7 +5,6 @@
 // промо-коды (читаемые строки) — через сервер.
 import 'package:activation_codes/activation_codes.dart' as ac;
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'ai_hours_service.dart';
 import 'purchase_service.dart';

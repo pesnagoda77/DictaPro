@@ -8,6 +8,7 @@
 // до 0.1 ч. Трактовка единицы «1 ИИ-час = 1 час аудиоматериала» —
 // зафиксирована в ТЗ-обсуждении (модель эконом-класса, 29 ₽/час).
 // Anti-rollback — тот же приём, что в UsageLimitService (054).
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'purchase_service.dart';
