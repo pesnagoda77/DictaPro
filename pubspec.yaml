@@ -33,6 +33,11 @@ dependencies:
   in_app_purchase_android: ^0.5.3
   # Task 056: локальное уведомление «Расшифровка готова».
   flutter_local_notifications: ^18.0.1
+  # Task 089: единый модуль кодов активации (HMAC + промо).
+  activation_codes:
+    git:
+      url: https://github.com/pesnagoda77/activation-codes.git
+      path: packages/activation_codes
 
 dev_dependencies:
   flutter_test:

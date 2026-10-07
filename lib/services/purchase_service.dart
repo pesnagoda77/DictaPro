@@ -506,6 +506,32 @@ class PurchaseService {
     tier.value = _tierFromProducts(set.toList());
   }
 
+  /// Task 089: выдать тариф из кода активации (максимум с текущим).
+  Future<void> setTierFromCode(SubscriptionTier t, DateTime? expiresAt) async {
+    final p = await SharedPreferences.getInstance();
+    const kCodeTier = 'code_activated_tier_v1';
+    const kCodeExpiry = 'code_activated_expiry_v1';
+    await p.setString(kCodeTier, t.name);
+    if (expiresAt != null) {
+      await p.setInt(kCodeExpiry, expiresAt.millisecondsSinceEpoch);
+    } else {
+      await p.remove(kCodeExpiry);
+    }
+    final playTier = _tierFromProducts(p.getStringList(_kActiveSubs) ?? []);
+    final codeExpiry = p.getInt(kCodeExpiry);
+    final codeValid = codeExpiry == null ||
+        DateTime.now().millisecondsSinceEpoch < codeExpiry;
+    final effective = codeValid && _tierRank(t) > _tierRank(playTier) ? t : playTier;
+    tier.value = effective;
+  }
+
+  static int _tierRank(SubscriptionTier t) => switch (t) {
+        SubscriptionTier.none => 0,
+        SubscriptionTier.diary => 1,
+        SubscriptionTier.assistant => 2,
+        SubscriptionTier.unlimited => 3,
+      };
+
   Future<void> dispose() async {
     await _sub?.cancel();
   }

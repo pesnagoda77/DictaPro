@@ -1,9 +1,11 @@
 // Task 065/066/068: экран «Подписка» — 3 тарифа (Месяц/Год) + пакеты ИИ-часов.
 // Логика покупок из PurchaseService (066), оформление — дизайн V3 (068).
+import 'package:activation_codes/activation_codes.dart' as ac;
 import 'package:flutter/material.dart';
 
 import 'app_strings.dart';
 import 'services/ai_hours_service.dart';
+import 'services/code_activation_service.dart';
 import 'services/purchase_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/dicta_ui.dart';
@@ -117,16 +119,31 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
     );
   }
 
+  // Task 089: активация кодов через единый модуль activation_codes.
   Future<void> _promo() async {
-    final ctrl = TextEditingController();
-    final code = await showDialog<String>(
+    if (!CodeActivationService.instance.isReady) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Активация кодов недоступна — нет ключа')),
+      );
+      return;
+    }
+
+    final result = await showDialog<ac.CodeResult>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(AppStrings.t('sub_promo_title', context)),
-        content: TextField(
-          controller: ctrl,
-          decoration: InputDecoration(
-            labelText: AppStrings.t('sub_promo_hint', context),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ac.ActivationCodeField(
+            onRedeem: (code) async {
+              final r = await CodeActivationService.instance.redeem(code);
+              if (r.ok) {
+                await CodeActivationService.instance.applyCodeResult(r);
+              }
+              return r;
+            },
+            accentColor: DictaTokens.of(context).mint,
+            hintText: 'DICTA-...',
           ),
         ),
         actions: [
@@ -134,19 +151,31 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
             onPressed: () => Navigator.pop(ctx),
             child: Text(AppStrings.t('long_transcribe_cancel', context)),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: Text(AppStrings.t('save', context)),
-          ),
         ],
       ),
     );
-    if (code != null && code.isNotEmpty && mounted) {
+
+    if (result != null && result.ok && mounted) {
+      await _refreshBalance();
+      final typeKey = result.typeKey ?? '';
+      final tier = CodeActivationService.instance.tierOfTypeKey(typeKey);
+      final pack = CodeActivationService.instance.packOfTypeKey(typeKey);
+      String msg;
+      if (tier != SubscriptionTier.none) {
+        msg = 'Код активирован: тариф ${_tierName(context, tier)}'
+            '${result.expiresAt != null ? ' до ${_fmtDate(result.expiresAt!)}' : ''}';
+      } else if (pack != null) {
+        msg = 'Код активирован: +${pack.toStringAsFixed(0)} ч ИИ';
+      } else {
+        msg = 'Код активирован!';
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppStrings.t('sub_promo_pending', context))),
+        SnackBar(content: Text(msg), duration: const Duration(seconds: 4)),
       );
     }
   }
+
+  String _fmtDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 
   @override
   Widget build(BuildContext context) {
