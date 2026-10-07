@@ -82,6 +82,8 @@ class PurchaseService {
 
   static const _kUnlocked = 'purchase_unlocked_v1';
   static const _kActiveSubs = 'subscription_products_v1'; // Set<String>
+  static const _kCodeTier = 'code_activated_tier_v1';
+  static const _kCodeExpiry = 'code_activated_expiry_v1';
   // Task 079: токены уже зачисленных покупок пакетов (Set<String>) —
   // защита от перезачисления при redelivery/restore.
   static const _kAppliedPacks = 'applied_pack_tokens_v1';
@@ -142,7 +144,7 @@ class PurchaseService {
   Future<void> init() async {
     final p = await SharedPreferences.getInstance();
     unlocked.value = p.getBool(_kUnlocked) ?? false;
-    tier.value = _tierFromProducts(p.getStringList(_kActiveSubs) ?? []);
+    await _applyEffectiveTier();
 
     _sub = _iap.purchaseStream.listen(_onPurchases);
 
@@ -319,11 +321,11 @@ class PurchaseService {
       final rebuilt = _rebuildBuf.toList();
       await p.setStringList(_kActiveSubs, rebuilt);
       await p.setInt(_kLastVerifiedMs, DateTime.now().millisecondsSinceEpoch);
-      tier.value = _tierFromProducts(rebuilt);
+      await _applyEffectiveTier();
       debugPrint('[purchase] restore пересобрал набор: $rebuilt, tier=${tier.value}');
     } else {
       final active = p.getStringList(_kActiveSubs) ?? [];
-      tier.value = _tierFromProducts(active);
+      await _applyEffectiveTier();
       debugPrint('[purchase] restore не подтверждён — оставлен набор: $active');
     }
   }
@@ -338,7 +340,7 @@ class PurchaseService {
     if (elapsed > Duration(days: _graceDays).inMilliseconds) {
       // Грейс истёк — честно снимаем подписки.
       await p.setStringList(_kActiveSubs, []);
-      tier.value = SubscriptionTier.none;
+      await _applyEffectiveTier();
       debugPrint('[purchase] офлайн-грейс ${_graceDays}д истёк — подписки сняты');
     } else {
       debugPrint('[purchase] офлайн-грейс: ${elapsed ~/ Duration.millisecondsPerDay}д из $_graceDays — тариф держим');
@@ -382,15 +384,15 @@ class PurchaseService {
       return;
     }
     if (packIds.containsKey(productId)) {
-      // Task 087: пометка для серверной сверки.
-      await _recordTokenIfAvailable(productId);
+      // Task 087: сохраняем реальный purchaseToken для сверки.
+      await _recordRealToken(purchase);
       await _applyPack(purchase);
       return;
     }
     final t = _tierOfProduct(productId);
     if (t != SubscriptionTier.none) {
-      // Task 087: пометка для серверной сверки.
-      await _recordTokenIfAvailable(productId);
+      // Task 087: сохраняем реальный purchaseToken для сверки.
+      await _recordRealToken(purchase);
       if (_rebuild) {
         // Идёт пересборка — копим подтверждённые подписки до финализации.
         _rebuildBuf.add(productId);
@@ -399,7 +401,7 @@ class PurchaseService {
       final p = await SharedPreferences.getInstance();
       final set = (p.getStringList(_kActiveSubs) ?? []).toSet()..add(productId);
       await p.setStringList(_kActiveSubs, set.toList());
-      tier.value = _tierFromProducts(set.toList());
+      await _applyEffectiveTier();
       return;
     }
     debugPrint('[purchase] неизвестный продукт $productId — приём отключён');
@@ -449,15 +451,14 @@ class PurchaseService {
     return 'Ошибка покупки. Попробуйте позже.';
   }
 
-  /// Task 087: извлечь purchaseToken из PurchaseDetails и сохранить
-  /// для последующей серверной сверки. Не логируем токен.
-  Future<void> _recordTokenIfAvailable(String productId) async {
+  /// Task 087: сохранить реальный purchaseToken (Play) для серверной сверки.
+  /// Токен не логируем.
+  Future<void> _recordRealToken(PurchaseDetails purchase) async {
     try {
-      // PurchaseDetails не всегда доступен в этом контексте —
-      // токен сохраняется при первой возможности в _onPurchases.
-      // Здесь только помечаем что сверка нужна.
-      await BillingVerifyService.instance.recordPurchaseToken(
-          productId, 'pending_${DateTime.now().millisecondsSinceEpoch}');
+      final token = purchase.verificationData.serverVerificationData;
+      if (token.isEmpty) return;
+      await BillingVerifyService.instance
+          .recordPurchaseToken(purchase.productID, token);
     } catch (_) {}
   }
 
@@ -503,26 +504,39 @@ class PurchaseService {
     final p = await SharedPreferences.getInstance();
     final set = (p.getStringList(_kActiveSubs) ?? []).toSet()..remove(subId);
     await p.setStringList(_kActiveSubs, set.toList());
-    tier.value = _tierFromProducts(set.toList());
+    await _applyEffectiveTier();
   }
 
   /// Task 089: выдать тариф из кода активации (максимум с текущим).
   Future<void> setTierFromCode(SubscriptionTier t, DateTime? expiresAt) async {
     final p = await SharedPreferences.getInstance();
-    const kCodeTier = 'code_activated_tier_v1';
-    const kCodeExpiry = 'code_activated_expiry_v1';
-    await p.setString(kCodeTier, t.name);
+    await p.setString(_kCodeTier, t.name);
     if (expiresAt != null) {
-      await p.setInt(kCodeExpiry, expiresAt.millisecondsSinceEpoch);
+      await p.setInt(_kCodeExpiry, expiresAt.millisecondsSinceEpoch);
     } else {
-      await p.remove(kCodeExpiry);
+      await p.remove(_kCodeExpiry);
     }
+    await _applyEffectiveTier();
+  }
+
+  /// Эффективный тариф: максимум из Play-подписок и активного кода (089).
+  /// Код хранится в code_activated_*; пустой срок = бессрочно.
+  Future<void> _applyEffectiveTier() async {
+    final p = await SharedPreferences.getInstance();
     final playTier = _tierFromProducts(p.getStringList(_kActiveSubs) ?? []);
-    final codeExpiry = p.getInt(kCodeExpiry);
-    final codeValid = codeExpiry == null ||
-        DateTime.now().millisecondsSinceEpoch < codeExpiry;
-    final effective = codeValid && _tierRank(t) > _tierRank(playTier) ? t : playTier;
-    tier.value = effective;
+    var codeTier = SubscriptionTier.none;
+    final codeName = p.getString(_kCodeTier);
+    if (codeName != null) {
+      final ct = SubscriptionTier.values.firstWhere(
+          (e) => e.name == codeName,
+          orElse: () => SubscriptionTier.none);
+      final expMs = p.getInt(_kCodeExpiry);
+      final valid =
+          expMs == null || DateTime.now().millisecondsSinceEpoch < expMs;
+      if (valid) codeTier = ct;
+    }
+    tier.value =
+        _tierRank(playTier) >= _tierRank(codeTier) ? playTier : codeTier;
   }
 
   static int _tierRank(SubscriptionTier t) => switch (t) {
