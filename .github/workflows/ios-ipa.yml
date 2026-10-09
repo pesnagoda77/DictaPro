@@ -42,6 +42,8 @@ jobs:
           mkdir -p ~/.appstoreconnect/private_keys
           echo "$ASC_KEY_BASE64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
 
+      - name: Доступ к приватному модулю кодов
+        run: git config --global url."https://x-access-token:${{ secrets.GH_MODULE_TOKEN }}@github.com/".insteadOf "https://github.com/"
       - name: Зависимости
         run: flutter pub get
 

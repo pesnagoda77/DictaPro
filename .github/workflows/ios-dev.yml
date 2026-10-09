@@ -31,6 +31,8 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp /tmp/dev.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
 
+      - name: Доступ к приватному модулю кодов
+        run: git config --global url."https://x-access-token:${{ secrets.GH_MODULE_TOKEN }}@github.com/".insteadOf "https://github.com/"
       - name: Зависимости
         run: flutter pub get
 
