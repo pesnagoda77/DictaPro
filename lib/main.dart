@@ -10,6 +10,7 @@ import 'app_strings.dart';
 import 'theme/app_theme.dart';
 import 'locale_controller.dart';
 import 'services/purchase_service.dart';
+import 'services/code_activation_service.dart';
 import 'services/local_notify.dart';
 
 void main() async {
@@ -33,6 +34,8 @@ void main() async {
   // Task 054: права на полную версию из локального кэша + перепроверка
   // в Store (без сети — остаёмся на кэше).
   await PurchaseService.instance.init();
+  // Фикс 10.10: инициализация механизма кодов активации (без неё ввод кода зависал)
+  await CodeActivationService.instance.init();
   // Task 056: локальные уведомления «Расшифровка готова» (работают офлайн).
   await LocalNotify.instance.init();
   // Выбранная тема (тёмная/светлая) — из памяти устройства
