@@ -1,0 +1,7 @@
+name = "dicta-summary"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+account_id = "567897a9f6a9d8ffb66da4be1c719310"
+
+[ai]
+binding = "AI"
