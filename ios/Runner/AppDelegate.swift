@@ -254,12 +254,21 @@ import AVFoundation
   }
 }
 
-/// Decodes any audio file readable by AVFoundation and writes a plain
-/// 16 kHz mono 16-bit PCM WAV. No AVAudioConverter is used: decoding plus
-/// linear resampling plus a hand-written RIFF header keeps this deterministic.
+/// Пишет 16 кГц моно 16-bit PCM WAV. Наши записи — WAV PCM, читаются
+/// напрямую RIFF-парсингом (task 099: AVAudioFile.read падает
+/// _GenericObjCError на JUNK/FLLR-чанках iOS-рекордера). Прочие форматы —
+/// fallback через AVAudioFile. Ресемплинг линейный, без AVAudioConverter.
 enum Wav16kConverter {
   static let targetRate: Double = 16000
   static var lastStage = "init"
+
+  /// Описание data-чанка PCM-WAV.
+  struct WavInfo {
+    var dataOffset: UInt64
+    var dataSize: UInt64
+    var sampleRate: Double
+    var channels: Int
+  }
 
   static func logPath() -> String {
     let dir = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
@@ -279,17 +288,25 @@ enum Wav16kConverter {
     }
   }
 
+  // MARK: - little-endian helpers
+
+  static func u16le(_ d: Data, _ i: Int) -> UInt16 {
+    UInt16(d[i]) | (UInt16(d[i + 1]) << 8)
+  }
+  static func u32le(_ d: Data, _ i: Int) -> UInt32 {
+    UInt32(d[i]) | (UInt32(d[i + 1]) << 8) | (UInt32(d[i + 2]) << 16) | (UInt32(d[i + 3]) << 24)
+  }
+  static func isTag(_ d: Data, _ i: Int, _ s: String) -> Bool {
+    let b = Array(s.utf8)
+    return d[i] == b[0] && d[i + 1] == b[1] && d[i + 2] == b[2] && d[i + 3] == b[3]
+  }
+
+  // MARK: - entry point
+
   static func convert(inputPath: String, outputPath: String) throws {
     lastStage = "open_source"
     log("start input=\(inputPath) output=\(outputPath)")
-    let src = try AVAudioFile(forReading: URL(fileURLWithPath: inputPath))
-    let fmt = src.processingFormat
-    let srcRate = fmt.sampleRate
-    let srcCh = Int(fmt.channelCount)
-    guard srcRate > 0, srcCh > 0 else {
-      throw NSError(domain: "dictapro", code: 10, userInfo: [NSLocalizedDescriptionKey: "unreadable source format"])
-    }
-
+    let srcUrl = URL(fileURLWithPath: inputPath)
     let fm = FileManager.default
     try? fm.removeItem(atPath: outputPath)
     fm.createFile(atPath: outputPath, contents: nil)
@@ -299,7 +316,138 @@ enum Wav16kConverter {
     out.write(Data(count: 44))
 
     lastStage = "prepare"
-    log("source rate=\(srcRate) ch=\(srcCh)")
+    let dataBytes: UInt32
+    if let info = try? parseWavPcm(srcUrl) {
+      log("path=pcm-direct rate=\(info.sampleRate) ch=\(info.channels) dataBytes=\(info.dataSize)")
+      dataBytes = try convertPcmDirect(info, url: srcUrl, out: out)
+    } else {
+      log("path=avaudiofile fallback (не WAV PCM — читаем через AVAudioFile)")
+      dataBytes = try convertViaAVAudioFile(url: srcUrl, out: out)
+    }
+
+    lastStage = "write_header"
+    log("pcm bytes=\(dataBytes)")
+    writeHeader(out: out, dataBytes: dataBytes)
+
+    lastStage = "done"
+    log("finished output=\(outputPath)")
+    out.closeFile()
+  }
+
+  // MARK: - RIFF parsing (task 099)
+
+  /// Парсит RIFF/WAVE, находит fmt и data чанки. Принимает только PCM 16-bit.
+  /// Терпит нефинализированный заголовок (data size=0, task 099): берёт
+  /// данные до конца файла.
+  static func parseWavPcm(_ url: URL) throws -> WavInfo {
+    let h = try FileHandle(forReadingFrom: url)
+    defer { h.closeFile() }
+    func rdExact(_ n: Int) throws -> Data {
+      guard let d = try h.read(upToCount: n), d.count == n else {
+        throw NSError(domain: "dictapro", code: 20, userInfo: [NSLocalizedDescriptionKey: "unexpected eof"])
+      }
+      return d
+    }
+    let riff = try rdExact(12)
+    guard isTag(riff, 0, "RIFF"), isTag(riff, 8, "WAVE") else {
+      throw NSError(domain: "dictapro", code: 21, userInfo: [NSLocalizedDescriptionKey: "not a RIFF/WAVE file"])
+    }
+    var rate: Double = 0
+    var ch = 0
+    var bits = 0
+    var format = 0
+    var fmtOk = false
+    var dataOff: UInt64?
+    var dataSize: UInt64?
+    while true {
+      guard let head = try h.read(upToCount: 8), head.count == 8 else { break }
+      let sz = u32le(head, 4)
+      let bodyOff = h.offsetInFile
+      if isTag(head, 0, "fmt ") {
+        let f = try rdExact(Int(sz))
+        guard f.count >= 16 else {
+          throw NSError(domain: "dictapro", code: 22, userInfo: [NSLocalizedDescriptionKey: "short fmt chunk"])
+        }
+        format = Int(u16le(f, 0))
+        ch = Int(u16le(f, 2))
+        rate = Double(u32le(f, 4))
+        bits = Int(u16le(f, 14))
+        fmtOk = true
+      } else if isTag(head, 0, "data") {
+        dataOff = bodyOff
+        dataSize = UInt64(sz)
+        break // дальше чанков не нужно
+      }
+      var next = bodyOff + UInt64(sz)
+      if sz & 1 == 1 { next += 1 } // pad до чётного
+      h.seek(toFileOffset: next)
+    }
+    guard fmtOk, let dOff = dataOff, var dSize = dataSize else {
+      throw NSError(domain: "dictapro", code: 23, userInfo: [NSLocalizedDescriptionKey: "no fmt/data chunk"])
+    }
+    guard format == 1, bits == 16, ch > 0, rate > 0 else {
+      throw NSError(domain: "dictapro", code: 24, userInfo: [NSLocalizedDescriptionKey: "not 16-bit PCM (\(format)/\(bits)bit/\(ch)ch)"])
+    }
+    // Нефинализированный заголовок (остановка записи, task 099):
+    // размер data=0 или за пределами файла → берём до конца файла.
+    let fileEnd = h.seekToEndOfFile()
+    if dSize == 0 || dOff &+ dSize > fileEnd {
+      dSize = fileEnd - dOff
+    }
+    return WavInfo(dataOffset: dOff, dataSize: dSize, sampleRate: rate, channels: ch)
+  }
+
+  // MARK: - PCM-direct path (task 099)
+
+  /// Читает data-чанк сырыми байтами (Int16 LE → Float), ресемплит в 16 кГц.
+  static func convertPcmDirect(_ info: WavInfo, url: URL, out: FileHandle) throws -> UInt32 {
+    let h = try FileHandle(forReadingFrom: url)
+    defer { h.closeFile() }
+    h.seek(toFileOffset: info.dataOffset)
+    let step = info.sampleRate / targetRate
+    let srcCh = info.channels
+    let bytesPerFrame = UInt64(srcCh * 2)
+    let chunkFrames: UInt64 = 16384
+    var pos: Double = 0
+    var base: Double = 0
+    var pending = Data()
+    var dataBytes: UInt32 = 0
+    var readBytes: UInt64 = 0
+
+    while readBytes < info.dataSize {
+      let want = min(chunkFrames * bytesPerFrame, info.dataSize - readBytes)
+      guard want > 0, let raw = try h.read(upToCount: Int(want)), !raw.isEmpty else { break }
+      readBytes += UInt64(raw.count)
+      let n = raw.count / Int(bytesPerFrame)
+      if n == 0 { break }
+      var chans = [[Float]](repeating: [Float](repeating: 0, count: n), count: srcCh)
+      raw.withUnsafeBytes { ptr in
+        guard let p = ptr.baseAddress?.assumingMemoryBound(to: Int16.self) else { return }
+        for f in 0..<n {
+          for c in 0..<srcCh {
+            chans[c][f] = Float(p[f * srcCh + c]) * (1.0 / 32768.0)
+          }
+        }
+      }
+      consumeChans(chans, n, srcCh: srcCh, step: step, pos: &pos, base: &base, pending: &pending)
+      flush(&pending, to: out, dataBytes: &dataBytes)
+    }
+    flushTail(&pending, to: out, dataBytes: &dataBytes)
+    return dataBytes
+  }
+
+  // MARK: - AVAudioFile fallback
+
+  /// Старый путь для не-WAV/не-PCM источников (m4a и т.п.).
+  static func convertViaAVAudioFile(url: URL, out: FileHandle) throws -> UInt32 {
+    let src = try AVAudioFile(forReading: url)
+    let fmt = src.processingFormat
+    let srcRate = fmt.sampleRate
+    let srcCh = Int(fmt.channelCount)
+    guard srcRate > 0, srcCh > 0 else {
+      throw NSError(domain: "dictapro", code: 10, userInfo: [NSLocalizedDescriptionKey: "unreadable source format"])
+    }
+    log("fallback source rate=\(srcRate) ch=\(srcCh)")
     let step = srcRate / targetRate
     let chunkFrames: AVAudioFrameCount = 32768
     var pos: Double = 0
@@ -313,39 +461,76 @@ enum Wav16kConverter {
       let n = Int(buf.frameLength)
       if n == 0 { break }
       guard let chData = buf.floatChannelData else { break }
-
-      var i0 = Int(floor(pos - base))
-      while Double(i0) + 1.0 < Double(n) {
-        let t = Float(pos - base - Double(i0))
-        var acc: Float = 0
-        for c in 0..<srcCh {
-          let s = chData[c]
-          acc += s[i0] * (1 - t) + s[i0 + 1] * t
-        }
-        acc /= Float(srcCh)
-        let clipped = max(-1.0, min(1.0, acc))
-        var v = Int16(clipped * 32767.0).littleEndian
-        withUnsafeBytes(of: &v) { pending.append(contentsOf: $0) }
-        pos += step
-        i0 = Int(floor(pos - base))
-      }
-
-      if pending.count >= 1 << 20 {
-        out.write(pending)
-        dataBytes &+= UInt32(pending.count)
-        pending.removeAll(keepingCapacity: true)
-      }
-      base += Double(n)
+      consumeUnsafe(chData, n, srcCh: srcCh, step: step, pos: &pos, base: &base, pending: &pending)
+      flush(&pending, to: out, dataBytes: &dataBytes)
     }
+    flushTail(&pending, to: out, dataBytes: &dataBytes)
+    return dataBytes
+  }
 
+  // MARK: - resampling
+
+  /// Линейный ресемплинг блока кадров в 16 кГц моно; дописывает Int16 LE.
+  static func consumeChans(_ chData: [[Float]], _ n: Int, srcCh: Int, step: Double,
+                           pos: inout Double, base: inout Double, pending: inout Data) {
+    var i0 = Int(floor(pos - base))
+    while Double(i0) + 1.0 < Double(n) {
+      let t = Float(pos - base - Double(i0))
+      var acc: Float = 0
+      for c in 0..<srcCh {
+        let s = chData[c]
+        acc += s[i0] * (1 - t) + s[i0 + 1] * t
+      }
+      acc /= Float(srcCh)
+      appendSample(acc, to: &pending)
+      pos += step
+      i0 = Int(floor(pos - base))
+    }
+    base += Double(n)
+  }
+
+  static func consumeUnsafe(_ chData: UnsafePointer<UnsafeMutablePointer<Float>>, _ n: Int, srcCh: Int,
+                            step: Double, pos: inout Double, base: inout Double, pending: inout Data) {
+    var i0 = Int(floor(pos - base))
+    while Double(i0) + 1.0 < Double(n) {
+      let t = Float(pos - base - Double(i0))
+      var acc: Float = 0
+      for c in 0..<srcCh {
+        let s = chData[c]
+        acc += s[i0] * (1 - t) + s[i0 + 1] * t
+      }
+      acc /= Float(srcCh)
+      appendSample(acc, to: &pending)
+      pos += step
+      i0 = Int(floor(pos - base))
+    }
+    base += Double(n)
+  }
+
+  static func appendSample(_ acc: Float, to pending: inout Data) {
+    let clipped = max(-1.0, min(1.0, acc))
+    var v = Int16(clipped * 32767.0).littleEndian
+    withUnsafeBytes(of: &v) { pending.append(contentsOf: $0) }
+  }
+
+  static func flush(_ pending: inout Data, to out: FileHandle, dataBytes: inout UInt32) {
+    if pending.count >= 1 << 20 {
+      out.write(pending)
+      dataBytes &+= UInt32(pending.count)
+      pending.removeAll(keepingCapacity: true)
+    }
+  }
+
+  static func flushTail(_ pending: inout Data, to out: FileHandle, dataBytes: inout UInt32) {
     if !pending.isEmpty {
       out.write(pending)
       dataBytes &+= UInt32(pending.count)
     }
+  }
 
-    lastStage = "write_header"
-    log("pcm bytes=\(dataBytes)")
-    // RIFF / WAVE header for mono 16-bit PCM.
+  // MARK: - RIFF header
+
+  static func writeHeader(out: FileHandle, dataBytes: UInt32) {
     var header = Data()
     func append32(_ v: UInt32) { var x = v.littleEndian; withUnsafeBytes(of: &x) { header.append(contentsOf: $0) } }
     func append16(_ v: UInt16) { var x = v.littleEndian; withUnsafeBytes(of: &x) { header.append(contentsOf: $0) } }
@@ -363,11 +548,7 @@ enum Wav16kConverter {
     append16(16)
     header.append(contentsOf: Array("data".utf8))
     append32(dataBytes)
-
-    lastStage = "done"
-    log("finished output=\(outputPath)")
     out.seek(toFileOffset: 0)
     out.write(header)
-    out.closeFile()
   }
 }
