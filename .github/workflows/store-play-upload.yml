@@ -1,0 +1,53 @@
+name: store-play-upload
+on:
+  workflow_dispatch:
+    inputs:
+      aab_url:
+        description: 'URL AAB (GitHub API asset URL)'
+        required: true
+      track:
+        description: 'internal / alpha / beta / production'
+        required: false
+        default: 'internal'
+      notes:
+        description: 'Release notes (кратко)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Зависимости
+        run: pip install cryptography
+
+      - name: Скачать AAB
+        run: |
+          curl -L --fail --retry 3 \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/octet-stream" \
+            -o /tmp/app.aab "${{ inputs.aab_url }}"
+          ls -la /tmp/app.aab
+
+      - name: Play ключ
+        run: |
+          echo "$PLAY_JSON_B64" | base64 --decode > /tmp/play.json
+        env:
+          PLAY_JSON_B64: ${{ secrets.PLAY_JSON_KEY_BASE64 }}
+
+      - name: Публикация
+        env:
+          PLAY_JSON_PATH: /tmp/play.json
+          AAB_PATH: /tmp/app.aab
+          TRACK: ${{ inputs.track }}
+          RELEASE_NOTES: ${{ inputs.notes }}
+        run: python3 tools/ci_play_publish.py
