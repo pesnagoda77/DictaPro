@@ -506,7 +506,8 @@ enum Wav16kConverter {
   }
 
   static func consumeUnsafe(_ chData: UnsafePointer<UnsafeMutablePointer<Float>>, _ n: Int, srcCh: Int,
-                            step: Double, pos: inout Double, base: inout Double, pending: inout Data) {
+                            step: Double, pos: inout Double, base: inout Double, pending: inout Data,
+                            lastFrame: inout [Float]?) {
     var i0 = Int(floor(pos - base))
     while Double(i0) + 1.0 < Double(n) {
       let t = Float(pos - base - Double(i0))
