@@ -413,6 +413,7 @@ enum Wav16kConverter {
     var pending = Data()
     var dataBytes: UInt32 = 0
     var readBytes: UInt64 = 0
+    var lastFrame: [Float]? = nil
 
     while readBytes < info.dataSize {
       let want = min(chunkFrames * bytesPerFrame, info.dataSize - readBytes)
@@ -429,7 +430,8 @@ enum Wav16kConverter {
           }
         }
       }
-      consumeChans(chans, n, srcCh: srcCh, step: step, pos: &pos, base: &base, pending: &pending)
+      consumeChans(chans, n, srcCh: srcCh, step: step, pos: &pos, base: &base, pending: &pending,
+                   lastFrame: &lastFrame)
       flush(&pending, to: out, dataBytes: &dataBytes)
     }
     flushTail(&pending, to: out, dataBytes: &dataBytes)
@@ -454,6 +456,7 @@ enum Wav16kConverter {
     var base: Double = 0
     var pending = Data()
     var dataBytes: UInt32 = 0
+    var lastFrame: [Float]? = nil
 
     while true {
       guard let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: chunkFrames) else { break }
@@ -461,7 +464,8 @@ enum Wav16kConverter {
       let n = Int(buf.frameLength)
       if n == 0 { break }
       guard let chData = buf.floatChannelData else { break }
-      consumeUnsafe(chData, n, srcCh: srcCh, step: step, pos: &pos, base: &base, pending: &pending)
+      consumeUnsafe(chData, n, srcCh: srcCh, step: step, pos: &pos, base: &base, pending: &pending,
+                    lastFrame: &lastFrame)
       flush(&pending, to: out, dataBytes: &dataBytes)
     }
     flushTail(&pending, to: out, dataBytes: &dataBytes)
@@ -472,20 +476,32 @@ enum Wav16kConverter {
 
   /// Линейный ресемплинг блока кадров в 16 кГц моно; дописывает Int16 LE.
   static func consumeChans(_ chData: [[Float]], _ n: Int, srcCh: Int, step: Double,
-                           pos: inout Double, base: inout Double, pending: inout Data) {
+                           pos: inout Double, base: inout Double, pending: inout Data,
+                           lastFrame: inout [Float]?) {
     var i0 = Int(floor(pos - base))
     while Double(i0) + 1.0 < Double(n) {
       let t = Float(pos - base - Double(i0))
       var acc: Float = 0
       for c in 0..<srcCh {
         let s = chData[c]
-        acc += s[i0] * (1 - t) + s[i0 + 1] * t
+        if i0 < 0 {
+          // Стык блоков: левый кадр — последний кадр предыдущего блока
+          // (task 100: без этого i0 == -1 читал бы память вне буфера;
+          //  для Swift Array это выход за границы и краш).
+          let left = (lastFrame?.count == srcCh) ? lastFrame![c] : s[0]
+          acc += left * (1 - t) + s[0] * t
+        } else {
+          acc += s[i0] * (1 - t) + s[i0 + 1] * t
+        }
       }
       acc /= Float(srcCh)
       appendSample(acc, to: &pending)
       pos += step
       i0 = Int(floor(pos - base))
     }
+    var lf = [Float](repeating: 0, count: srcCh)
+    for c in 0..<srcCh { lf[c] = chData[c][n - 1] }
+    lastFrame = lf
     base += Double(n)
   }
 
@@ -497,13 +513,22 @@ enum Wav16kConverter {
       var acc: Float = 0
       for c in 0..<srcCh {
         let s = chData[c]
-        acc += s[i0] * (1 - t) + s[i0 + 1] * t
+        if i0 < 0 {
+          // Стык блоков: левый кадр — последний кадр предыдущего блока.
+          let left = (lastFrame?.count == srcCh) ? lastFrame![c] : s[0]
+          acc += left * (1 - t) + s[0] * t
+        } else {
+          acc += s[i0] * (1 - t) + s[i0 + 1] * t
+        }
       }
       acc /= Float(srcCh)
       appendSample(acc, to: &pending)
       pos += step
       i0 = Int(floor(pos - base))
     }
+    var lf = [Float](repeating: 0, count: srcCh)
+    for c in 0..<srcCh { lf[c] = chData[c][n - 1] }
+    lastFrame = lf
     base += Double(n)
   }
 
