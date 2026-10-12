@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:hive/hive.dart';
 
 import 'models/transcription.dart';
+import 'services/wav_header_fixer.dart';
 import 'settings_page.dart';
 import 'dart:math' as math;
 
@@ -243,6 +244,11 @@ class AudioService {
   Future<dynamic> stopRecording() async {
     await _stopKeepAliveService();
     final path = await _recorder.stop();
+
+    // Task 099: record-плагин на iOS не всегда финализирует WAV-заголовок
+    // при прерывании/остановке (data size=0) — чиним постфактум, пока
+    // файл не ушёл в плейер/конвертер/отправку.
+    if (path != null) await WavHeaderFixer.fix(path);
 
     final duration = _startTime != null
         ? DateTime.now().difference(_startTime!)
