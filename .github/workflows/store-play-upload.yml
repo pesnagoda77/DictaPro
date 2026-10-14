@@ -62,6 +62,10 @@ jobs:
         if: inputs.aab_url == ''
         run: python3 tools/fetch_model.py
 
+      - name: Патч permission_handler (устаревший Registrar)
+        if: inputs.aab_url == ''
+        run: python3 tools/patch_permission_handler.py
+
       - name: Подпись (keystore)
         if: inputs.aab_url == ''
         env:
