@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 
 import 'ai_hours_service.dart';
 import 'purchase_service.dart';
+import 'session_service.dart';
 
 /// Сервис активации кодов для Дикты.
 class CodeActivationService {
@@ -73,10 +74,16 @@ class CodeActivationService {
   }
 
   /// Применить результат активации: выдать тариф или пакет.
-  Future<void> applyCodeResult(ac.CodeResult result) async {
+  /// [rawCode] — исходный введённый код (для серверной синхронизации).
+  Future<void> applyCodeResult(ac.CodeResult result, {String? rawCode}) async {
     if (!result.ok) return;
     final typeKey = result.typeKey;
     if (typeKey == null) return;
+
+    // Сохраняем код для серверной сессии (task 105)
+    if (rawCode != null && rawCode.isNotEmpty) {
+      await SessionService.instance.addActivatedCode(rawCode);
+    }
 
     // Тариф?
     final tier = tierOfTypeKey(typeKey);

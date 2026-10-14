@@ -3,17 +3,20 @@
 // по границам предложений) + режимы chunk/final + ретраи (сетевой обрыв
 // больших POST на канале до Cloudflare; прямое РФ-соединение проходит
 // только ~9–14 КБ стабильно).
+// Task 105: авторизация через Bearer-токен (SessionService) вместо
+// общего x-app-key; audioMs шлём в первом запросе файла; сервер списывает
+// часы; обрабатываем 402 (нехватка часов) и 401 (обновление токена).
 //
 // Сервер: https://dicta-summary.pesnagoda77.workers.dev (POST /summarize,
-// заголовки x-app-key + User-Agent — без UA Cloudflare даёт 403/1010;
-// Content-Encoding: gzip — task 098).
+// заголовок Authorization: Bearer <token> + User-Agent).
+// Content-Encoding: gzip — task 098.
 //
 // Секрет x-app-key НЕ в репозитории: передаётся при сборке через
 // --dart-define=DICTA_APP_KEY=... (в CI — GitHub Secrets). Версия для
 // User-Agent — --dart-define=DICTA_APP_VERSION=... (fallback 'dev').
 //
 // Кэш «файл + язык»: повтор по тем же настройкам бесплатен — не списывает
-// часы. Часы списываются ТОЛЬКО при успешном ответе (один раз за итог).
+// часы. Часы списываются сервером при успешном ответе.
 import 'dart:convert';
 import 'dart:io' show gzip;
 
@@ -21,7 +24,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'ai_hours_service.dart';
+import 'session_service.dart';
 
 class OnlineSummaryResult {
   final String text;
@@ -45,11 +48,14 @@ class OnlineSummaryService {
   // на часть, но финальный запрос и повторы должны успевать при плохом канале.
   static const _timeout = Duration(seconds: 90);
 
-  /// Секрет из --dart-define. Пустой при локальной разработке —
-  /// сервер вернёт 401, клиент покажет аккуратную ошибку.
+  /// Task 105: Bearer-токен из SessionService (fallback на x-app-key
+  /// для переходного периода).
   static const _appKey = String.fromEnvironment('DICTA_APP_KEY');
   static const _appVersion = String.fromEnvironment('DICTA_APP_VERSION',
       defaultValue: 'dev');
+
+  /// Файлы, для которых audioMs уже отправлен (один раз на файл).
+  final Set<String> _audioMsSent = {};
 
   static const _kCache = 'online_summary_cache_v1';
 
@@ -93,11 +99,16 @@ class OnlineSummaryService {
   static String settingsHash({int variant = 0}) => 'v$variant';
 
   /// Отправить текст на наш воркер. [audioMs] — длительность записи
-  /// (для списания ИИ-часов, 1 ИИ-час = 1 час аудио). [lang] — язык
-  /// интерфейса/транскрипта (кэш по «запись + язык»).
+  /// (для списания ИИ-часов сервером, 1 ИИ-час = 1 час аудио).
+  /// [lang] — язык интерфейса/транскрипта (кэш по «запись + язык»).
   ///
-  /// Возвращает null при любой ошибке — UI показывает аккуратный снекбар
-  /// «не удалось получить итоги, попробуйте позже» (task 064, без падений).
+  /// Task 105: сервер списывает часы. Мы шлём audioMs один раз на файл
+  /// (в первом запросе). Ответ 200 → обновляем баланс из balanceMs.
+  /// Ответ 402 → InsufficientException с деталями для UI.
+  /// Ответ 401 → обновляем токен, повторяем один раз.
+  ///
+  /// Возвращает null при любой другой ошибке — UI показывает аккуратный
+  /// снекбар «не удалось получить итоги, попробуйте позже».
   Future<OnlineSummaryResult?> summarize({
     required String fileId,
     required String text,
@@ -109,20 +120,28 @@ class OnlineSummaryService {
     final cached = await _readCache(key);
     if (cached != null) return cached;
 
-    if (_appKey.isEmpty) {
-      debugPrint('[online-summary] DICTA_APP_KEY не задан — запрос отменён');
+    // Task 105: проверяем токен перед запросом
+    final token = await SessionService.instance.ensureToken();
+    if (token == null && _appKey.isEmpty) {
+      debugPrint('[online-summary] нет ни токена, ни x-app-key — запрос отменён');
       return null;
     }
+
+    // audioMs — один раз на файл
+    final sendAudioMs = !_audioMsSent.contains(fileId);
+    if (sendAudioMs) _audioMsSent.add(fileId);
 
     String? summaryText;
     try {
       if (utf8.encode(text).length <= _singleMaxBytes) {
-        // Короткая запись: одиночный режим, как раньше (task 064/059).
-        summaryText = await _summarizeSingle(text, lang, audioMs, deviceId);
+        summaryText = await _summarizeSingle(text, lang, audioMs, deviceId,
+            token: token, sendAudioMs: sendAudioMs);
       } else {
-        // Длинная запись: нарезка → конспекты частей → итог (task 098).
-        summaryText = await _summarizeChunked(text, lang, deviceId);
+        summaryText = await _summarizeChunked(text, lang, deviceId,
+            token: token, audioMs: sendAudioMs ? audioMs : null);
       }
+    } on InsufficientException {
+      rethrow; // прокидываем 402 наверх для UI
     } catch (e) {
       debugPrint('[online-summary] ошибка: $e');
       return null;
@@ -130,42 +149,35 @@ class OnlineSummaryService {
 
     if (summaryText == null || summaryText.isEmpty) return null;
 
-    final spent = await AiHoursService.instance.spend(audioMs);
-    if (spent <= 0) {
-      // Пограничный случай: сервер ответил, а баланс кончился между
-      // проверкой и ответом — показываем результат, часы не списаны;
-      // серверная авторизация всё равно не пропустит следующий запрос.
-      debugPrint('[online-summary] баланс 0 при живом ответе');
-    }
     await _writeCache(key, summaryText);
     return OnlineSummaryResult(
       text: summaryText,
-      aiHoursSpent: spent,
+      aiHoursSpent: 0, // сервер списал, мы только показываем
       fromCache: false,
     );
   }
 
-  /// Одиночный режим (короткие тексты): один запрос, тело без mode —
-  /// поведение воркера без изменений (совместимость, task 098).
+  /// Одиночный режим (короткие тексты): один запрос, тело без mode.
+  /// Task 105: Bearer-токен, audioMs один раз на файл.
   Future<String?> _summarizeSingle(
-      String text, String lang, int audioMs, String? deviceId) async {
+      String text, String lang, int audioMs, String? deviceId,
+      {String? token, bool sendAudioMs = true}) async {
     final body = jsonEncode({
       'text': text,
       'lang': lang,
-      'audio_ms': audioMs,
-      'device_id': deviceId,
+      if (sendAudioMs) 'audioMs': audioMs,
+      if (deviceId != null) 'device_id': deviceId,
     });
-    final resp = await _postGzip(body);
+    final resp = await _postGzip(body, token: token);
     if (resp == null) return null;
     return (jsonDecode(resp) as Map<String, dynamic>)['summary'] as String?;
   }
 
-  /// Длинные тексты: части (~7000 символов по границам предложений) →
-  /// mode:"chunk" (краткий конспект: решения/задачи/цифры/даты) →
-  /// mode:"final" (итог по конспектам частей). Часы НЕ списываются за
-  /// части — только один раз за успешный итог в summarize().
+  /// Длинные тексты: части → mode:"chunk" → mode:"final".
+  /// Task 105: audioMs шлём в первом chunk-запросе (один раз на файл).
   Future<String?> _summarizeChunked(
-      String text, String lang, String? deviceId) async {
+      String text, String lang, String? deviceId,
+      {String? token, int? audioMs}) async {
     final chunks = _splitIntoChunks(text, _chunkChars);
     debugPrint('[online-summary] нарезка: ${text.length} симв. → '
         '${chunks.length} частей');
@@ -176,9 +188,10 @@ class OnlineSummaryService {
         'text': chunks[i],
         'lang': lang,
         'mode': 'chunk',
-        'device_id': deviceId,
+        if (i == 0 && audioMs != null) 'audioMs': audioMs,
+        if (deviceId != null) 'device_id': deviceId,
       });
-      final resp = await _postGzip(body);
+      final resp = await _postGzip(body, token: token);
       if (resp == null) {
         debugPrint('[online-summary] часть ${i + 1}/${chunks.length} '
             'не прошла после ретраев');
@@ -194,37 +207,73 @@ class OnlineSummaryService {
       'text': notes.join('\n\n'),
       'lang': lang,
       'mode': 'final',
-      'device_id': deviceId,
+      if (deviceId != null) 'device_id': deviceId,
     });
-    final resp = await _postGzip(finalBody);
+    final resp = await _postGzip(finalBody, token: token);
     if (resp == null) return null;
     return (jsonDecode(resp) as Map<String, dynamic>)['summary'] as String?;
   }
 
-  /// POST с gzip-сжатием тела (Content-Encoding: gzip) и ретраями.
+  /// POST с gzip-сжатием тела и ретраями.
+  /// Task 105: Authorization: Bearer вместо x-app-key (fallback на старый
+  /// ключ для переходного периода). При 401 — обновляем токен и повторяем
+  /// один раз. При 402 — InsufficientException. При 200 — обновляем
+  /// баланс из balanceMs в ответе.
   /// Возвращает тело ответа (200) или null после исчерпания попыток.
-  Future<String?> _postGzip(String jsonBody) async {
+  Future<String?> _postGzip(String jsonBody, {String? token}) async {
     final compressed = gzip.encode(utf8.encode(jsonBody));
+    var usedToken = token;
+
     for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
       try {
+        final headers = <String, String>{
+          'Content-Type': 'application/json',
+          'Content-Encoding': 'gzip',
+          'User-Agent': 'dicta-android/$_appVersion',
+        };
+        // Task 105: Bearer в приоритете, x-app-key — fallback
+        if (usedToken != null && usedToken.isNotEmpty) {
+          headers['Authorization'] = 'Bearer $usedToken';
+        } else if (_appKey.isNotEmpty) {
+          headers['x-app-key'] = _appKey;
+        }
+
         final resp = await http
             .post(
               Uri.parse(_endpoint),
-              headers: {
-                'Content-Type': 'application/json',
-                'Content-Encoding': 'gzip',
-                'x-app-key': _appKey,
-                'User-Agent': 'dicta-android/$_appVersion',
-              },
+              headers: headers,
               body: compressed,
             )
             .timeout(_timeout);
 
+        if (resp.statusCode == 401) {
+          // Токен истёк — обновляем и повторяем (не считаем попытку)
+          debugPrint('[online-summary] 401 — обновляем токен');
+          final newToken = await SessionService.instance.refreshSession();
+          if (newToken.ok && newToken.token != null) {
+            usedToken = newToken.token;
+            continue;
+          }
+          return null;
+        }
+
+        if (resp.statusCode == 402) {
+          // Не хватает ИИ-часов
+          debugPrint('[online-summary] 402 — нехватка часов');
+          try {
+            final data = jsonDecode(resp.body) as Map<String, dynamic>;
+            throw InsufficientException(
+              leftMs: (data['leftMs'] as num?)?.toInt() ?? 0,
+              needMs: (data['needMs'] as num?)?.toInt() ?? 0,
+            );
+          } catch (_) {
+            throw const InsufficientException(leftMs: 0, needMs: 0);
+          }
+        }
+
         if (resp.statusCode != 200) {
           debugPrint('[online-summary] HTTP ${resp.statusCode} '
-              '(попытка $attempt/$_maxAttempts): '
-              '${resp.body.substring(0, resp.body.length > 200 ? 200 : resp.body.length)}');
-          // 4xx (кроме 408/429) — ретрай бессмысленен, ошибка постоянна.
+              '(попытка $attempt/$_maxAttempts)');
           if (resp.statusCode >= 400 &&
               resp.statusCode < 500 &&
               resp.statusCode != 408 &&
@@ -232,13 +281,23 @@ class OnlineSummaryService {
             return null;
           }
         } else {
+          // 200 — обновляем баланс из ответа
+          try {
+            final data = jsonDecode(resp.body) as Map<String, dynamic>;
+            final balMs = (data['balanceMs'] as num?)?.toInt();
+            if (balMs != null) {
+              SessionService.instance.updateBalanceFromSummary(balMs);
+            }
+          } catch (_) {}
           return resp.body;
         }
+      } on InsufficientException {
+        rethrow;
       } catch (e) {
         debugPrint('[online-summary] попытка $attempt/$_maxAttempts: $e');
       }
       if (attempt < _maxAttempts) {
-        await Future.delayed(Duration(seconds: attempt)); // 1 с, затем 2 с
+        await Future.delayed(Duration(seconds: attempt));
       }
     }
     return null;
@@ -276,4 +335,20 @@ class OnlineSummaryService {
     }
     return chunks;
   }
+}
+
+/// Task 105: сервер вернул 402 — не хватает ИИ-часов.
+/// UI ловит и показывает понятное сообщение.
+class InsufficientException implements Exception {
+  final int leftMs;
+  final int needMs;
+  const InsufficientException({required this.leftMs, required this.needMs});
+
+  double get leftHours => leftMs / 3600000.0;
+  double get needHours => needMs / 3600000.0;
+
+  @override
+  String toString() =>
+      'InsufficientException(left=${leftHours.toStringAsFixed(1)}h, '
+      'need=${needHours.toStringAsFixed(1)}h)';
 }

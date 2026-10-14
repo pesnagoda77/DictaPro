@@ -199,6 +199,13 @@ class _SummaryPageState extends State<SummaryPage> {
               {'h': _fmtHours(res.aiHoursSpent)}));
       await _refreshHoursLabel();
       await widget.onSave?.call(res.text);
+    } on InsufficientException catch (e) {
+      // Task 105: 402 — не хватает ИИ-часов
+      if (!mounted) return;
+      setState(() => _onlineFailed = true);
+      _showSnack('Не хватает ИИ-часов: осталось '
+          '${e.leftHours.toStringAsFixed(1)} ч, нужно '
+          '${e.needHours.toStringAsFixed(1)} ч');
     } finally {
       if (mounted) setState(() => _onlineBusy = false);
     }

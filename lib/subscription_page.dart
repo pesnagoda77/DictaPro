@@ -138,7 +138,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
             onRedeem: (code) async {
               final r = await CodeActivationService.instance.redeem(code);
               if (r.ok) {
-                await CodeActivationService.instance.applyCodeResult(r);
+                await CodeActivationService.instance.applyCodeResult(r, rawCode: code);
               }
               return r;
             },
