@@ -22,7 +22,7 @@ permissions:
 jobs:
   upload:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
 
@@ -34,6 +34,16 @@ jobs:
             -H "Accept: application/octet-stream" \
             -o /tmp/app.aab "${{ inputs.aab_url }}"
           ls -la /tmp/app.aab
+
+      - name: Кэш Gradle
+        if: inputs.aab_url == ''
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('android/gradle/wrapper/gradle-wrapper.properties', 'android/**/*.gradle*', 'android/**/gradle.properties') }}
+          restore-keys: gradle-
 
       - name: Java 17 (для сборки)
         if: inputs.aab_url == ''
@@ -77,10 +87,18 @@ jobs:
           echo "$KS_B64" | base64 --decode > android/app/upload-keystore.jks
           printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=upload-keystore.jks\n' "$KS_PASS" "$KEY_PASS" "$KEY_ALIAS" > android/app/key.properties
 
+      - name: Ускорение сборки (CI-режим)
+        if: inputs.aab_url == ''
+        run: |
+          sed -i 's/org.gradle.workers.max=2/org.gradle.workers.max=4/' android/gradle.properties
+          sed -i 's/org.gradle.parallel=false/org.gradle.parallel=true/' android/gradle.properties
+          sed -i 's/org.gradle.jvmargs=-Xmx2048m/org.gradle.jvmargs=-Xmx4096m/' android/gradle.properties
+
       - name: Сборка AAB
         if: inputs.aab_url == ''
         run: >-
           flutter build appbundle --release
+          --target-platform android-arm64
           --dart-define=CODE_KEY=${{ secrets.CODE_KEY }}
           --dart-define=DICTA_APP_KEY=${{ secrets.DICTA_APP_KEY }}
           --dart-define=BILLING_API_URL=https://billing-api.pesnagoda77.workers.dev
