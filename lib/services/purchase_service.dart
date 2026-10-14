@@ -92,7 +92,7 @@ class PurchaseService {
   /// Офлайн-грейс: если store недоступен, держим текущий тариф не дольше
   /// [_graceDays] с этой даты, потом честно отключаем.
   static const _kLastVerifiedMs = 'subscription_last_verified_ms_v1';
-  static const int _graceDays = 7;
+  static const int _graceDays = 3;
 
   /// Task 066 п.5: Play не сообщает basePlanId в покупке — период, выбранный
   /// пользователем, запоминаем локально. Точная дата продления — только
@@ -505,6 +505,14 @@ class PurchaseService {
     final set = (p.getStringList(_kActiveSubs) ?? []).toSet()..remove(subId);
     await p.setStringList(_kActiveSubs, set.toList());
     await _applyEffectiveTier();
+  }
+
+  /// Task 096: текущий срок действия кода (null — нет кода или бессрочно).
+  Future<DateTime?> codeExpiryDate() async {
+    final p = await SharedPreferences.getInstance();
+    final expMs = p.getInt(_kCodeExpiry);
+    if (expMs == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(expMs);
   }
 
   /// Task 089: выдать тариф из кода активации (максимум с текущим).

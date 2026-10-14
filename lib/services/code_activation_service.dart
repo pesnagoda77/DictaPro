@@ -81,7 +81,7 @@ class CodeActivationService {
     // Тариф?
     final tier = tierOfTypeKey(typeKey);
     if (tier != SubscriptionTier.none) {
-      await _grantTierFromCode(tier, result.expiresAt);
+      await _grantTierFromCode(tier, result.expiresAt, typeKey);
       return;
     }
 
@@ -115,16 +115,32 @@ class CodeActivationService {
   }
 
   /// Выдать тариф по коду: объединяем с Play-подпиской (берём максимум).
-  Future<void> _grantTierFromCode(SubscriptionTier codeTier, DateTime? expiresAt) async {
+  /// Task 096: накопление — новый код прибавляется к остатку, а не
+  /// перезаписывает. base = max(текущий срок, сейчас); target = base + период.
+  Future<void> _grantTierFromCode(
+      SubscriptionTier codeTier, DateTime? expiresAt, String typeKey) async {
     final purchase = PurchaseService.instance;
     final currentTier = purchase.tier.value;
 
     // Берём максимальный тариф из текущего и кода
     final maxTier = _maxTier(currentTier, codeTier);
 
-    // Если код даёт более высокий тариф — устанавливаем
-    if (_tierRank(maxTier) > _tierRank(currentTier)) {
-      await purchase.setTierFromCode(maxTier, expiresAt);
+    // Период кода: месяц или год
+    final isYearly = typeKey.endsWith('_YEAR');
+    final periodDays = isYearly ? 365 : 30;
+
+    // Текущий срок из кода (если есть)
+    final now = DateTime.now();
+    final currentEnd = await purchase.codeExpiryDate();
+    // base = max(текущий срок, сейчас) — не укорачиваем остаток
+    final base = (currentEnd != null && currentEnd.isAfter(now))
+        ? currentEnd
+        : now;
+    final newExpiry = base.add(Duration(days: periodDays));
+
+    // Если код даёт более высокий или равный тариф — продлеваем/устанавливаем
+    if (_tierRank(maxTier) >= _tierRank(currentTier)) {
+      await purchase.setTierFromCode(maxTier, newExpiry);
     }
   }
 
