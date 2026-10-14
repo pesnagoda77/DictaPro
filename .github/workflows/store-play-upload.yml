@@ -87,12 +87,11 @@ jobs:
           echo "$KS_B64" | base64 --decode > android/app/upload-keystore.jks
           printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=upload-keystore.jks\n' "$KS_PASS" "$KEY_PASS" "$KEY_ALIAS" > android/app/key.properties
 
-      - name: Ускорение сборки (CI-режим)
+      - name: Настройка памяти сборки (CI)
         if: inputs.aab_url == ''
         run: |
-          sed -i 's/org.gradle.workers.max=2/org.gradle.workers.max=4/' android/gradle.properties
-          sed -i 's/org.gradle.parallel=false/org.gradle.parallel=true/' android/gradle.properties
-          sed -i 's/org.gradle.jvmargs=-Xmx2048m/org.gradle.jvmargs=-Xmx4096m/' android/gradle.properties
+          sed -i 's/^org.gradle.jvmargs=.*/org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m/' android/gradle.properties
+          grep -E 'org.gradle.jvmargs|workers|parallel' android/gradle.properties || true
 
       - name: Сборка AAB
         if: inputs.aab_url == ''
