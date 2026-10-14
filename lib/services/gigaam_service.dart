@@ -326,7 +326,15 @@ class GigaamService {
       if (info.status == GigaamPackStatus.downloading) {
         debugPrint('[gigaam] pack not on disk yet (status=${info.status}), waiting');
         phase = 'download';
-        await _waitForPack(onProgress);
+        try {
+          await _waitForPack(onProgress);
+        } catch (e) {
+          // Фикс 14.10: если fast-follow пак не доставлен (таймаут/ошибка Play),
+          // НЕ падаем — продолжаем ниже и берём встроенную модель из bundle-
+          // ресурсов. Иначе расшифровка ломается навсегда у пользователей
+          // из Play (пак мог не доставиться из-за фоновых ограничений).
+          debugPrint('[gigaam] fast-follow wait failed: $e — fallback к bundle');
+        }
         phase = null;
         packDir = await _assetPackDir();
         if (packDir != null) {
