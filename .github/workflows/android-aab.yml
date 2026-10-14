@@ -1,4 +1,4 @@
-﻿name: Android AAB (сборка + Play)
+name: Android AAB (сборка + Play)
 
 # Ручной запуск: сборка подписанного AAB и выгрузка в Google Play.
 # Секреты: CODE_KEY, DICTA_APP_KEY, GH_MODULE_TOKEN (уже есть),
