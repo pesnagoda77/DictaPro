@@ -324,35 +324,12 @@ class GigaamService {
       // либо это APK-раздача без пакета — разберёмся по статусу.
       final info = await _packInfo();
       if (info.status == GigaamPackStatus.downloading) {
-        debugPrint('[gigaam] pack not on disk yet (status=${info.status}), waiting');
-        phase = 'download';
-        try {
-          await _waitForPack(onProgress);
-        } catch (e) {
-          // Фикс 14.10: если fast-follow пак не доставлен (таймаут/ошибка Play),
-          // НЕ падаем — продолжаем ниже и берём встроенную модель из bundle-
-          // ресурсов. Иначе расшифровка ломается навсегда у пользователей
-          // из Play (пак мог не доставиться из-за фоновых ограничений).
-          debugPrint('[gigaam] fast-follow wait failed: $e — fallback к bundle');
-        }
-        phase = null;
-        packDir = await _assetPackDir();
-        if (packDir != null) {
-          final src = Directory('$packDir/models/gigaam_v3_punct');
-          if (await _sourceVerified(src, specs)) {
-            phase = 'copy';
-            await _copyFrom(src, dir, specs, onProgress);
-            phase = null;
-            await _verifyAndMark(dir, specs);
-            _prepared = true;
-            debugPrint('[gigaam] model prepared after fast-follow delivery (verified)');
-            return;
-          }
-          debugPrint('[gigaam] pack arrived but failed verification (broken)');
-          await _logSizes(src, specs, prefix: 'pack-arrived(broken)');
-        }
-        // Догрузился, но модели в нём нет/битая — нештатно, идём к bundle.
-        debugPrint('[gigaam] pack arrived without valid model');
+        // Фикс 80: НЕ ждём fast-follow пакет. Модель уже лежит во встроенных
+        // ресурсах приложения (bundle), а доставка пака на части устройств не
+        // срабатывает (фоновые ограничения MIUI/Play). Раньше здесь было
+        // ожидание до 15 минут — расшифровка «висела» с надписью «загрузка
+        // модели» на ровном месте. Теперь сразу идём к встроенной модели.
+        debugPrint('[gigaam] pack downloading — не ждём, используем встроенную модель');
       } else if (info.status == GigaamPackStatus.failed) {
         debugPrint('[gigaam] pack delivery failed (code=${info.errorCode})');
       }
