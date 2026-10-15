@@ -76,13 +76,33 @@ class CodeActivationService {
   }
 
   /// Task 104: v1-код без HMAC-ключа → needsOnline.
-  /// Повторяем redemption через ServerCodeBackend (POST /redeem).
+  /// Серверная активация через /session (codes): сервер проверяет подпись
+  /// и начисляет план/часы; возвращаем результат в формате модуля.
   Future<ac.CodeResult> redeemOnline(String code) async {
-    if (_serverUrl.isEmpty) {
+    final o = await SessionService.instance.activateCodeOnServer(code);
+    if (o == null) {
       return const ac.CodeResult(ok: false, error: ac.CodeError.network);
     }
-    final server = ac.ServerCodeBackend(baseUrl: _serverUrl, appId: _appId);
-    return server.redeem(code);
+    DateTime? exp;
+    if (o.expiresAtMs != null) {
+      exp = DateTime.fromMillisecondsSinceEpoch(o.expiresAtMs!, isUtc: true);
+    }
+    if (o.applied || o.already) {
+      return ac.CodeResult(
+        ok: true,
+        alreadyUsed: o.already,
+        typeKey: o.typeKey,
+        expiresAt: exp,
+      );
+    }
+    final err = (o.error ?? '').toLowerCase();
+    if (err.contains('expired')) {
+      return const ac.CodeResult(ok: false, error: ac.CodeError.expired);
+    }
+    if (err.contains('bad_sig')) {
+      return const ac.CodeResult(ok: false, error: ac.CodeError.badSignature);
+    }
+    return const ac.CodeResult(ok: false, error: ac.CodeError.server);
   }
 
   /// Применить результат активации: выдать тариф или пакет.

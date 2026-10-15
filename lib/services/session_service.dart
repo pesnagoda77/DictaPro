@@ -42,6 +42,23 @@ class SessionResult {
   });
 }
 
+/// Task 104: исход серверной активации подписанного кода.
+class ServerCodeOutcome {
+  const ServerCodeOutcome({
+    this.applied = false,
+    this.already = false,
+    this.typeKey,
+    this.expiresAtMs,
+    this.error,
+  });
+
+  final bool applied;
+  final bool already;
+  final String? typeKey;
+  final int? expiresAtMs;
+  final String? error;
+}
+
 /// Сервис серверной сессии: токен, баланс, авто-обновление.
 class SessionService {
   SessionService._();
@@ -167,6 +184,66 @@ class SessionService {
     } catch (e) {
       debugPrint('[session] ошибка: $e');
       return SessionResult(ok: false, error: e.toString());
+    }
+  }
+
+  /// Task 104: активация подписанного v1-кода на сервере (POST /session,
+  /// codes=[code]). Сервер проверяет подпись (HMAC) и начисляет план/часы;
+  /// возвращаем исход по этому коду + обновляем локальное состояние.
+  Future<ServerCodeOutcome?> activateCodeOnServer(String code) async {
+    if (_billingUrl.isEmpty) return null;
+    final installId = await _getOrCreateInstallId();
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('$_billingUrl/session'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'installId': installId,
+              'package': 'com.dictapro.app',
+              'purchases': <Map<String, String>>[],
+              'codes': [code],
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+      if (resp.statusCode != 200) {
+        return ServerCodeOutcome(error: 'http_${resp.statusCode}');
+      }
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      if (data['ok'] != true) {
+        return ServerCodeOutcome(error: data['error'] as String? ?? 'unknown');
+      }
+      // Обновляем состояние как в refreshSession.
+      _token = data['token'] as String?;
+      _tokenExpiry = DateTime.now().add(
+        Duration(seconds: (data['ttlSec'] as int?) ?? 43200),
+      );
+      _balanceMs = (data['balanceMs'] as num?)?.toInt() ?? _balanceMs;
+      final p = await SharedPreferences.getInstance();
+      await p.setString(_kToken, _token ?? '');
+      await p.setInt(_kTokenExpiryMs, _tokenExpiry!.millisecondsSinceEpoch);
+      await p.setInt(_kBalanceMs, _balanceMs);
+      await p.setString(_kServerPlan, data['plan'] as String? ?? 'none');
+      onBalanceUpdate?.call(_balanceMs);
+
+      final results = (data['results'] as List?) ?? const [];
+      for (final item in results) {
+        if (item is Map && item['kind'] == 'code') {
+          final m = item.cast<String, dynamic>();
+          return ServerCodeOutcome(
+            applied: m['applied'] == true,
+            already: m['reason'] == 'already',
+            typeKey: m['typeKey'] as String?,
+            expiresAtMs: (m['expiresAtMs'] as num?)?.toInt(),
+            error: m['error'] as String?,
+          );
+        }
+      }
+      return ServerCodeOutcome(error: 'no_result');
+    } on TimeoutException {
+      return ServerCodeOutcome(error: 'timeout');
+    } catch (e) {
+      return ServerCodeOutcome(error: e.toString());
     }
   }
 
