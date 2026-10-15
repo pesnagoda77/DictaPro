@@ -136,7 +136,12 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
           width: double.maxFinite,
           child: ac.ActivationCodeField(
             onRedeem: (code) async {
-              final r = await CodeActivationService.instance.redeem(code);
+              var r = await CodeActivationService.instance.redeem(code);
+              // Task 104: v1-код без HMAC-ключа → needsOnline.
+              // Направляем на сервер через /session.
+              if (!r.ok && r.error == ac.CodeError.needsOnline) {
+                r = await CodeActivationService.instance.redeemOnline(code);
+              }
               if (r.ok) {
                 await CodeActivationService.instance.applyCodeResult(r, rawCode: code);
               }
@@ -144,6 +149,9 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
             },
             accentColor: DictaTokens.of(context).mint,
             hintText: 'DICTA-...',
+            messages: {
+              ac.CodeError.needsOnline: 'Требуется интернет для проверки кода',
+            },
           ),
         ),
         actions: [

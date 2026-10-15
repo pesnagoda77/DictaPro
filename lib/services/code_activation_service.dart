@@ -1,8 +1,10 @@
 // Task 089: активация кодов (персональных и промо) через единый модуль
 // activation_codes. Типы кодов: DIARY_MONTH, DIARY_YEAR, ASSISTANT_MONTH,
 // ASSISTANT_YEAR, UNLIMITED_MONTH, UNLIMITED_YEAR, PACK_1H, PACK_10H,
-// PACK_50H, PACK_200H. Офлайн-коды (DICTA-...) проверяются локально,
-// промо-коды (читаемые строки) — через сервер.
+// PACK_50H, PACK_200H.
+// Task 104: переход на Ed25519. В приложении — только публичный ключ;
+// CODE_KEY (HMAC) больше не нужен. v1-коды без ключа → needsOnline →
+// серверная активация через /session.
 import 'package:activation_codes/activation_codes.dart' as ac;
 import 'package:flutter/foundation.dart';
 
@@ -34,25 +36,21 @@ class CodeActivationService {
     'PACK_200H': 13,
   };
 
-  /// Ключ HMAC из --dart-define=CODE_KEY.
-  static const _key = String.fromEnvironment('CODE_KEY', defaultValue: '');
-
-  /// URL сервера для промо-кодов (из Краба, task 087).
+  /// URL сервера для промо-кодов и v1-фолбэка (task 087/104).
   static const _serverUrl = String.fromEnvironment('BILLING_API_URL', defaultValue: '');
 
   late final ac.CodeBackend _backend;
+  bool _ready = false;
 
+  /// Task 104: инициализация без CODE_KEY. Ed25519-публичный ключ вшит
+  /// в модуль. v1-коды без HMAC-ключа возвращают needsOnline — клиент
+  /// направляет их на сервер через SessionService.
   Future<void> init() async {
-    if (_key.isEmpty) {
-      debugPrint('[CodeActivation] CODE_KEY not set — codes disabled');
-      return;
-    }
-
     final local = ac.LocalCodeBackend(
       appId: _appId,
       appCode: _appCode,
       types: _types,
-      key: _key,
+      // key: не передаём — v1 офлайн недоступен без HMAC, v2 через Ed25519
     );
 
     if (_serverUrl.isNotEmpty) {
@@ -61,16 +59,30 @@ class CodeActivationService {
     } else {
       _backend = local;
     }
+    _ready = true;
+    debugPrint('[CodeActivation] initialized (Ed25519, no CODE_KEY)');
   }
 
-  bool get isReady => _key.isNotEmpty;
+  /// Всегда true — v2 коды проверяются офлайн, v1 через сервер.
+  bool get isReady => _ready;
 
   /// Активировать код. Возвращает результат.
+  /// v2 — офлайн (Ed25519). v1 — needsOnline если нет HMAC-ключа.
   Future<ac.CodeResult> redeem(String code) async {
-    if (_key.isEmpty) {
-      return const ac.CodeResult(ok: false, error: ac.CodeError.badSignature);
+    if (!_ready) {
+      return const ac.CodeResult(ok: false, error: ac.CodeError.server);
     }
     return _backend.redeem(code);
+  }
+
+  /// Task 104: v1-код без HMAC-ключа → needsOnline.
+  /// Повторяем redemption через ServerCodeBackend (POST /redeem).
+  Future<ac.CodeResult> redeemOnline(String code) async {
+    if (_serverUrl.isEmpty) {
+      return const ac.CodeResult(ok: false, error: ac.CodeError.network);
+    }
+    final server = ac.ServerCodeBackend(baseUrl: _serverUrl, appId: _appId);
+    return server.redeem(code);
   }
 
   /// Применить результат активации: выдать тариф или пакет.
