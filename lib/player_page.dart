@@ -15,8 +15,10 @@ class PlayerPage extends StatefulWidget {
 
 class _PlayerPageState extends State<PlayerPage> {
   final _player = AudioPlayer();
+  final _scrollController = ScrollController();
   bool _isPlaying = false;
   bool _audioMissing = false;
+  bool _userScrolling = false;
   double _speed = 1.0;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
@@ -98,10 +100,12 @@ class _PlayerPageState extends State<PlayerPage> {
     _player.setSpeed(speed);
   }
 
+  /// Task 106: seek + прокрутка списка к активной фразе.
   Future<void> _seek(double value) async {
     final pos =
         Duration(milliseconds: (value * _duration.inMilliseconds).round());
     await _player.seek(pos);
+    _scrollToActive();
   }
 
   Future<void> _skip(int seconds) async {
@@ -109,10 +113,35 @@ class _PlayerPageState extends State<PlayerPage> {
     if (target < Duration.zero) target = Duration.zero;
     if (_duration > Duration.zero && target > _duration) target = _duration;
     await _player.seek(target);
+    _scrollToActive();
+  }
+
+  /// Прокрутка списка к активной фразе.
+  void _scrollToActive() {
+    if (_segments.isEmpty) return;
+    final starts = _starts();
+    final ends = _ends();
+    final active = _activeSegment(starts, ends);
+    if (active < 0 || !_scrollController.hasClients) return;
+
+    // Примерная высота одной фразы (~80 px на основе текущего дизайна)
+    const itemHeight = 80.0;
+    final target = active * itemHeight;
+    final viewport = _scrollController.position.viewportDimension;
+    // Центрируем активную фразу в видимой зоне
+    final offset = (target - viewport / 2 + itemHeight / 2)
+        .clamp(0.0, _scrollController.position.maxScrollExtent);
+
+    _scrollController.animateTo(
+      offset,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
   }
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _player.dispose();
     super.dispose();
   }
@@ -190,6 +219,13 @@ class _PlayerPageState extends State<PlayerPage> {
             'n': '${_segments.length}',
           })}';
 
+    // Task 106: автопрокрутка при воспроизведении
+    if (_isPlaying && !_userScrolling && active >= 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _scrollToActive();
+      });
+    }
+
     return DictaBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -234,104 +270,123 @@ class _PlayerPageState extends State<PlayerPage> {
             const SizedBox(width: 8),
           ],
         ),
-        body: CustomScrollView(
-          slivers: [
-            SliverPadding(
+        // Task 106: верхний блок зафиксирован, список фраз скроллится отдельно
+        body: Column(
+          children: [
+            // ─── Фиксированный блок управления ───
+            Padding(
               padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-              sliver: SliverToBoxAdapter(
-                child: Column(
-                  children: [
-                    if (_audioMissing) ...[
-                      Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(11),
-                        decoration: BoxDecoration(
-                          color: tk.red.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(12),
-                          border:
-                              Border.all(color: tk.red.withValues(alpha: 0.30)),
-                        ),
-                        child: Text(
-                          AppStrings.t('audio_lost_banner', context),
-                          style: TextStyle(
-                              fontSize: 11.5, color: tk.ink2, height: 1.5),
-                        ),
+              child: Column(
+                children: [
+                  if (_audioMissing) ...[
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(11),
+                      decoration: BoxDecoration(
+                        color: tk.red.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(12),
+                        border:
+                            Border.all(color: tk.red.withValues(alpha: 0.30)),
                       ),
-                    ],
-                    _progressBar(tk, progress),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Text(_fmtDuration(_position),
-                            style: tk.mono(11, FontWeight.w600, tk.ink3)),
-                        const Spacer(),
-                        Text(_fmtDuration(totalDur),
-                            style: tk.mono(11, FontWeight.w600, tk.ink3)),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _miniButton(tk, '−15', () => _skip(-15)),
-                        const SizedBox(width: 18),
-                        _playButton(),
-                        const SizedBox(width: 18),
-                        _miniButton(tk, '+30', () => _skip(30)),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        for (final v in const [0.5, 1.0, 1.5, 2.0]) ...[
-                          if (v != 0.5) const SizedBox(width: 8),
-                          _speedChip(tk, v),
-                        ],
-                      ],
-                    ),
-                    if (_segments.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              AppStrings.t('player_seek_section', context),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: tk.ink),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              AppStrings.t('player_seek_hint', context),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.right,
-                              style: TextStyle(
-                                  fontSize: 11.5, color: tk.mint),
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        AppStrings.t('audio_lost_banner', context),
+                        style: TextStyle(
+                            fontSize: 11.5, color: tk.ink2, height: 1.5),
                       ),
-                    ],
+                    ),
                   ],
+                  _progressBar(tk, progress),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Text(_fmtDuration(_position),
+                          style: tk.mono(11, FontWeight.w600, tk.ink3)),
+                      const Spacer(),
+                      Text(_fmtDuration(totalDur),
+                          style: tk.mono(11, FontWeight.w600, tk.ink3)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _miniButton(tk, '−15', () => _skip(-15)),
+                      const SizedBox(width: 18),
+                      _playButton(),
+                      const SizedBox(width: 18),
+                      _miniButton(tk, '+30', () => _skip(30)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      for (final v in const [0.5, 1.0, 1.5, 2.0]) ...[
+                        if (v != 0.5) const SizedBox(width: 8),
+                        _speedChip(tk, v),
+                      ],
+                    ],
+                  ),
+                  if (_segments.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            AppStrings.t('player_seek_section', context),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: tk.ink),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            AppStrings.t('player_seek_hint', context),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                                fontSize: 11.5, color: tk.mint),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            // ─── Скроллируемый список фраз ───
+            if (_segments.isNotEmpty)
+              Expanded(
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: (notification) {
+                    // Отслеживаем ручной скролл — пауза автопрокрутки
+                    if (notification is ScrollStartNotification &&
+                        notification.dragDetails != null) {
+                      _userScrolling = true;
+                    }
+                    if (notification is ScrollEndNotification) {
+                      // Возобновляем автоскролл после паузы
+                      Future.delayed(const Duration(seconds: 2), () {
+                        if (mounted) _userScrolling = false;
+                      });
+                    }
+                    return false;
+                  },
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+                    itemCount: _segments.length,
+                    itemBuilder: (context, i) =>
+                        _segmentRow(tk, i, starts, speakerNo, active),
+                  ),
                 ),
               ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-              sliver: SliverList.builder(
-                itemCount: _segments.length,
-                itemBuilder: (context, i) =>
-                    _segmentRow(tk, i, starts, speakerNo, active),
-              ),
-            ),
           ],
         ),
       ),
@@ -472,14 +527,18 @@ class _PlayerPageState extends State<PlayerPage> {
         await _player.seek(Duration(milliseconds: (start * 1000).round()));
         if (!_isPlaying) await _player.play();
       },
-      child: Container(
+      // Task 106: яркая подсветка активной фразы
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         margin: const EdgeInsets.only(bottom: 11),
-        padding: const EdgeInsets.only(left: 10),
+        padding: const EdgeInsets.only(left: 10, right: 8, top: 6, bottom: 6),
         decoration: BoxDecoration(
+          color: isActive ? tk.mint.withValues(alpha: 0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
           border: Border(
             left: BorderSide(
-              color: tk.mint.withValues(alpha: isActive ? 0.9 : 0.35),
-              width: 2,
+              color: tk.mint.withValues(alpha: isActive ? 1.0 : 0.35),
+              width: 3,
             ),
           ),
         ),
@@ -488,12 +547,18 @@ class _PlayerPageState extends State<PlayerPage> {
           children: [
             Text(
               '$timecode · ${AppStrings.tf('dialogue_speaker', context, {'n': '${speakerNo[segment.speaker] ?? 1}'})}',
-              style: tk.mono(10.5, FontWeight.w700, tk.mint),
+              style: tk.mono(10.5, FontWeight.w700,
+                  isActive ? tk.mint : tk.ink3),
             ),
             const SizedBox(height: 3),
             Text(
               segment.text,
-              style: TextStyle(fontSize: 12.5, height: 1.5, color: tk.ink),
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.5,
+                color: isActive ? tk.ink : tk.ink2,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+              ),
             ),
           ],
         ),
