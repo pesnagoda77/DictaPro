@@ -1178,6 +1178,11 @@ class AppStrings {
       'ru': 'нажмите строку — плеер прыгнет', 'es': 'pulsa una línea — el reproductor saltará', 'fr': 'appuyez sur une ligne — le lecteur saute à cet endroit', 'en': 'tap a line — the player jumps',
       'de': 'Zeile antippen — der Player springt', 'it': 'tocca una riga — il player salta',
     },
+    // ---------- Task 107: галка «синхронно» в прослушивании ----------
+    'player_follow': {
+      'ru': 'Аудио+текст синхронно', 'es': 'Audio+texto sincronizado', 'fr': 'Audio+texte synchronisé', 'en': 'Audio+text in sync',
+      'de': 'Audio+Text synchron', 'it': 'Audio+testo sincronizzato',
+    },
     'player_segment_of': {
       'ru': 'реплика {i} из {n}', 'es': 'intervención {i} de {n}', 'fr': 'réplique {i} sur {n}', 'en': 'segment {i} of {n}',
       'de': 'Abschnitt {i} von {n}', 'it': 'segmento {i} di {n}',
