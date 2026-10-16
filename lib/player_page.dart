@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'app_strings.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'app_strings.dart';
 import 'audio_service.dart';
 import 'theme/app_theme.dart';
 
@@ -24,6 +25,11 @@ class _PlayerPageState extends State<PlayerPage> {
   Duration _duration = Duration.zero;
   late List<DialogueSegment> _segments;
 
+  // Task 107: режим «синхронно» — автоскролл к звучащей фразе (по умолчанию ВЫКЛ)
+  bool _followMode = false;
+  double _scrollOffset = 0.0;
+  static const String _followPrefKey = 'player_follow_mode';
+
   /// Высоты полосок волны (как в макете — фиксированный узор).
   static const List<double> _waveHeights = [
     10, 22, 34, 48, 30, 16, 24, 40, 52, 34, 20, 12,
@@ -43,7 +49,46 @@ class _PlayerPageState extends State<PlayerPage> {
             speaker: 'Speaker 1', text: widget.recording.transcription!)
       ];
     }
+    // Task 107: следим за скроллом — для стрелки-индикатора в свободном режиме
+    _scrollController.addListener(_onScroll);
+    _loadFollowMode();
     _initPlayer();
+  }
+
+  Future<void> _loadFollowMode() async {
+    final p = await SharedPreferences.getInstance();
+    final v = p.getBool(_followPrefKey) ?? false;
+    if (mounted) setState(() => _followMode = v);
+  }
+
+  Future<void> _setFollowMode(bool v) async {
+    setState(() => _followMode = v);
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(_followPrefKey, v);
+    if (v) {
+      // Включили синхронизацию — сразу подтягиваем ленту к звучащей фразе
+      _userScrolling = false;
+      _scrollToActive();
+    }
+  }
+
+  void _onScroll() {
+    if (!mounted || !_scrollController.hasClients) return;
+    final o = _scrollController.offset;
+    if ((o - _scrollOffset).abs() < 0.5) return;
+    setState(() => _scrollOffset = o);
+  }
+
+  /// Task 107: направление стрелки к звучащей фразе (-1 вверх, 1 вниз, 0 — видна).
+  int _arrowDirFor(int active) {
+    if (_followMode || active < 0 || !_scrollController.hasClients) return 0;
+    const itemHeight = 80.0;
+    final top = active * itemHeight;
+    final offset = _scrollController.offset;
+    final viewport = _scrollController.position.viewportDimension;
+    if (top < offset) return -1;
+    if (top + itemHeight > offset + viewport) return 1;
+    return 0;
   }
 
   Future<void> _initPlayer() async {
@@ -100,12 +145,12 @@ class _PlayerPageState extends State<PlayerPage> {
     _player.setSpeed(speed);
   }
 
-  /// Task 106: seek + прокрутка списка к активной фразе.
+  /// Task 106: seek + прокрутка списка к активной фразе (только в режиме «синхронно»).
   Future<void> _seek(double value) async {
     final pos =
         Duration(milliseconds: (value * _duration.inMilliseconds).round());
     await _player.seek(pos);
-    _scrollToActive();
+    if (_followMode) _scrollToActive();
   }
 
   Future<void> _skip(int seconds) async {
@@ -113,7 +158,7 @@ class _PlayerPageState extends State<PlayerPage> {
     if (target < Duration.zero) target = Duration.zero;
     if (_duration > Duration.zero && target > _duration) target = _duration;
     await _player.seek(target);
-    _scrollToActive();
+    if (_followMode) _scrollToActive();
   }
 
   /// Прокрутка списка к активной фразе.
@@ -219,12 +264,14 @@ class _PlayerPageState extends State<PlayerPage> {
             'n': '${_segments.length}',
           })}';
 
-    // Task 106: автопрокрутка при воспроизведении
-    if (_isPlaying && !_userScrolling && active >= 0) {
+    // Task 106/107: автопрокрутка при воспроизведении — только в режиме «синхронно»
+    if (_followMode && _isPlaying && !_userScrolling && active >= 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _scrollToActive();
       });
     }
+
+    final arrowDir = _arrowDirFor(active);
 
     return DictaBackground(
       child: Scaffold(
@@ -343,18 +390,57 @@ class _PlayerPageState extends State<PlayerPage> {
                                 color: tk.ink),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            AppStrings.t('player_seek_hint', context),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.right,
-                            style: TextStyle(
-                                fontSize: 11.5, color: tk.mint),
+                        // Task 107: галка «Аудио+текст синхронно»
+                        InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () => _setFollowMode(!_followMode),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: Checkbox(
+                                    value: _followMode,
+                                    onChanged: (v) =>
+                                        _setFollowMode(v ?? false),
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                    side: BorderSide(
+                                        color: tk.line2, width: 1.4),
+                                    activeColor: tk.mint,
+                                    checkColor: AppColors.mintInk,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  AppStrings.t('player_follow', context),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: tk.ink2),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 2),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        AppStrings.t('player_seek_hint', context),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: tk.mint),
+                      ),
                     ),
                   ],
                 ],
@@ -363,28 +449,60 @@ class _PlayerPageState extends State<PlayerPage> {
             // ─── Скроллируемый список фраз ───
             if (_segments.isNotEmpty)
               Expanded(
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: (notification) {
-                    // Отслеживаем ручной скролл — пауза автопрокрутки
-                    if (notification is ScrollStartNotification &&
-                        notification.dragDetails != null) {
-                      _userScrolling = true;
-                    }
-                    if (notification is ScrollEndNotification) {
-                      // Возобновляем автоскролл после паузы
-                      Future.delayed(const Duration(seconds: 2), () {
-                        if (mounted) _userScrolling = false;
-                      });
-                    }
-                    return false;
-                  },
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-                    itemCount: _segments.length,
-                    itemBuilder: (context, i) =>
-                        _segmentRow(tk, i, starts, speakerNo, active),
-                  ),
+                child: Stack(
+                  children: [
+                    NotificationListener<ScrollNotification>(
+                      onNotification: (notification) {
+                        // Отслеживаем ручной скролл — пауза автопрокрутки
+                        if (notification is ScrollStartNotification &&
+                            notification.dragDetails != null) {
+                          _userScrolling = true;
+                        }
+                        if (notification is ScrollEndNotification) {
+                          // Возобновляем автоскролл после паузы
+                          Future.delayed(const Duration(seconds: 2), () {
+                            if (mounted) _userScrolling = false;
+                          });
+                        }
+                        return false;
+                      },
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+                        itemCount: _segments.length,
+                        itemBuilder: (context, i) =>
+                            _segmentRow(tk, i, starts, speakerNo, active),
+                      ),
+                    ),
+                    // Task 107: стрелка к звучащей фразе (только без «синхронно»)
+                    if (arrowDir != 0)
+                      Positioned(
+                        right: 8,
+                        top: 0,
+                        bottom: 24,
+                        child: IgnorePointer(
+                          child: Center(
+                            child: Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: tk.mint.withValues(alpha: 0.14),
+                                border: Border.all(
+                                    color: tk.mint.withValues(alpha: 0.35)),
+                              ),
+                              child: Icon(
+                                arrowDir < 0
+                                    ? Icons.arrow_upward_rounded
+                                    : Icons.arrow_downward_rounded,
+                                size: 18,
+                                color: tk.mint.withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
           ],
