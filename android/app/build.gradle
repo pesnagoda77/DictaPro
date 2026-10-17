@@ -33,10 +33,9 @@ android {
     compileSdk 36
     ndkVersion flutter.ndkVersion
 
-    // Install-time asset pack с моделью GigaAM v3 (task 019).
-    // Только для AAB (Play). В APK asset packs игнорируются —
-    // модель тогда идёт через flutter-ассеты (tools/prepare_apk_build.py).
-    assetPacks = [":gigaam_pack"]
+    // Task 108: asset pack убран — модели (GigaAM v3 + Whisper) лежат
+    // в base через flutter-ассеты (assets/models/...), Play отдаёт всё
+    // при установке, без последующих докачек.
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_11

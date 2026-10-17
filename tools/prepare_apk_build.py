@@ -1,42 +1,36 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Подготовка модели к APK-сборке DictaPro (task 019).
+"""Проверка наличия моделей перед сборкой DictaPro (task 108).
 
-Для прямой раздачи (APK) модель кладётся в flutter-ассеты
-(assets/models/gigaam_v3_punct/, см. pubspec.yaml). Для Play (AAB) она
-идёт через install-time asset pack android/gigaam_pack и во flutter-ассетах
-НЕ нужна — иначе base-часть AAB превысит лимит Play в 200 МБ.
+Task 108: asset pack gigaam_pack убран — модели (GigaAM v3 + Whisper)
+всегда лежат в flutter-ассетах (assets/models/...). APK и AAB собираются
+из одного и того же состояния, без перекладывания файлов.
 
-Порядок:
-  1. python3 tools/fetch_model.py                 (скачать модель, один раз)
-  2. python3 tools/prepare_apk_build.py           (эта команда)
-  3. flutter build apk --release --split-per-abi
-  4. python3 tools/prepare_apk_build.py --clean   (убрать модель из ассетов
-                                                   перед AAB-сборкой)
+Этот скрипт — просто верификатор: проверяет, что все файлы моделей
+скачаны (см. tools/fetch_model.py), и сообщает, можно ли собирать.
 
---clean обязателен перед `flutter build appbundle` — иначе модель попадёт
-и в base AAB (отказ Play по размеру).
+Запуск из корня репозитория:
+    python3 tools/prepare_apk_build.py
 """
 
-import argparse
 import os
-import shutil
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-PACK_DIR = os.path.join(
-    ROOT, "android", "gigaam_pack", "src", "main", "assets",
-    "models", "gigaam_v3_punct",
-)
 ASSETS_DIR = os.path.join(ROOT, "assets", "models", "gigaam_v3_punct")
+WHISPER_DIR = os.path.join(ROOT, "assets", "models", "whisper-small")
 
+# (каталог, имя файла, минимальный валидный размер в байтах)
 FILES = [
-    "encoder.int8.onnx",
-    "decoder.onnx",
-    "joiner.onnx",
-    "tokens.txt",
-    "silero_vad.onnx",
+    (ASSETS_DIR, "encoder.int8.onnx", 190 * 1024 * 1024),
+    (ASSETS_DIR, "decoder.onnx", 3 * 1024 * 1024),
+    (ASSETS_DIR, "joiner.onnx", 1 * 1024 * 1024),
+    (ASSETS_DIR, "tokens.txt", 10 * 1024),
+    (ASSETS_DIR, "silero_vad.onnx", 500 * 1024),
+    (WHISPER_DIR, "small-encoder.int8.onnx", 100 * 1024 * 1024),
+    (WHISPER_DIR, "small-decoder.int8.onnx", 200 * 1024 * 1024),
+    (WHISPER_DIR, "small-tokens.txt", 10 * 1024),
 ]
 
 
@@ -44,38 +38,24 @@ def log(msg: str) -> None:
     print(f"[prepare_apk_build] {msg}", flush=True)
 
 
-def prepare() -> int:
-    missing = [f for f in FILES if not os.path.isfile(os.path.join(PACK_DIR, f))]
+def main() -> int:
+    missing = []
+    for d, name, min_size in FILES:
+        p = os.path.join(d, name)
+        if not os.path.isfile(p) or os.path.getsize(p) < min_size:
+            missing.append(os.path.relpath(p, ROOT))
     if missing:
-        log("ОШИБКА: модель не скачана, нет файлов: " + ", ".join(missing))
+        log("ОШИБКА: модели не скачаны или биты:")
+        for m in missing:
+            log("  - " + m)
         log("Сначала: python3 tools/fetch_model.py")
         return 1
-    os.makedirs(ASSETS_DIR, exist_ok=True)
-    for f in FILES:
-        src = os.path.join(PACK_DIR, f)
-        dst = os.path.join(ASSETS_DIR, f)
-        if os.path.isfile(dst) and os.path.getsize(dst) == os.path.getsize(src):
-            continue
-        shutil.copy2(src, dst)
-    total = sum(os.path.getsize(os.path.join(ASSETS_DIR, f)) for f in FILES)
-    log(f"модель в ассетах ({total / 1048576:.1f} МБ) — можно собирать APK")
-    return 0
-
-
-def clean() -> int:
-    removed = 0
-    for f in FILES:
-        p = os.path.join(ASSETS_DIR, f)
-        if os.path.isfile(p):
-            os.remove(p)
-            removed += 1
-    log(f"убрано {removed} файлов — можно собирать AAB (asset pack)")
+    total = sum(os.path.getsize(os.path.join(d, n)) for d, n, _ in FILES)
+    log(f"модели на месте ({total / 1048576:.1f} МБ) — можно собирать APK и AAB")
+    log("APK  → flutter build apk --release --split-per-abi")
+    log("AAB  → flutter build appbundle --release")
     return 0
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--clean", action="store_true",
-                    help="убрать модель из flutter-ассетов (перед AAB-сборкой)")
-    args = ap.parse_args()
-    sys.exit(clean() if args.clean else prepare())
+    sys.exit(main())
