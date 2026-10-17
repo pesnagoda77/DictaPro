@@ -22,6 +22,5 @@ plugins {
     id "org.jetbrains.kotlin.android" version "2.1.20" apply false
 }
 
+// Task 108: asset pack gigaam_pack убран — модели всегда в base (flutter-ассеты).
 include ":app"
-// Install-time asset pack с моделью GigaAM v3 (task 019) — для Play AAB
-include ":gigaam_pack"

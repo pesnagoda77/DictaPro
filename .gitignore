@@ -47,13 +47,14 @@ android/app/key.properties
 android/app/release-key.jks
 android/app/smart_recorder.keystore
 
-# Модель GigaAM v3 (222 МБ) — НЕ коммитим в git (task 019).
+# Модели GigaAM v3 + Whisper (~540 МБ) — НЕ коммитим в git (task 019).
+# Task 108: только flutter-ассеты (asset pack gigaam_pack убран).
 # Скачивание перед сборкой: tools/fetch_model.py
 # В репозитории остаётся только README.md в каждой папке.
-android/gigaam_pack/src/main/assets/models/gigaam_v3_punct/*.onnx
-android/gigaam_pack/src/main/assets/models/gigaam_v3_punct/*.txt
 assets/models/gigaam_v3_punct/*.onnx
 assets/models/gigaam_v3_punct/*.txt
+assets/models/whisper-small/*.onnx
+assets/models/whisper-small/*.txt
 
 # Старая модель VOSK (ассет удалён вместе с движком)
 assets/models/vosk-model-small-ru-0.22.zip
@@ -63,3 +64,5 @@ assets/models/vosk-model-small-ru-0.22.zip
 
 # локальные бэкапы правок (не коммитить)
 *.bak_*
+android/gigaam_pack/
+*.part
