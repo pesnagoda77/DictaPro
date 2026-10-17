@@ -84,8 +84,8 @@ abstract final class ModelManifest {
     ),
     ModelFileSpec(
       'whisper-small/small-tokens.txt',
-      866987,
-      'febeed8e568f92d9ca984580bc2e6b605b867dc5ba4486f9646de381b44a8226',
+      816730,
+      'b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126',
     ),
   ];
 
