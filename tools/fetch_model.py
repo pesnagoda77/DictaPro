@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Скачивание модели GigaAM v3 для DictaPro (task 019).
+"""Скачивание моделей GigaAM v3 и Whisper для DictaPro.
 
-Качает 5 файлов модели (~222 МБ) и кладёт их в два места:
-  1. assets/models/gigaam_v3_punct/          — flutter-ассеты (APK, прямая раздача)
-  2. android/gigaam_pack/src/main/assets/models/gigaam_v3_punct/
-     — install-time asset pack (AAB, Play)
+Task 108: asset pack gigaam_pack убран — всё кладётся ТОЛЬКО в base
+(assets/models/...). Play отдаёт приложение целиком при установке,
+без последующих «докачек модели». Уменьшение веса — отдельной задачей.
 
-Модель в git не коммитится (см. .gitignore); скрипт идемпотентен:
+Модели в git не коммитятся (см. .gitignore); скрипт идемпотентен:
 уже скачанные файлы с валидным размером пропускает.
 
 Запуск из корня репозитория:
@@ -16,7 +15,6 @@
 """
 
 import os
-import shutil
 import sys
 import urllib.request
 
@@ -55,18 +53,10 @@ WHISPER_FILES = [
 ]
 WHISPER_DEST_DIRS = [
     os.path.join(ROOT, "assets", "models", "whisper-small"),
-    os.path.join(
-        ROOT, "android", "gigaam_pack", "src", "main", "assets",
-        "models", "whisper-small",
-    ),
 ]
 
 DEST_DIRS = [
     os.path.join(ROOT, "assets", "models", "gigaam_v3_punct"),
-    os.path.join(
-        ROOT, "android", "gigaam_pack", "src", "main", "assets",
-        "models", "gigaam_v3_punct",
-    ),
 ]
 
 CHUNK = 1024 * 1024
@@ -116,36 +106,18 @@ def main() -> int:
     for name, url, min_size in FILES:
         download(name, url, os.path.join(primary, name), min_size)
 
-    # Мультиязычная модель Whisper (EN/DE) — тоже в оба канала доставки.
+    # Мультиязычная модель Whisper (EN/DE) — в base, рядом с GigaAM.
     wprimary = WHISPER_DEST_DIRS[0]
     os.makedirs(wprimary, exist_ok=True)
     for name, url, min_size in WHISPER_FILES:
         download(name, url, os.path.join(wprimary, name), min_size)
-    import shutil as _sh
-    for other in WHISPER_DEST_DIRS[1:]:
-        os.makedirs(other, exist_ok=True)
-        for name, _u, _m in WHISPER_FILES:
-            src = os.path.join(wprimary, name)
-            dst = os.path.join(other, name)
-            if not valid(dst, 1) or os.path.getsize(dst) != os.path.getsize(src):
-                _sh.copy2(src, dst)
-
-    # Копия в asset pack для Play AAB.
-    for other in DEST_DIRS[1:]:
-        os.makedirs(other, exist_ok=True)
-        for name, _url, _min in FILES:
-            src = os.path.join(primary, name)
-            dst = os.path.join(other, name)
-            if not (os.path.isfile(dst) and os.path.getsize(dst) == os.path.getsize(src)):
-                shutil.copy2(src, dst)
-        log(f"копия обновлена: {os.path.relpath(other, ROOT)}")
 
     total = sum(
         os.path.getsize(os.path.join(primary, n)) for n, _, _ in FILES
     )
-    log(f"ВСЁ ГОТОВО: 5 файлов, суммарно {total / 1048576:.1f} МБ")
-    log("Теперь: APK  → python3 tools/prepare_apk_build.py && flutter build apk --release --split-per-abi")
-    log("        AAB  → flutter build appbundle --release")
+    log(f"ВСЁ ГОТОВО: GigaAM 5 файлов, суммарно {total / 1048576:.1f} МБ")
+    log("APK  -> flutter build apk --release --split-per-abi")
+    log("AAB  -> flutter build appbundle --release")
     return 0
 
 
