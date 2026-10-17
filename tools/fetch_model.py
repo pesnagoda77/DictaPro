@@ -112,6 +112,27 @@ def main() -> int:
     for name, url, min_size in WHISPER_FILES:
         download(name, url, os.path.join(wprimary, name), min_size)
 
+    # Сверка размеров с ModelManifest (release-линия): если файл модели
+    # изменился — обнови манифест и этот список.
+    expected = {
+        os.path.join(primary, "encoder.int8.onnx"): 224570820,
+        os.path.join(primary, "decoder.onnx"): 4600132,
+        os.path.join(primary, "joiner.onnx"): 2712896,
+        os.path.join(primary, "tokens.txt"): 13354,
+        os.path.join(primary, "silero_vad.onnx"): 643854,
+        os.path.join(wprimary, "small-encoder.int8.onnx"): 112442483,
+        os.path.join(wprimary, "small-decoder.int8.onnx"): 262226114,
+        os.path.join(wprimary, "small-tokens.txt"): 816730,
+    }
+    for path, want in expected.items():
+        got = os.path.getsize(path) if os.path.exists(path) else -1
+        if got != want:
+            raise RuntimeError(
+                f"{os.path.basename(path)}: размер {got} != ожидаемого {want}. "
+                "Файл модели изменился — обнови ModelManifest и этот список."
+            )
+    log("размеры моделей совпадают с манифестом")
+
     total = sum(
         os.path.getsize(os.path.join(primary, n)) for n, _, _ in FILES
     )

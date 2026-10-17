@@ -3,7 +3,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'audio_service.dart';
-import 'home_page.dart';
 import 'main_shell.dart';
 import 'splash_screen.dart';
 import 'app_strings.dart';
@@ -12,6 +11,7 @@ import 'locale_controller.dart';
 import 'services/purchase_service.dart';
 import 'services/code_activation_service.dart';
 import 'services/local_notify.dart';
+import 'services/session_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,6 +38,13 @@ void main() async {
   await CodeActivationService.instance.init();
   // Task 056: локальные уведомления «Расшифровка готова» (работают офлайн).
   await LocalNotify.instance.init();
+  // Task 105: серверная сессия (токен + баланс часов). Не блокирует старт —
+  // при недоступности сервера продолжаем на локальном кэше.
+  try {
+    await SessionService.instance.init();
+  } catch (e) {
+    debugPrint('[session] init failed: $e');
+  }
   // Выбранная тема (тёмная/светлая) — из памяти устройства
   await ThemeController.instance.load();
   await LocaleController.instance.load();

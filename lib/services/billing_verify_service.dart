@@ -66,6 +66,9 @@ class BillingVerifyService {
     }
   }
 
+  /// Task 105: публичный доступ к токенам покупок (для SessionService).
+  Map<String, String> get pendingTokens => Map.unmodifiable(_pendingAck);
+
   /// Сохранить purchaseToken для последующей серверной сверки.
   /// Вызывается из PurchaseService при подтверждении покупки.
   Future<void> recordPurchaseToken(String productId, String purchaseToken) async {

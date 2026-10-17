@@ -1,12 +1,11 @@
 ﻿# -*- coding: utf-8 -*-
 # Перенос ручного патча permission_handler_android 10.3.6: удаление устаревшего
 # PluginRegistry.Registrar API (удалён из свежих Flutter; иначе compileReleaseJavaWithJavac
-# падает с "cannot find symbol" в PermissionHandlerPlugin.java:28/47).
-import io, sys
+# падает с "cannot find symbol"). Скрипт идемпотентен: повторный запуск безопасен.
+import io, sys, glob, os
 
 p = sys.argv[1] if len(sys.argv) > 1 else None
 if not p:
-    import glob, os
     cands = glob.glob(os.path.expanduser('~/.pub-cache/hosted/pub.dev/permission_handler_android-10.3.6/android/src/main/java/com/baseflow/permissionhandler/PermissionHandlerPlugin.java'))
     if not cands:
         print('файл плагина не найден'); sys.exit(1)
@@ -14,6 +13,14 @@ if not p:
 
 src = io.open(p, encoding='utf-8').read()
 orig_len = len(src)
+
+MARK_A = '@Nullable private io.flutter.plugin.common.PluginRegistry.Registrar pluginRegistrar;'
+MARK_B = 'plugin.pluginRegistrar = registrar;'
+MARK_C = 'this.pluginRegistrar != null'
+
+if (MARK_A not in src) and (MARK_B not in src) and (MARK_C not in src):
+    print('файл уже пропатчен — ничего не делаем (%d байт)' % orig_len)
+    sys.exit(0)
 
 A = '''    @SuppressWarnings("deprecation")
     @Nullable private io.flutter.plugin.common.PluginRegistry.Registrar pluginRegistrar;
@@ -49,23 +56,13 @@ C = '''        if (this.pluginRegistrar != null) {
         } else if (pluginBinding != null) {'''
 C_new = '''        if (pluginBinding != null) {'''
 
+applied = []
 for name, old, new in (('A', A, ''), ('B', B_HEAD, ''), ('C', C, C_new)):
-    if name in ('A', 'B') and old in src:
+    if old in src:
         src = src.replace(old, new)
-        print('патч', name, 'применён')
-    elif name == 'C' and old in src:
-        src = src.replace(old, C_new)
-        print('патч', name, 'применён')
+        applied.append(name)
     else:
-        # допускаем повторный запуск: если уже пропатчено — проверить
-        if name == 'A' and 'PluginRegistry.Registrar pluginRegistrar' not in src:
-            print('патч', name, 'уже/не нужен')
-        elif name == 'B' and 'registerWith(io.flutter.plugin.common.PluginRegistry' not in src:
-            print('патч', name, 'уже/не нужен')
-        elif name == 'C' and 'this.pluginRegistrar' not in src:
-            print('патч', name, 'уже/не нужен')
-        else:
-            print('патч', name, 'НЕ НАЙДЕН якорь!'); sys.exit(2)
+        print('патч %s: якорь не найден!' % name); sys.exit(2)
 
 io.open(p, 'w', encoding='utf-8', newline='\n').write(src)
-print('готово: %d -> %d байт' % (orig_len, len(src)))
+print('патчи применены: %s | %d -> %d байт' % (','.join(applied), orig_len, len(src)))
