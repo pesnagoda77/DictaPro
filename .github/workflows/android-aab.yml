@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       track:
-        description: 'internal / alpha / beta / production'
+        description: 'internal / alpha / beta / production / none (только сборка)'
         required: false
         default: 'internal'
       notes:
@@ -42,6 +42,9 @@ jobs:
       - name: Зависимости
         run: flutter pub get
 
+      - name: Патч permission_handler (устаревший Registrar)
+        run: python3 tools/patch_permission_handler.py
+
       - name: Модели (GigaAM v3 + Whisper)
         run: python3 tools/fetch_model.py
 
@@ -69,6 +72,7 @@ jobs:
           --dart-define=BILLING_API_URL=https://billing-api.pesnagoda77.workers.dev
 
       - name: Выгрузка в Play
+        if: inputs.track != 'none'
         env:
           PLAY_JSON_PATH: /tmp/play.json
           AAB_PATH: build/app/outputs/bundle/release/app-release.aab
