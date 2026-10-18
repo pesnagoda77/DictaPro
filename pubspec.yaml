@@ -16,6 +16,7 @@ dependencies:
   hive: 2.2.3
   hive_flutter: 1.1.0
   device_info_plus: ^9.1.2
+  url_launcher: 6.3.1
   path_provider: 2.1.5
   # Task 078: sha256 для манифеста целостности моделей.
   crypto: ^3.0.3

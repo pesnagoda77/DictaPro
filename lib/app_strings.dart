@@ -1490,6 +1490,19 @@ class AppStrings {
       'ru': 'Остаток переносится', 'es': 'El saldo se transfiere', 'fr': 'Le solde est transféré', 'en': 'Balance carries over',
       'de': 'Restguthaben wird übertragen', 'it': 'Il saldo viene trasferito',
     },
+    // Task 112: папка записей.
+    'folder_recordings_title': {
+      'ru': 'Папка записей', 'es': 'Carpeta de grabaciones', 'fr': 'Dossier des enregistrements', 'en': 'Recordings folder',
+      'de': 'Aufnahmeordner', 'it': 'Cartella delle registrazioni',
+    },
+    'folder_open': {
+      'ru': 'Открыть', 'es': 'Abrir', 'fr': 'Ouvrir', 'en': 'Open',
+      'de': 'Öffnen', 'it': 'Apri',
+    },
+    'folder_open_failed': {
+      'ru': 'Не удалось открыть папку', 'es': 'No se pudo abrir la carpeta', 'fr': 'Impossible d\'ouvrir le dossier', 'en': 'Could not open folder',
+      'de': 'Ordner konnte nicht geöffnet werden', 'it': 'Impossibile aprire la cartella',
+    },
     'summary_prep_text': {
       'ru': 'Готовим текст…', 'en': 'Preparing text…', 'de': 'Text wird vorbereitet…',
       'fr': 'Préparation du texte…', 'es': 'Preparando el texto…', 'it': 'Preparazione del testo…',

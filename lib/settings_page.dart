@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'audio_service.dart';
 import 'services/keep_alive.dart';
 import 'services/purchase_service.dart';
 import 'subscription_page.dart';
@@ -349,6 +351,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   _miuiTile(context),
                   _tempTile(context),
 
+                  // ── Папка записей (task 112) ──────────────────────────
+                  _folderTile(context),
+
                   // ── Версия ────────────────────────────────────────────
                   // Task 109: скрытая диагностика (long tap) убрана вместе с
                   // онлайн-расшифровкой — ключи провайдеров больше не показываем.
@@ -392,6 +397,57 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
       ),
     );
+  }
+
+  /// Task 112: строка «Папка записей» с текущим путём.
+  Widget _folderTile(BuildContext context) {
+    final tk = DictaTokens.of(context);
+    return FutureBuilder<String>(
+      future: AudioService.recordingsDir().then((d) => d.path),
+      builder: (context, snap) {
+        final path = snap.data ?? '…';
+        return _tile(
+          context,
+          title: AppStrings.t('folder_recordings_title', context),
+          sub: path,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                onPressed: () => _openRecordingsFolder(context),
+                child: Text(
+                  AppStrings.t('folder_open', context),
+                  style: TextStyle(color: tk.mint, fontSize: 12.5),
+                ),
+              ),
+              _chevron(context),
+            ],
+          ),
+          onTap: () => _openRecordingsFolder(context),
+        );
+      },
+    );
+  }
+
+  /// Task 112: открыть папку записей в файловом менеджере.
+  Future<void> _openRecordingsFolder(BuildContext context) async {
+    try {
+      final dir = await AudioService.recordingsDir();
+      final uri = Uri.directory(dir.path);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppStrings.t('folder_open_failed', context))),
+        );
+      }
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.t('folder_open_failed', context))),
+      );
+    }
   }
 
   // ── Элементы в стиле V3 (экран 13 макета) ───────────────────────────────
