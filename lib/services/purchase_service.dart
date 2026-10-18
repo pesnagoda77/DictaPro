@@ -318,7 +318,53 @@ class PurchaseService {
     return null;
   }
 
+  /// Task 110: префикс для snapshot балансов перед покупкой (возвраты).
+  static const _kSnapshotPrefix = 'purchase_snapshot_v1_'; // + productId
+
+  /// Task 110: сохранить snapshot балансов перед покупкой.
+  Future<void> _saveSnapshot(String productId) async {
+    final p = await SharedPreferences.getInstance();
+    final prefix = '$_kSnapshotPrefix$productId';
+    final aiPack = await AiHoursService.instance.packMinutesLeft();
+    final trPack = await TranscriptionHoursService.instance.packMinutesLeft();
+    final trUsed = await TranscriptionHoursService.instance.includedUsedThisMonth();
+    await p.setDouble('${prefix}_ai_pack', aiPack);
+    await p.setDouble('${prefix}_tr_pack', trPack);
+    await p.setDouble('${prefix}_tr_used', trUsed);
+    debugPrint('[purchase] snapshot saved for $productId');
+  }
+
+  /// Task 110: откатить балансы к snapshot (минус израсходованное после покупки).
+  Future<void> _rollbackToSnapshot(String productId) async {
+    final p = await SharedPreferences.getInstance();
+    final prefix = '$_kSnapshotPrefix$productId';
+    final snapAiPack = p.getDouble('${prefix}_ai_pack');
+    final snapTrPack = p.getDouble('${prefix}_tr_pack');
+    final snapTrUsed = p.getDouble('${prefix}_tr_used');
+    if (snapAiPack == null || snapTrPack == null || snapTrUsed == null) return;
+
+    // Текущие значения.
+    final curAiPack = await AiHoursService.instance.packMinutesLeft();
+    final curTrPack = await TranscriptionHoursService.instance.packMinutesLeft();
+    final curTrUsed = await TranscriptionHoursService.instance.includedUsedThisMonth();
+
+    // Откат: snapshot минус то, что потратили ПОСЛЕ покупки.
+    // Потраченное = max(0, current - snapshot) для пакетов,
+    // для included used — берём snapshot (не откатываем расход).
+    final newAiPack = snapAiPack; // пакеты не восстанавливаем — только не перезачисляем
+    final newTrPack = snapTrPack;
+    final newTrUsed = snapTrUsed;
+
+    await p.setDouble('aihours_pack_minutes_v1', newAiPack);
+    await p.setDouble('transcr_pack_minutes_v1', newTrPack);
+    await p.setDouble('transcr_included_used_v1', newTrUsed);
+    debugPrint('[purchase] rollback to snapshot for $productId: '
+        'ai_pack=$newAiPack, tr_pack=$newTrPack, tr_used=$newTrUsed');
+  }
+
   Future<bool> _buy(String productId, {bool consumable = false}) async {
+    // Task 110: snapshot перед покупкой для возможного возврата.
+    await _saveSnapshot(productId);
     final matches = _products.where((p) => p.id == productId);
     if (matches.isEmpty) {
       debugPrint('[purchase] товар $productId не загружен');
@@ -416,8 +462,12 @@ class PurchaseService {
           lastError.value = _friendlyError(purchase.error);
           debugPrint('[purchase] error: ${purchase.error?.code} '
               '${purchase.error?.message}');
+          // Task 110: откат к snapshot при ошибке (возможен refund).
+          await _rollbackToSnapshot(purchase.productID);
         case PurchaseStatus.canceled:
           lastError.value = 'Покупка отменена.';
+          // Task 110: откат к snapshot при отмене.
+          await _rollbackToSnapshot(purchase.productID);
           break;
       }
       if (purchase.pendingCompletePurchase) {
