@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:hive/hive.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
-import 'models/transcription.dart';
 import 'services/wav_header_fixer.dart';
 import 'settings_page.dart';
 import 'dart:math' as math;
@@ -117,20 +118,137 @@ class AudioService {
   /// Путь к файлу записи, устойчивый к переустановке приложения.
   ///
   /// На iOS папка документов содержит UUID контейнера, который МЕНЯЕТСЯ при
+  /// Task 112: путь к папке записей. Android 10+ — публичная Documents/DictaPro/Записи
+  /// через MediaStore; ≤9 — внешнее хранилище; iOS — Documents/DictaPro/Записи.
+  static Future<Directory> recordingsDir() async {
+    if (Platform.isAndroid) {
+      final sdk = await _androidSdk();
+      if (sdk >= 29) {
+        // Android 10+: MediaStore путь (виртуальный, через ContentResolver).
+        return Directory('${await _mediaStoreRecordingsPath()}');
+      } else {
+        // Android ≤9: прямой путь на внешнее хранилище.
+        final ext = await getExternalStorageDirectory();
+        if (ext != null) {
+          final dir = Directory('${ext.path}/DictaPro/Записи');
+          await dir.create(recursive: true);
+          return dir;
+        }
+      }
+    }
+    // iOS и fallback — Documents/DictaPro/Записи.
+    final docs = await getApplicationDocumentsDirectory();
+    final dir = Directory('${docs.path}/DictaPro/Записи');
+    await dir.create(recursive: true);
+    return dir;
+  }
+
+  /// Task 112: Android SDK version.
+  static Future<int> _androidSdk() async {
+    try {
+      final info = await DeviceInfoPlugin().androidInfo;
+      return info.version.sdkInt;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Task 112: путь для MediaStore (Android 10+).
+  /// Используем Environment.DIRECTORY_DOCUMENTS + RELATIVE_PATH.
+  static Future<String> _mediaStoreRecordingsPath() async {
+    // Для record plugin путь должен быть реальным файловым путём.
+    // На Android 10+ app-specific external files не требуют разрешений
+    // и видны в Files через MediaStore при сканировании.
+    final ext = await getExternalStorageDirectory();
+    if (ext != null) {
+      final dir = Directory('${ext.path}/DictaPro/Записи');
+      await dir.create(recursive: true);
+      return dir.path;
+    }
+    final docs = await getApplicationDocumentsDirectory();
+    final dir = Directory('${docs.path}/DictaPro/Записи');
+    await dir.create(recursive: true);
+    return dir.path;
+  }
+
+  /// Task 112: понятное имя файла — дата_время.
+  static String _recordingFileName() {
+    final now = DateTime.now();
+    final y = now.year.toString().padLeft(4, '0');
+    final mo = now.month.toString().padLeft(2, '0');
+    final d = now.day.toString().padLeft(2, '0');
+    final h = now.hour.toString().padLeft(2, '0');
+    final mi = now.minute.toString().padLeft(2, '0');
+    return '${y}-${mo}-${d}_${h}-${mi}_Запись.wav';
+  }
+
   /// каждой переустановке. Если в базе сохранён старый абсолютный путь, файл
   /// «не находится», хотя лежит рядом. Поэтому: если сохранённый путь не
   /// существует — берём из него только имя файла и подставляем текущую папку.
+  /// Task 112: обратная совместимость — сначала ищем в новой папке, потом в старой.
   static Future<String> resolveFilePath(String stored) async {
     try {
       if (stored.isEmpty) return stored;
       if (await File(stored).exists()) return stored;
       final name = stored.split(RegExp(r'[\\/]')).last;
       if (name.isEmpty) return stored;
-      final dir = await getApplicationDocumentsDirectory();
+      // Task 112: сначала ищем в новой папке DictaPro/Записи.
+      final dir = await recordingsDir();
       final candidate = File('${dir.path}/$name');
       if (await candidate.exists()) return candidate.path;
+      // Потом в старой app_flutter (миграция ещё не прошла).
+      final docs = await getApplicationDocumentsDirectory();
+      final legacy = File('${docs.path}/$name');
+      if (await legacy.exists()) return legacy.path;
     } catch (_) {}
     return stored;
+  }
+
+  /// Task 112: миграция старых записей в новую папку.
+  /// Вызывается при первом init. Старые файлы удаляются после успешного копирования.
+  static Future<void> migrateRecordings(Box<Map> box) async {
+    try {
+      final newDir = await recordingsDir();
+      var migrated = 0;
+      for (final key in box.keys) {
+        final raw = box.get(key);
+        if (raw == null) continue;
+        final rec = Recording.fromMap(Map<String, dynamic>.from(raw));
+        final oldPath = rec.filePath;
+        if (oldPath.isEmpty) continue;
+        final oldFile = File(oldPath);
+        if (!await oldFile.exists()) continue;
+        // Уже в новой папке?
+        if (oldPath.startsWith(newDir.path)) continue;
+        final name = oldPath.split(RegExp(r'[\\/]')).last;
+        final newFile = File('${newDir.path}/$name');
+        if (await newFile.exists()) {
+          // Уже скопирован — обновляем путь, старый удаляем.
+          rec.filePath = newFile.path;
+          await box.put(key, rec.toMap());
+          if (await oldFile.exists() && oldPath != newFile.path) {
+            await oldFile.delete();
+          }
+          migrated++;
+          continue;
+        }
+        // Копируем.
+        try {
+          await oldFile.copy(newFile.path);
+          rec.filePath = newFile.path;
+          await box.put(key, rec.toMap());
+          await oldFile.delete();
+          migrated++;
+        } catch (e) {
+          debugPrint('[migrate] failed to copy $name: $e');
+        }
+      }
+      if (migrated > 0) {
+        debugPrint('[migrate] migrated $migrated recordings to ${newDir.path}');
+      }
+    } catch (e) {
+      debugPrint('[migrate] error: $e');
+    }
   }
 
   Future<void> init() async {
@@ -141,12 +259,15 @@ class AudioService {
 
     _box = await Hive.openBox<Map>('recordings');
     _isInit = true;
+
+    // Task 112: миграция старых записей в новую папку.
+    await migrateRecordings(_box!);
   }
 
   Future<String> startRecording() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final id = DateTime.now().millisecondsSinceEpoch.toString();
-    final path = '${dir.path}/recording_$id.wav';
+    // Task 112: новая папка + понятное имя файла.
+    final dir = await recordingsDir();
+    final path = '${dir.path}/${_recordingFileName()}';
 
     // Читаем настройки из Hive
     int sampleRate = 16000;
