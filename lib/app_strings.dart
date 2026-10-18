@@ -1282,8 +1282,8 @@ class AppStrings {
       'fr': 'DictaPro transforme la parole en texte directement sur votre téléphone. Enregistrement, transcription, recherche et résumés sont calculés sur l\'appareil ; le modèle de reconnaissance est intégré à l\'application.', 'es': 'DictaPro convierte la voz en texto directamente en tu teléfono. La grabación, la transcripción, la búsqueda y los resúmenes se procesan en el dispositivo; el modelo de reconocimiento va dentro de la aplicación.', 'it': 'DictaPro trasforma la voce in testo direttamente sul telefono. Registrazione, trascrizione, ricerca e riepiloghi sono elaborati sul dispositivo; il modello di riconoscimento è integrato nell\'app.',
     },
     'about_p2': {
-      'ru': 'Онлайн-расшифровка и онлайн-итоги выключены по умолчанию и включаются только вашим решением: тогда текст записи уходит на выбранный вами сервис по защищённому соединению.', 'en': 'Online transcription and online summaries are off by default and only enabled by your choice: then the recording text goes to the service you pick over a secure connection.', 'de': 'Online-Transkription und Online-Zusammenfassungen sind standardmäßig aus und werden nur auf Ihre Entscheidung aktiviert: dann geht der Aufnahmetext über eine gesicherte Verbindung an den von Ihnen gewählten Dienst.',
-      'fr': 'La transcription et les résumés en ligne sont désactivés par défaut et ne s\'activent que sur votre décision : le texte de l\'enregistrement part alors vers le service de votre choix via une connexion sécurisée.', 'es': 'La transcripción y los resúmenes online están desactivados por defecto y solo se activan por tu decisión: entonces el texto de la grabación se envía al servicio que elijas por conexión segura.', 'it': 'Trascrizione e riepiloghi online sono disattivati per impostazione predefinita e si attivano solo su tua decisione: il testo della registrazione va al servizio che scegli su connessione sicura.',
+      'ru': 'Расшифровка и итоги работают офлайн: всё распознаётся прямо на телефоне, записи никуда не отправляются. Онлайн-итоги — по решению владельца, в составе платных пакетов с ИИ-часами.', 'en': 'Transcription and summaries work offline: everything is recognized right on the phone, recordings are never uploaded. Online summaries are optional, part of the paid packages with AI hours.', 'de': 'Transkription und Zusammenfassungen funktionieren offline: alles wird direkt auf dem Telefon erkannt, Aufnahmen werden nie hochgeladen. Online-Zusammenfassungen sind optional und Teil der kostenpflichtigen Pakete mit KI-Stunden.',
+      'fr': 'La transcription et les résumés fonctionnent hors ligne : tout est reconnu directement sur le téléphone, les enregistrements ne sont jamais envoyés. Les résumés en ligne sont optionnels, inclus dans les forfaits payants avec heures d\'IA.', 'es': 'La transcripción y los resúmenes funcionan sin conexión: todo se reconoce en el propio teléfono, las grabaciones nunca se envían. Los resúmenes online son opcionales, forman parte de los paquetes de pago con horas de IA.', 'it': 'Trascrizione e riepiloghi funzionano offline: tutto viene riconosciuto direttamente sul telefono, le registrazioni non vengono mai inviate. I riepiloghi online sono opzionali, inclusi nei pacchetti a pagamento con ore di IA.',
     },
     'about_licenses_title': {
       'ru': 'Лицензии', 'en': 'Licenses', 'de': 'Lizenzen',
@@ -1444,6 +1444,51 @@ class AppStrings {
     'sub_hours_short': {
       'ru': '{n} ч', 'en': '{n} h', 'de': '{n} h',
       'fr': '{n} h', 'es': '{n} h', 'it': '{n} h',
+    },
+    // Task 110: пакеты часов расшифровки.
+    'sub_packs_tr_title': {
+      'ru': 'Пакеты часов расшифровки', 'es': 'Paquetes de horas de transcripción', 'fr': 'Packs d\'heures de transcription', 'en': 'Transcription hour packs',
+      'de': 'Transkriptionsstundenpakete', 'it': 'Pacchetti di ore di trascrizione',
+    },
+    'sub_packs_tr_note': {
+      'ru': 'Не сгорают. Тратятся после включённых часов тарифа.', 'es': 'No caducan. Se consumen después de las horas incluidas en el plan.', 'fr': 'N\'expirent jamais. Débités après les heures incluses dans la formule.',
+      'en': 'Never expire. Spent after the plan\'s included hours.',
+      'de': 'Verfallen nicht. Werden nach den Tarifstunden verbraucht.',
+      'it': 'Non scadono. Utilizzate dopo le ore incluse nel piano.',
+    },
+    // Task 110: шапка подписки — часы расшифровки + дата окончания.
+    'transcr_balance_label': {
+      'ru': 'Расшифровка: {u} из {n} ч', 'es': 'Transcripción: {u} de {n} h', 'fr': 'Transcription : {u} sur {n} h', 'en': 'Transcription: {u} of {n} h',
+      'de': 'Transkription: {u} von {n} Std.', 'it': 'Trascrizione: {u} di {n} h',
+    },
+    'transcr_pack_label': {
+      'ru': ' · Пакет: +{h} ч', 'es': ' · Paquete: +{h} h', 'fr': ' · Pack : +{h} h', 'en': ' · Pack: +{h} h',
+      'de': ' · Paket: +{h} Std.', 'it': ' · Pacchetto: +{h} h',
+    },
+    'transcr_unlimited_label': {
+      'ru': 'Расшифровка: без ограничений', 'es': 'Transcripción: sin límites', 'fr': 'Transcription : sans limites', 'en': 'Transcription: unlimited',
+      'de': 'Transkription: unbegrenzt', 'it': 'Trascrizione: illimitata',
+    },
+    'sub_expiry_label': {
+      'ru': 'до {d}', 'es': 'hasta {d}', 'fr': 'jusqu\'au {d}', 'en': 'until {d}',
+      'de': 'bis {d}', 'it': 'fino al {d}',
+    },
+    // Task 110: кнопки смены тарифа/периода.
+    'sub_switch_year': {
+      'ru': 'Перейти на год', 'es': 'Cambiar a anual', 'fr': 'Passer à l\'année', 'en': 'Switch to yearly',
+      'de': 'Auf Jahr wechseln', 'it': 'Passa all\'anno',
+    },
+    'sub_switch_month': {
+      'ru': 'Перейти на месяц', 'es': 'Cambiar a mensual', 'fr': 'Passer au mois', 'en': 'Switch to monthly',
+      'de': 'Auf Monat wechseln', 'it': 'Passa al mese',
+    },
+    'sub_switch_tier': {
+      'ru': 'Перейти', 'es': 'Cambiar', 'fr': 'Changer', 'en': 'Switch',
+      'de': 'Wechseln', 'it': 'Cambia',
+    },
+    'sub_switch_hint': {
+      'ru': 'Остаток переносится', 'es': 'El saldo se transfiere', 'fr': 'Le solde est transféré', 'en': 'Balance carries over',
+      'de': 'Restguthaben wird übertragen', 'it': 'Il saldo viene trasferito',
     },
     'summary_prep_text': {
       'ru': 'Готовим текст…', 'en': 'Preparing text…', 'de': 'Text wird vorbereitet…',
