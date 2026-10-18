@@ -1458,8 +1458,8 @@ class AppStrings {
     },
     // Task 110: шапка подписки — часы расшифровки + дата окончания.
     'transcr_balance_label': {
-      'ru': 'Расшифровка: {u} из {n} ч', 'es': 'Transcripción: {u} de {n} h', 'fr': 'Transcription : {u} sur {n} h', 'en': 'Transcription: {u} of {n} h',
-      'de': 'Transkription: {u} von {n} Std.', 'it': 'Trascrizione: {u} di {n} h',
+      'ru': 'Расшифровка: использовано {u} из {n} ч', 'es': 'Transcripción: {u} de {n} h usadas', 'fr': 'Transcription : {u} h utilisées sur {n} h', 'en': 'Transcription: {u} of {n} h used',
+      'de': 'Transkription: {u} von {n} Std. genutzt', 'it': 'Trascrizione: {u} di {n} h utilizzate',
     },
     'transcr_pack_label': {
       'ru': ' · Пакет: +{h} ч', 'es': ' · Paquete: +{h} h', 'fr': ' · Pack : +{h} h', 'en': ' · Pack: +{h} h',
@@ -1472,6 +1472,18 @@ class AppStrings {
     'sub_expiry_label': {
       'ru': 'до {d}', 'es': 'hasta {d}', 'fr': 'jusqu\'au {d}', 'en': 'until {d}',
       'de': 'bis {d}', 'it': 'fino al {d}',
+    },
+    'sub_current_plan': {
+      'ru': 'Текущий тариф', 'es': 'Plan actual', 'fr': 'Plan actuel', 'en': 'Current plan',
+      'de': 'Aktueller Tarif', 'it': 'Piano attuale',
+    },
+    'sub_buy_year': {
+      'ru': 'Подписаться на год', 'es': 'Suscribirse al año', 'fr': 'S\'abonner pour un an', 'en': 'Subscribe for a year',
+      'de': 'Jahrabo abschließen', 'it': 'Abbonati all\'anno',
+    },
+    'sub_buy_month': {
+      'ru': 'Подписаться на месяц', 'es': 'Suscribirse al mes', 'fr': 'S\'abonner pour un mois', 'en': 'Subscribe monthly',
+      'de': 'Monatsabo abschließen', 'it': 'Abbonati al mese',
     },
     // Task 110: кнопки смены тарифа/периода.
     'sub_switch_year': {

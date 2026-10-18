@@ -95,6 +95,7 @@ class PurchaseService {
   static const _kActiveSubs = 'subscription_products_v1'; // Set<String>
   static const _kCodeTier = 'code_activated_tier_v1';
   static const _kCodeExpiry = 'code_activated_expiry_v1';
+static const _kPlayExpiry = 'play_subscription_expiry_v1'; // Task 110: expiryTimeMillis активной Play-подписки
   // Task 079: токены уже зачисленных покупок пакетов (Set<String>) —
   // защита от перезачисления при redelivery/restore.
   static const _kAppliedPacks = 'applied_pack_tokens_v1';
@@ -514,6 +515,14 @@ class PurchaseService {
       final p = await SharedPreferences.getInstance();
       final set = (p.getStringList(_kActiveSubs) ?? []).toSet()..add(productId);
       await p.setStringList(_kActiveSubs, set.toList());
+      // Task 110 fix: дата окончания активной Play-подписки (для шапки).
+      try {
+        final bp = purchase as dynamic;
+        final expMs = bp.billingClientPurchase.expiryTimeMillis as int?;
+        if (expMs != null && expMs > 0) {
+          await p.setInt(_kPlayExpiry, expMs);
+        }
+      } catch (_) {}
       await _applyEffectiveTier();
       return;
     }
@@ -649,8 +658,13 @@ class PurchaseService {
   Future<DateTime?> codeExpiryDate() async {
     final p = await SharedPreferences.getInstance();
     final expMs = p.getInt(_kCodeExpiry);
-    if (expMs == null) return null;
-    return DateTime.fromMillisecondsSinceEpoch(expMs);
+    if (expMs != null) return DateTime.fromMillisecondsSinceEpoch(expMs);
+    // Task 110 fix: если кода нет — дата окончания активной Play-подписки.
+    final playMs = p.getInt(_kPlayExpiry);
+    if (playMs != null && playMs > DateTime.now().millisecondsSinceEpoch) {
+      return DateTime.fromMillisecondsSinceEpoch(playMs);
+    }
+    return null;
   }
 
   /// Task 089: выдать тариф из кода активации (максимум с текущим).
