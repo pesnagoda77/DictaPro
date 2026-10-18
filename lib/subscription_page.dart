@@ -7,6 +7,7 @@ import 'app_strings.dart';
 import 'services/ai_hours_service.dart';
 import 'services/code_activation_service.dart';
 import 'services/purchase_service.dart';
+import 'services/transcription_hours_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/dicta_ui.dart';
 
@@ -23,6 +24,9 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
   bool _yearly = false;
   bool _busy = false;
   double _balanceHours = 0;
+  double _transcrBalance = 0;
+  bool _transcrUnlimited = false;
+  DateTime? _expiryDate;
 
   @override
   void initState() {
@@ -32,7 +36,16 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
 
   Future<void> _refreshBalance() async {
     final b = await AiHoursService.instance.balanceHours();
-    if (mounted) setState(() => _balanceHours = b);
+    final tb = await TranscriptionHoursService.instance.balanceHours();
+    final exp = await PurchaseService.instance.codeExpiryDate();
+    if (mounted) {
+      setState(() {
+        _balanceHours = b;
+        _transcrBalance = tb;
+        _transcrUnlimited = TranscriptionHoursService.instance.isUnlimited;
+        _expiryDate = exp;
+      });
+    }
   }
 
   String _tierName(BuildContext context, SubscriptionTier t) => switch (t) {
@@ -222,6 +235,8 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                     const SizedBox(height: 10),
                     _packsSection(context),
                     const SizedBox(height: 14),
+                    _packsTrSection(context),
+                    const SizedBox(height: 14),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -283,23 +298,33 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
       rows.add(Text(AppStrings.t('sub_status_none', context),
           style: TextStyle(fontSize: 12.5, color: tk.ink2, height: 1.5)));
     } else {
-      rows.add(Text(
-        AppStrings.tf('sub_status_tier', context, {'t': _tierName(context, tier)}),
-        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: tk.mint),
+      // Task 110: шапка — тариф · дата окончания · часы расшифровки.
+      final tierName = _tierName(context, tier);
+      String header = tierName;
+      if (_expiryDate != null) {
+        header += ' · ${AppStrings.tf('sub_expiry_label', context, {
+          'd': _fmtDate(_expiryDate!),
+        })}';
+      }
+      rows.add(Text(header,
+          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: tk.mint)));
+      rows.add(const SizedBox(height: 6));
+      // Часы расшифровки — основная строка.
+      rows.add(FutureBuilder<String>(
+        future: TranscriptionHoursService.instance.balanceLabel(),
+        builder: (context, snap) {
+          final label = snap.data ?? '';
+          return Text(label,
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: tk.ink));
+        },
       ));
+      rows.add(const SizedBox(height: 4));
+      // ИИ-часы — вторичная строка.
+      rows.add(Text(
+          AppStrings.tf('sub_status_balance', context,
+              {'h': _balanceHours.toStringAsFixed(1)}),
+          style: TextStyle(fontSize: 11.5, color: tk.ink3)));
     }
-    rows.add(const SizedBox(height: 6));
-    rows.add(Text(
-        AppStrings.tf('sub_status_balance', context,
-            {'h': _balanceHours.toStringAsFixed(1)}),
-        style: TextStyle(fontSize: 12, color: tk.ink3)));
-    // 05.10 fix: что даёт подписка (расшифровка без дневного лимита).
-    rows.add(const SizedBox(height: 6));
-    rows.add(Text(AppStrings.t('sub_includes_note', context),
-        style: TextStyle(fontSize: 12, color: tk.ink2)));
-    rows.add(const SizedBox(height: 6));
-    rows.add(Text(AppStrings.t('sub_status_next', context),
-        style: TextStyle(fontSize: 12, color: tk.ink2)));
     if (unlocked) {
       rows.add(const SizedBox(height: 6));
       rows.add(Text(AppStrings.t('sub_full_unlock_status', context),
@@ -539,5 +564,73 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
       Text(AppStrings.t('sub_packs_note', context),
           style: TextStyle(fontSize: 11, color: tk.ink3, height: 1.5)),
     ]);
+  }
+
+  /// Task 110: пакеты часов расшифровки — та же сетка 2×2.
+  Widget _packsTrSection(BuildContext context) {
+    final tk = DictaTokens.of(context);
+    final entries = PurchaseService.packTrIds.entries.toList();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      DictaSectionTitle(AppStrings.t('sub_packs_tr_title', context)),
+      GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+        childAspectRatio: 2.4,
+        children: [
+          for (final e in entries)
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: _busy ? null : () => _buyPackTr(e.key),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: tk.surface2,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: tk.line),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(AppStrings.tf('sub_hours_short', context, {'n': e.value.toStringAsFixed(0)}),
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 3),
+                    Text(
+                        _purchases.priceOf(e.key) ??
+                            AppStrings.t('sub_price_pending', context),
+                        style: tk.mono(12.5, FontWeight.w600, tk.mint)),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+      const SizedBox(height: 6),
+      Text(AppStrings.t('sub_packs_tr_note', context),
+          style: TextStyle(fontSize: 11, color: tk.ink3, height: 1.5)),
+    ]);
+  }
+
+  /// Task 110: покупка пакета часов расшифровки.
+  Future<void> _buyPackTr(String packId) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final ok = await _purchases.buyPackTr(packId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.t('sub_purchased', context))),
+      );
+      await _refreshBalance();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.t('store_unavailable', context))),
+      );
+    }
   }
 }
