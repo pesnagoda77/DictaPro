@@ -471,22 +471,30 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
           Text(AppStrings.tf('sub_ai_bonus', context, {'h': '$hours'}),
               style: TextStyle(fontSize: 11, color: tk.ink3)),
           const SizedBox(height: 10),
+          // Task 110: кнопка смены тарифа/периода.
+          // Если это текущий тариф — показываем кнопку смены периода.
+          // Если другой тариф — кнопку «Перейти» с пояснением.
           SizedBox(
             width: double.infinity,
             child: current
-                ? Container(
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                    decoration: BoxDecoration(
-                      color: tk.mint,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text('✓ ' + AppStrings.t('sub_current_badge', context),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF06251C))),
-                  )
+                ? (() {
+                    // Текущий тариф: кнопка смены периода (месяц↔год).
+                    final otherYearly = !_yearly;
+                    final switchLabel = otherYearly
+                        ? AppStrings.t('sub_switch_year', context)
+                        : AppStrings.t('sub_switch_month', context);
+                    return Column(
+                      children: [
+                        OutlinedButton(
+                          onPressed: _busy ? null : () => _buyTier(t),
+                          child: Text(switchLabel),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(AppStrings.t('sub_switch_hint', context),
+                            style: TextStyle(fontSize: 10.5, color: tk.ink3)),
+                      ],
+                    );
+                  })()
                 : (best
                     ? ElevatedButton(
                         onPressed: _busy ? null : () => _buyTier(t),
@@ -495,7 +503,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                       )
                     : OutlinedButton(
                         onPressed: _busy ? null : () => _buyTier(t),
-                        child: Text(AppStrings.t('sub_buy', context)),
+                        child: Text(AppStrings.t('sub_switch_tier', context)),
                       )),
           ),
         ]),
