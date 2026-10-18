@@ -112,6 +112,8 @@ def main() -> int:
     for name, url, min_size in WHISPER_FILES:
         download(name, url, os.path.join(wprimary, name), min_size)
 
+    # Сверка размеров с ModelManifest (release-линия): если файл модели
+    # изменился — обнови манифест и этот список.
     expected = {
         os.path.join(primary, "encoder.int8.onnx"): 224570820,
         os.path.join(primary, "decoder.onnx"): 4600132,
