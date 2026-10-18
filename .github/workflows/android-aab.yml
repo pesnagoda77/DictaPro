@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       track:
-        description: 'internal / alpha / beta / production'
+        description: 'internal / alpha / beta / production / none (только сборка)'
         required: false
         default: 'internal'
       notes:
@@ -28,8 +28,20 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Кэш Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('android/gradle/wrapper/gradle-wrapper.properties', 'android/**/*.gradle*', 'android/**/gradle.properties') }}
+          restore-keys: gradle-
+
+      # Pin версии Flutter: unpinned stable поднимает минимумы (Gradle/Kotlin)
+      # и ломает сборку без правок проекта. Как в store-play-upload.yml.
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.44.4'
           channel: stable
           cache: true
 
@@ -38,6 +50,9 @@ jobs:
 
       - name: Зависимости
         run: flutter pub get
+
+      - name: Патч permission_handler (устаревший Registrar)
+        run: python3 tools/patch_permission_handler.py
 
       - name: Модели (GigaAM v3 + Whisper)
         run: python3 tools/fetch_model.py
@@ -58,14 +73,21 @@ jobs:
           EOF
           ls -la android/app/upload-keystore.jks
 
+      - name: Настройка памяти сборки (CI)
+        run: |
+          sed -i 's/^org.gradle.jvmargs=.*/org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m/' android/gradle.properties
+          grep -E 'org.gradle.jvmargs|workers|parallel' android/gradle.properties || true
+
       - name: Сборка AAB
         run: >-
           flutter build appbundle --release
+          --target-platform android-arm64
           --dart-define=CODE_KEY=${{ secrets.CODE_KEY }}
           --dart-define=DICTA_APP_KEY=${{ secrets.DICTA_APP_KEY }}
           --dart-define=BILLING_API_URL=https://billing-api.pesnagoda77.workers.dev
 
       - name: Выгрузка в Play
+        if: inputs.track != 'none'
         env:
           PLAY_JSON_PATH: /tmp/play.json
           AAB_PATH: build/app/outputs/bundle/release/app-release.aab
