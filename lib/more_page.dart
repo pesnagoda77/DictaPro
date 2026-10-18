@@ -238,20 +238,9 @@ class AboutPage extends StatelessWidget {
                 style: TextStyle(fontSize: 12.5, color: tk.ink2, height: 1.6),
               ),
             ),
-            DictaCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(AppStrings.t('about_licenses_title', context),
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  Text(
-                    AppStrings.t('about_licenses_body', context),
-                    style: TextStyle(fontSize: 12, color: tk.ink2, height: 1.5),
-                  ),
-                ],
-              ),
-            ),
+            // Task 109: карточка «Лицензии» убрана из UI. Тексты лицензий
+            // (Apache-2.0/MIT/OFL) обязательны к распространению — они
+            // сохранены в assets/licenses/ внутри APK.
             DictaCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
