@@ -36,10 +36,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
+import 'package:in_app_purchase_android/billing_client_wrappers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'ai_hours_service.dart';
 import 'billing_verify_service.dart';
+import 'transcription_hours_service.dart';
 
 enum SubscriptionTier { none, diary, assistant, unlimited }
 
@@ -78,6 +80,15 @@ class PurchaseService {
     'pack_10h': 10.0,
     'pack_50h': 50.0,
     'pack_200h': 200.0,
+  };
+
+  /// Task 110: пакеты часов РАСШИФРОВКИ (consumable, по аналогии с packIds).
+  /// Ценовая сетка утверждена Славаном 18.10.2026.
+  static const packTrIds = {
+    'pack_tr_10h': 10.0,
+    'pack_tr_30h': 30.0,
+    'pack_tr_100h': 100.0,
+    'pack_tr_200h': 200.0,
   };
 
   static const _kUnlocked = 'purchase_unlocked_v1';
@@ -162,6 +173,7 @@ class PurchaseService {
             subUnlimitedYearId,
           ],
           ...packIds.keys,
+          ...packTrIds.keys,
         };
         final response = await _iap.queryProductDetails(ids);
         _products = response.productDetails;
@@ -189,6 +201,9 @@ class PurchaseService {
 
   /// Покупка подписки. iOS: год — отдельный продукт. Android: выбирается
   /// базовый план (monthly/yearly) внутри подписки sub_* (task 066).
+  /// Task 110: при активной подписке используем plan change
+  /// (ChangeSubscriptionParam) — остаток переносится, блокировки «уже
+  /// есть» нет.
   Future<bool> buySubscription(SubscriptionTier t,
       {bool yearly = false}) async {
     final subId = tierSubscriptionId[t];
@@ -200,6 +215,33 @@ class PurchaseService {
     }
 
     final planId = yearly ? yearlyBasePlanId : monthlyBasePlanId;
+
+    // Task 110: plan change — если есть активная подписка.
+    final currentTier = tier.value;
+    ChangeSubscriptionParam? changeParam;
+
+    if (currentTier != SubscriptionTier.none) {
+      final oldSubId = tierSubscriptionId[currentTier]!;
+      final oldPurchase = _findActivePurchase(oldSubId);
+      if (oldPurchase != null && oldPurchase is GooglePlayPurchaseDetails) {
+        ReplacementMode mode;
+        if (currentTier == t) {
+          // Тот же тариф, смена периода.
+          mode = ReplacementMode.withTimeProration;
+        } else {
+          // Апгрейд или даунгрейд.
+          mode = _tierRank(t) > _tierRank(currentTier)
+              ? ReplacementMode.chargeProratedPrice
+              : ReplacementMode.withTimeProration;
+        }
+        changeParam = ChangeSubscriptionParam(
+          oldPurchaseDetails: oldPurchase,
+          replacementMode: mode,
+        );
+        debugPrint('[purchase] plan change: $currentTier → $t, mode=$mode');
+      }
+    }
+
     for (final p in _products.where((p) => p.id == subId)) {
       if (p is! GooglePlayProductDetails) continue;
       final idx = p.subscriptionIndex;
@@ -211,12 +253,24 @@ class PurchaseService {
         purchaseParam: GooglePlayPurchaseParam(
           productDetails: p,
           offerToken: p.offerToken,
+          changeSubscriptionParam: changeParam,
         ),
       );
     }
     debugPrint('[purchase] базовый план $planId не найден в $subId');
     return false;
   }
+
+  /// Task 110: найти активную покупку подписки по productId.
+  PurchaseDetails? _findActivePurchase(String productId) {
+    // Ищем в _rebuildBuf при restore, иначе — неотложенные покупки.
+    // Для plan change нам нужен последний подтверждённый PurchaseDetails.
+    // Храним в кэше при _applyPurchase.
+    return _activeSubscriptionPurchases[productId];
+  }
+
+  /// Task 110: кэш активных покупок подписок для plan change.
+  final Map<String, PurchaseDetails> _activeSubscriptionPurchases = {};
 
   /// Task 066: цена подписки для витрины. Android — из оффера выбранного
   /// базового плана (на одну подписку приходит по ProductDetails на план).
@@ -251,6 +305,9 @@ class PurchaseService {
   /// доставке ровно один раз, затем purchase consume-ится. Повторная
   /// покупка того же пакета работает, restore баланс не раздувает.
   Future<bool> buyPack(String packId) => _buy(packId, consumable: true);
+
+  /// Task 110: пакет часов расшифровки — тот же consumable-механизм.
+  Future<bool> buyPackTr(String packId) => _buy(packId, consumable: true);
 
   String? priceOf(String productId) => _priceOf(productId);
 
@@ -389,6 +446,12 @@ class PurchaseService {
       await _applyPack(purchase);
       return;
     }
+    if (packTrIds.containsKey(productId)) {
+      // Task 110: пакет часов расшифровки — тот же механизм идемпотентности.
+      await _recordRealToken(purchase);
+      await _applyPackTr(purchase);
+      return;
+    }
     final t = _tierOfProduct(productId);
     if (t != SubscriptionTier.none) {
       // Task 087: сохраняем реальный purchaseToken для сверки.
@@ -430,6 +493,25 @@ class PurchaseService {
         '+${packIds[productId]} ч (токен $token)');
   }
 
+  /// Task 110: зачислить пакет часов расшифровки ровно один раз на один платёж.
+  /// Та же дедупликация по токену, что и в _applyPack.
+  Future<void> _applyPackTr(PurchaseDetails purchase) async {
+    final productId = purchase.productID;
+    final token = purchase.purchaseID ??
+        '${purchase.productID}:${purchase.transactionDate}';
+    final p = await SharedPreferences.getInstance();
+    final applied = (p.getStringList(_kAppliedPacks) ?? []).toSet();
+    if (applied.contains(token)) {
+      debugPrint('[purchase] пакет расшифровки $productId уже зачислен ($token) — skip');
+      return;
+    }
+    await TranscriptionHoursService.instance.addPackHours(packTrIds[productId]!);
+    applied.add(token);
+    await p.setStringList(_kAppliedPacks, applied.toList());
+    debugPrint('[purchase] пакет расшифровки $productId зачислен: '
+        '+${packTrIds[productId]} ч (токен $token)');
+  }
+
   /// Дружелюбные тексты вместо сырых сообщений магазина (task 079).
   String _friendlyError(IAPError? error) =>
       _friendlyErrorText('${error?.code ?? ''} ${error?.message ?? ''}');
@@ -453,12 +535,18 @@ class PurchaseService {
 
   /// Task 087: сохранить реальный purchaseToken (Play) для серверной сверки.
   /// Токен не логируем.
+  /// Task 110: для подписок также кэшируем PurchaseDetails для plan change.
   Future<void> _recordRealToken(PurchaseDetails purchase) async {
     try {
       final token = purchase.verificationData.serverVerificationData;
       if (token.isEmpty) return;
       await BillingVerifyService.instance
           .recordPurchaseToken(purchase.productID, token);
+      // Task 110: если это подписка — кэшируем для plan change.
+      final t = _tierOfProduct(purchase.productID);
+      if (t != SubscriptionTier.none) {
+        _activeSubscriptionPurchases[purchase.productID] = purchase;
+      }
     } catch (_) {}
   }
 
