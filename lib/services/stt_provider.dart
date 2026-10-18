@@ -104,10 +104,11 @@ class SttSettings {
   static const String providerKey = 'stt_online_provider';
   static const String consentKey = 'stt_online_consent';
 
-  static Future<bool> isEnabled() async {
-    final p = await SharedPreferences.getInstance();
-    return p.getBool(enabledKey) ?? false;
-  }
+  // Task 109: онлайн-расшифровка отключена (решение владельца: ключи
+  // провайдеров клиентам не выдаём). Метод оставлен и всегда false —
+  // сохранённый флаг в SharedPreferences не мешает, UI пути убраны.
+  // Код сервиса не удалён: пригодится для серверного шлюза (ключи на сервере).
+  static Future<bool> isEnabled() async => false;
 
   static Future<void> setEnabled(bool v) async {
     final p = await SharedPreferences.getInstance();

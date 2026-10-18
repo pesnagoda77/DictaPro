@@ -665,10 +665,10 @@ class AppStrings {
       'it': 'Motore: sul dispositivo, modello integrato',
     },
     'engine_on_device_sub': {
-      'ru': 'Точная модель GigaAM работает локально. Интернет не нужен, файлы не покидают телефон.', 'es': 'El modelo preciso GigaAM se ejecuta en local. No hace falta internet y los archivos no salen del teléfono.', 'fr': 'Le modèle précis GigaAM fonctionne en local. Pas besoin d\'internet, les fichiers ne quittent pas votre téléphone.',
-      'en': 'Accurate GigaAM model runs locally. No internet needed, files never leave your phone.',
-      'de': 'Das genaue GigaAM-Modell arbeitet lokal. Kein Internet nötig, Dateien verlassen das Handy nie.',
-      'it': 'Il modello accurato GigaAM funziona in locale. Nessun internet, i file non lasciano il telefono.',
+      'ru': 'Точная офлайн-модель распознавания работает локально. Интернет не нужен, файлы не покидают телефон.', 'es': 'El modelo preciso de reconocimiento sin conexión funciona en local. No hace falta internet y los archivos no salen del teléfono.', 'fr': 'Le modèle précis de reconnaissance fonctionne hors ligne. Pas besoin d\'internet, les fichiers ne quittent pas votre téléphone.',
+      'en': 'Accurate offline recognition model runs locally. No internet needed, files never leave your phone.',
+      'de': 'Das genaue Offline-Erkennungsmodell arbeitet lokal. Kein Internet nötig, Dateien verlassen das Handy nie.',
+      'it': 'Il modello preciso di riconoscimento funziona offline. Nessun internet, i file non lasciano il telefono.',
     },
     'online_transcribe': {
       'ru': 'Онлайн-расшифровка', 'es': 'Transcripción online', 'fr': 'Transcription en ligne', 'en': 'Online transcription',
@@ -1274,8 +1274,8 @@ class AppStrings {
       'fr': 'À propos', 'es': 'Acerca de', 'it': 'Informazioni',
     },
     'about_row_sub': {
-      'ru': 'что считается на устройстве, лицензии, политика', 'en': 'what runs on-device, licenses, policy', 'de': 'was auf dem Gerät läuft, Lizenzen, Richtlinien',
-      'fr': 'ce qui tourne en local, licences, politique', 'es': 'qué se procesa en el dispositivo, licencias, políticas', 'it': 'cosa gira in locale, licenze, policy',
+      'ru': 'что считается на устройстве, политика', 'en': 'what runs on-device, policy', 'de': 'was auf dem Gerät läuft, Richtlinien',
+      'fr': 'ce qui tourne en local, politique', 'es': 'qué se procesa en el dispositivo, políticas', 'it': 'cosa gira in locale, policy',
     },
     'about_p1': {
       'ru': 'ДиктаПро превращает речь в текст на самом телефоне. Запись, расшифровка, поиск и итоги считаются на устройстве; модель распознавания хранится внутри приложения.', 'en': 'DictaPro turns speech into text right on your phone. Recording, transcription, search and summaries run on the device; the speech model is stored inside the app.', 'de': 'DictaPro verwandelt Sprache direkt auf dem Handy in Text. Aufnahme, Transkription, Suche und Zusammenfassungen laufen auf dem Gerät; das Spracherkennungsmodell steckt in der App.',
@@ -1338,12 +1338,12 @@ class AppStrings {
       'fr': 'Langue de transcription enregistrée', 'es': 'Idioma de transcripción guardado', 'it': 'Lingua di trascrizione salvata',
     },
     'asr_gigaam_offline': {
-      'ru': 'офлайн-модель GigaAM', 'en': 'GigaAM offline model', 'de': 'GigaAM-Offline-Modell',
-      'fr': 'modèle GigaAM hors ligne', 'es': 'modelo GigaAM sin conexión', 'it': 'modello GigaAM offline',
+      'ru': 'офлайн-модель распознавания', 'en': 'offline recognition model', 'de': 'Offline-Erkennungsmodell',
+      'fr': 'modèle de reconnaissance hors ligne', 'es': 'modelo de reconocimiento sin conexión', 'it': 'modello di riconoscimento offline',
     },
     'asr_whisper_offline': {
-      'ru': 'Whisper, офлайн', 'en': 'Whisper, offline', 'de': 'Whisper, offline',
-      'fr': 'Whisper, hors ligne', 'es': 'Whisper, sin conexión', 'it': 'Whisper, offline',
+      'ru': 'офлайн-модель, мультиязычная', 'en': 'offline model, multilingual', 'de': 'Offline-Modell, mehrsprachig',
+      'fr': 'modèle hors ligne, multilingue', 'es': 'modelo sin conexión, multilingüe', 'it': 'modello offline, multilingue',
     },
     'unit_hz': {
       'ru': 'Гц', 'en': 'Hz', 'de': 'Hz',

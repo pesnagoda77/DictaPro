@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'services/keep_alive.dart';
 import 'services/purchase_service.dart';
-import 'services/stt_provider.dart';
 import 'subscription_page.dart';
 import 'theme/app_theme.dart';
 import 'locale_controller.dart';
@@ -58,8 +57,6 @@ class _SettingsPageState extends State<SettingsPage> {
     _refreshBatteryStatus();
   }
 
-  bool _sttEnabled = false;
-  String _sttProviderTitle = 'Groq (whisper-large-v3-turbo)';
   String _asrLang = 'ru';
   String _uiLang = 'system';
   int _tempBytes = 0;
@@ -91,74 +88,10 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  Future<void> _pickSttProvider() async {
-    final id = await showDialog<String>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: Text(AppStrings.t('provider_dialog_title', ctx)),
-        children: [
-          for (final pr in SttProvider.all)
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(ctx, pr.id),
-              child: Text(pr.title),
-            ),
-        ],
-      ),
-    );
-    if (id != null) {
-      await SttSettings.setProviderId(id);
-      if (mounted) {
-        setState(() => _sttProviderTitle = SttProvider.byId(id).title);
-      }
-    }
-  }
-
-  Future<void> _editSttKey(SttProvider provider) async {
-    final current = await SttSettings.apiKey(provider.keyPrefsName);
-    final ctrl = TextEditingController(text: current ?? '');
-    if (!mounted) return;
-    final res = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        final tk = DictaTokens.of(ctx);
-        return AlertDialog(
-          title: Text(AppStrings.tf('key_for', ctx, {'p': provider.title})),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                AppStrings.t('key_dialog_body', ctx),
-                style: TextStyle(fontSize: 12, color: tk.ink2),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: ctrl,
-                obscureText: true,
-                decoration: InputDecoration(labelText: AppStrings.t('paste_api_key', ctx)),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(AppStrings.t('long_transcribe_cancel', ctx)),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: Text(AppStrings.t('save', ctx)),
-            ),
-          ],
-        );
-      },
-    );
-    if (res != null) {
-      await SttSettings.setApiKey(provider.keyPrefsName, res);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(res.isEmpty ? AppStrings.t('key_removed', context) : AppStrings.t('key_saved', context))));
-      }
-    }
-  }
+  // Task 109: выбор провайдера и ввод клиентских ключей удалены из UI
+  // (решение владельца: онлайн-расшифровка не делается, ключи не выдаются).
+  // Сервисный слой (SttProvider/SttSettings/OnlineTranscribeService) сохранён
+  // для будущего серверного шлюза.
 
   String get _asrLangTitle => switch (_asrLang) {
         'en' => 'English',
@@ -271,14 +204,6 @@ class _SettingsPageState extends State<SettingsPage> {
         _uiLang = ui;
       });
     } catch (_) {}
-    final sttEnabled = await SttSettings.isEnabled();
-    final prov = SttProvider.byId(await SttSettings.providerId());
-    if (mounted) {
-      setState(() {
-        _sttEnabled = sttEnabled;
-        _sttProviderTitle = prov.title;
-      });
-    }
     await _refreshTempSize();
   }
 
@@ -408,8 +333,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
                   // ── Распознавание ─────────────────────────────────────
                   // Task 083: служебные настройки (провайдер/ключи) убраны из
-                  // видимого списка — вынесены в скрытую диагностику (long tap
-                  // на версии внизу экрана). Оставляем только язык и тумблер.
+                  // видимого списка. Task 109: онлайн-расшифровка отключена
+                  // (решение владельца) — тумблер убран; остаётся только язык.
                   _groupTitle(context, AppStrings.t('group_recognition', context)),
                   _tile(
                     context,
@@ -418,36 +343,19 @@ class _SettingsPageState extends State<SettingsPage> {
                     trailing: _chevron(context),
                     onTap: _pickAsrLang,
                   ),
-                  _tile(
-                    context,
-                    title: AppStrings.t('online_transcribe', context),
-                    sub: AppStrings.t('online_transcribe_sub', context),
-                    trailing: Switch(
-                      value: _sttEnabled,
-                      onChanged: (v) async {
-                        await SttSettings.setEnabled(v);
-                        if (mounted) setState(() => _sttEnabled = v);
-                      },
-                    ),
-                  ),
 
                   // ── Фон и память ──────────────────────────────────────
                   _groupTitle(context, AppStrings.t('group_background', context)),
                   _miuiTile(context),
                   _tempTile(context),
 
-                  // ── Версия и диагностика ──────────────────────────────
-                  // Task 083: служебная информация (провайдер, ключи, папка
-                  // обмена) — по долгому тапу на версии. Обычный пользователь
-                  // этого не видит.
+                  // ── Версия ────────────────────────────────────────────
+                  // Task 109: скрытая диагностика (long tap) убрана вместе с
+                  // онлайн-расшифровкой — ключи провайдеров больше не показываем.
                   _groupTitle(context, AppStrings.t('group_about', context)),
-                  GestureDetector(
-                    onLongPress: _showDiagnostics,
-                    child: _tile(
-                      context,
-                      title: AppStrings.t('version_row', context),
-                      sub: AppStrings.t('version_row_sub', context),
-                    ),
+                  _tile(
+                    context,
+                    title: AppStrings.t('version_row', context),
                   ),
 
                   // ── Подписка и ИИ-часы (вход в раздел) ────────────────
@@ -483,84 +391,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 ],
               ),
       ),
-    );
-  }
-
-  // Task 083: скрытая диагностика — провайдер, ключи, папка обмена.
-  // Открывается по долгому тапу на строке версии.
-  Future<void> _showDiagnostics() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: DictaTokens.of(context).surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        final tk = DictaTokens.of(ctx);
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36, height: 4,
-                    decoration: BoxDecoration(
-                      color: tk.line,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  AppStrings.t('diag_title', ctx),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 12),
-                // Провайдер
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(AppStrings.t('provider', ctx),
-                      style: const TextStyle(fontSize: 13)),
-                  subtitle: Text(_sttProviderTitle,
-                      style: TextStyle(fontSize: 11.5, color: tk.ink3)),
-                  trailing: Icon(Icons.chevron_right_rounded, size: 19, color: tk.ink3),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _pickSttProvider();
-                  },
-                ),
-                // Ключи
-                for (final pr in SttProvider.all)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                        AppStrings.tf('key_for', ctx, {'p': pr.title}),
-                        style: const TextStyle(fontSize: 13)),
-                    subtitle: Text(AppStrings.t('key_stored_local', ctx),
-                        style: TextStyle(fontSize: 11.5, color: tk.ink3)),
-                    trailing: Icon(Icons.chevron_right_rounded, size: 19, color: tk.ink3),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _editSttKey(pr);
-                    },
-                  ),
-                const Divider(),
-                // Папка обмена
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(AppStrings.t('share_folder_diag', ctx),
-                      style: const TextStyle(fontSize: 13)),
-                  subtitle: Text(AppStrings.t('share_folder_sub', ctx),
-                      style: TextStyle(fontSize: 11.5, color: tk.ink3)),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 

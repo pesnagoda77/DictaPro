@@ -1,7 +1,7 @@
-name: dictapro
+﻿name: dictapro
 description: DictaPro - voice recorder with AI transcription
 publish_to: 'none'
-version: 1.5.3+85
+version: 1.5.3+87
 environment:
   sdk: '>=3.5.0 <4.0.0'
 
@@ -57,6 +57,9 @@ flutter:
     - assets/models/gigaam_v3_punct/
     # Мультиязычная модель Whisper (EN/DE) — тоже в base (task 108).
     - assets/models/whisper-small/
+    # Task 109: тексты лицензий сторонних компонентов (обязательны в дистрибутиве;
+    # в UI не показываются — пункт «Лицензии» убран).
+    - assets/licenses/
     - assets/fonts/Roboto-Regular.ttf
   fonts:
     - family: Roboto
