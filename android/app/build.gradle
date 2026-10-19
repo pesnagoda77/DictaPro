@@ -75,6 +75,11 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // 20.10: только arm64. Плагины (onnxruntime/sherpa) тянут ещё x86_64
+            // и armeabi-v7a — это +47 МБ в APK и AAB без пользы для телефонов.
+            ndk {
+                abiFilters 'arm64-v8a'
+            }
         }
     }
 }
