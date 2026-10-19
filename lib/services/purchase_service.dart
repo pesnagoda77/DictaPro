@@ -31,6 +31,7 @@
 // это отдельная ось. Онлайн-итоги живут на подписках/пакетах.
 // Пакеты НЕ сгорают (механика «кошелька часов»); включённые часы — месячные.
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -424,6 +425,7 @@ static const _kPlayExpiry = 'play_subscription_expiry_v1'; // Task 110: expiryTi
     if (rebuild) {
       final rebuilt = _rebuildBuf.toList();
       await p.setStringList(_kActiveSubs, rebuilt);
+      if (rebuilt.isEmpty) await p.remove(_kPlayExpiry);
       await p.setInt(_kLastVerifiedMs, DateTime.now().millisecondsSinceEpoch);
       await _applyEffectiveTier();
       debugPrint('[purchase] restore пересобрал набор: $rebuilt, tier=${tier.value}');
@@ -515,14 +517,24 @@ static const _kPlayExpiry = 'play_subscription_expiry_v1'; // Task 110: expiryTi
       final p = await SharedPreferences.getInstance();
       final set = (p.getStringList(_kActiveSubs) ?? []).toSet()..add(productId);
       await p.setStringList(_kActiveSubs, set.toList());
-      // Task 110 fix: дата окончания активной Play-подписки (для шапки).
+      // Fix 19.10: Play отдаёт expiryTimeMillis только внутри originalJson
+      // (у PurchaseWrapper нет отдельного поля). Парсим JSON покупки.
       try {
-        final bp = purchase as dynamic;
-        final expMs = bp.billingClientPurchase.expiryTimeMillis as int?;
-        if (expMs != null && expMs > 0) {
-          await p.setInt(_kPlayExpiry, expMs);
+        final raw = purchase is GooglePlayPurchaseDetails
+            ? purchase.billingClientPurchase.originalJson
+            : null;
+        if (raw != null && raw.isNotEmpty) {
+          final j = jsonDecode(raw) as Map<String, dynamic>;
+          final exp = int.tryParse('${j['expiryTimeMillis'] ?? ''}');
+          if (exp != null && exp > 0) {
+            await p.setInt(_kPlayExpiry, exp);
+            debugPrint('[purchase] expiry сохранён: '
+                '${DateTime.fromMillisecondsSinceEpoch(exp)}');
+          }
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[purchase] expiry parse: $e');
+      }
       await _applyEffectiveTier();
       return;
     }

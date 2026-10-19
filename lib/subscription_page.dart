@@ -64,10 +64,12 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
         SubscriptionTier.none => '',
       };
 
-  Future<void> _buyTier(SubscriptionTier t) async {
+  Future<void> _buyTier(SubscriptionTier t, {bool? yearly}) async {
     if (_busy) return;
     setState(() => _busy = true);
-    final ok = await _purchases.buySubscription(t, yearly: _yearly);
+    // Fix 19.10: кнопка «Подписаться на год» передаёт целевой период явно,
+    // иначе уходит текущий переключатель (месяц) и Play отвечает developerError.
+    final ok = await _purchases.buySubscription(t, yearly: yearly ?? _yearly);
     if (!mounted) return;
     setState(() => _busy = false);
     if (ok) {
@@ -501,7 +503,8 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                         ),
                         const SizedBox(height: 8),
                         OutlinedButton(
-                          onPressed: _busy ? null : () => _buyTier(t),
+                          onPressed:
+                              _busy ? null : () => _buyTier(t, yearly: otherYearly),
                           child: Text(switchLabel),
                         ),
                         const SizedBox(height: 4),
