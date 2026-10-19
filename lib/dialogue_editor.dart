@@ -285,13 +285,6 @@ class _DialogueEditorState extends State<DialogueEditor> {
                 _selected.clear();
               }),
             ),
-            IconButton(
-              icon: const Icon(Icons.copy_rounded),
-              iconSize: 18,
-              color: tk.ink2,
-              tooltip: AppStrings.t('export_copy', context),
-              onPressed: _copyToClipboard,
-            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
               child: InkWell(
@@ -319,8 +312,30 @@ class _DialogueEditorState extends State<DialogueEditor> {
               icon: Icon(Icons.more_vert_rounded, size: 18, color: tk.ink2),
               onSelected: (value) {
                 if (value == 'html') _exportHtml();
+                if (value == 'copy') _copyToClipboard();
+                if (value == 'save') _save();
               },
               itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'copy',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.copy_rounded, size: 20),
+                      const SizedBox(width: 8),
+                      Text(AppStrings.t('export_copy', context)),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'save',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.save_rounded, size: 20),
+                      const SizedBox(width: 8),
+                      Text(AppStrings.t('save', context)),
+                    ],
+                  ),
+                ),
                 PopupMenuItem(
                   value: 'html',
                   child: Row(
@@ -332,13 +347,6 @@ class _DialogueEditorState extends State<DialogueEditor> {
                   ),
                 ),
               ],
-            ),
-            IconButton(
-              icon: const Icon(Icons.save_rounded),
-              iconSize: 18,
-              color: tk.ink2,
-              tooltip: AppStrings.t('save', context),
-              onPressed: _save,
             ),
             const SizedBox(width: 8),
           ],

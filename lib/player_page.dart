@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app_strings.dart';
+import 'package:share_plus/share_plus.dart';
+import 'services/audio_fragment_service.dart';
 import 'audio_service.dart';
 import 'theme/app_theme.dart';
 
@@ -24,6 +26,11 @@ class _PlayerPageState extends State<PlayerPage> {
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   late List<DialogueSegment> _segments;
+
+  // 20.10: выделение строк прямо в плеере → вырезать фрагмент.
+  bool _selectMode = false;
+  final Set<int> _selected = <int>{};
+  bool _exportingFragment = false;
 
   // Task 107: режим «синхронно» — автоскролл к звучащей фразе (по умолчанию ВЫКЛ)
   bool _followMode = false;
@@ -301,6 +308,18 @@ class _PlayerPageState extends State<PlayerPage> {
             ],
           ),
           actions: [
+            IconButton(
+              icon: Icon(
+                _selectMode ? Icons.close_rounded : Icons.content_cut_rounded,
+                size: 18,
+                color: _selectMode ? tk.mint : tk.ink2,
+              ),
+              tooltip: AppStrings.t('fragment_mode', context),
+              onPressed: () => setState(() {
+                _selectMode = !_selectMode;
+                _selected.clear();
+              }),
+            ),
             PopupMenuButton<double>(
               initialValue: _speed,
               onSelected: _setSpeed,
@@ -505,7 +524,88 @@ class _PlayerPageState extends State<PlayerPage> {
                   ],
                 ),
               ),
+            if (_selectMode) _selectionBar(tk),
           ],
+        ),
+      ),
+    );
+  }
+
+  // 20.10: панель «Выбрано строк» + «Вырезать фрагмент» в плеере.
+  Widget _selectionBar(DictaTokens tk) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      decoration: BoxDecoration(
+        color: tk.surface2,
+        border: Border(top: BorderSide(color: tk.line)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              AppStrings.tf('fragment_selected', context,
+                  {'n': '${_selected.length}'}),
+              style: TextStyle(fontSize: 12, color: tk.ink2),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: (_selected.isEmpty || _exportingFragment)
+                ? null
+                : _exportFragment,
+            icon: _exportingFragment
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.content_cut_rounded, size: 16),
+            label: Text(AppStrings.t('fragment_export', context)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _exportFragment() async {
+    if (_selected.isEmpty || _exportingFragment) return;
+    final idx = _selected.toList()..sort();
+    final first = idx.first;
+    final last = idx.last;
+    final start = _segments[first].startTime;
+    var end = _segments[last].endTime;
+    if (end <= start) end = start + AudioFragmentService.fallbackSec;
+
+    setState(() => _exportingFragment = true);
+    final path = await AudioFragmentService.exportFragment(
+      storedPath: widget.recording.filePath,
+      startSec: start,
+      endSec: end,
+    );
+    if (!mounted) return;
+    setState(() => _exportingFragment = false);
+
+    if (path == null) {
+      final reason = AudioFragmentService.lastError ?? '';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(reason.isEmpty
+              ? AppStrings.t('fragment_failed', context)
+              : '${AppStrings.t('fragment_failed', context)}: $reason'),
+          duration: const Duration(seconds: 6),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _selectMode = false;
+      _selected.clear();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(AppStrings.t('fragment_saved', context)),
+        action: SnackBarAction(
+          label: AppStrings.t('share_title', context),
+          onPressed: () => Share.shareXFiles([XFile(path)]),
         ),
       ),
     );
@@ -638,9 +738,16 @@ class _PlayerPageState extends State<PlayerPage> {
     final timecode =
         _fmtDuration(Duration(milliseconds: (start * 1000).round()));
 
+    final selected = _selected.contains(i);
     return InkWell(
       borderRadius: BorderRadius.circular(8),
       onTap: () async {
+        if (_selectMode) {
+          setState(() {
+            if (!_selected.remove(i)) _selected.add(i);
+          });
+          return;
+        }
         if (_audioMissing) return;
         await _player.seek(Duration(milliseconds: (start * 1000).round()));
         if (!_isPlaying) await _player.play();
@@ -655,12 +762,28 @@ class _PlayerPageState extends State<PlayerPage> {
           borderRadius: BorderRadius.circular(8),
           border: Border(
             left: BorderSide(
-              color: tk.mint.withValues(alpha: isActive ? 1.0 : 0.35),
-              width: 3,
+              color: selected
+                  ? tk.mint
+                  : tk.mint.withValues(alpha: isActive ? 1.0 : 0.35),
+              width: selected ? 4 : 3,
             ),
           ),
         ),
-        child: Column(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_selectMode)
+              Padding(
+                padding: const EdgeInsets.only(right: 2),
+                child: Checkbox(
+                  value: selected,
+                  onChanged: (_) => setState(() {
+                    if (!_selected.remove(i)) _selected.add(i);
+                  }),
+                ),
+              ),
+            Expanded(
+              child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -677,6 +800,9 @@ class _PlayerPageState extends State<PlayerPage> {
                 color: isActive ? tk.ink : tk.ink2,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
               ),
+            ),
+          ],
+        ),
             ),
           ],
         ),

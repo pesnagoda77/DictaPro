@@ -44,6 +44,16 @@ class AudioFragmentService {
   /// Отступ с обеих сторон, чтобы не обрезать начало/конец слова.
   static const int paddingMs = 150;
 
+  /// Причина последней неудачи — показываем в интерфейсе для диагностики.
+  static String? lastError;
+
+  static String? _fail(String reason) {
+    lastError = reason;
+    // ignore: avoid_print
+    print('[fragment] FAIL: $reason');
+    return null;
+  }
+
   /// Запасной размер, если у старой записи нет таймкодов (end <= start).
   static const double fallbackSec = 15;
 
@@ -54,9 +64,17 @@ class AudioFragmentService {
     required double startSec,
     required double endSec,
   }) async {
+    lastError = null;
     final resolved = await AudioService.resolveFilePath(storedPath);
     final src = File(resolved);
-    if (!await src.exists()) return null;
+    // ignore: avoid_print
+    print('[fragment] stored=$storedPath resolved=$resolved');
+    if (!await src.exists()) {
+      return _fail('файл записи не найден: $resolved');
+    }
+    final fileLen = await src.length();
+    // ignore: avoid_print
+    print('[fragment] size=$fileLen');
 
     final raf = await src.open();
     try {
@@ -64,7 +82,18 @@ class AudioFragmentService {
       // читаем с запасом и идём по чанкам.
       final head = await raf.read(65536);
       final info = parseWav(head);
-      if (info == null) return null;
+      if (info == null) {
+        final sig = head.length >= 12
+            ? String.fromCharCodes(head.sublist(0, 4)) +
+                '/' +
+                String.fromCharCodes(head.sublist(8, 12))
+            : 'short';
+        return _fail('не WAV или неизвестный заголовок ($sig, ${head.length} байт)');
+      }
+      // ignore: avoid_print
+      print('[fragment] wav: rate=${info.sampleRate} ch=${info.channels} '
+          'bits=${info.bitsPerSample} data=${info.dataLength} '
+          'dur=${info.durationSec.toStringAsFixed(2)}s');
 
       final pad = paddingMs / 1000.0;
       var from = (startSec - pad).clamp(0.0, info.durationSec);
@@ -75,7 +104,11 @@ class AudioFragmentService {
         from = startSec.clamp(0.0, info.durationSec);
         to = (from + fallbackSec).clamp(0.0, info.durationSec);
       }
-      if (to <= from) return null;
+      if (to <= from) {
+        return _fail('пустой диапазон: from=${from.toStringAsFixed(2)} '
+            'to=${to.toStringAsFixed(2)} (start=$startSec end=$endSec, '
+            'dur=${info.durationSec.toStringAsFixed(2)})');
+      }
 
       final startByte = info.dataOffset + (from * info.byteRate).round();
       var endByte = info.dataOffset + (to * info.byteRate).round();
@@ -86,7 +119,9 @@ class AudioFragmentService {
       if (frame > 1) {
         endByte = startByte + ((endByte - startByte) ~/ frame) * frame;
       }
-      if (endByte <= startByte) return null;
+      if (endByte <= startByte) {
+        return _fail('пустые байты: start=$startByte end=$endByte');
+      }
 
       final dir = await AudioService.recordingsDir();
       final name = 'фрагмент ${_fmt(from)}–${_fmt(to)}.wav';
