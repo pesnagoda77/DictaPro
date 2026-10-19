@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'app_strings.dart';
 import 'audio_service.dart';
 import 'export_service.dart';
+import 'package:share_plus/share_plus.dart';
+import 'services/audio_fragment_service.dart';
 import 'services/glossary_service.dart';
 import 'theme/app_theme.dart';
 
@@ -28,6 +30,11 @@ class _DialogueEditorState extends State<DialogueEditor> {
   late final TextEditingController _termsController;
   List<String> _recentTerms = [];
   bool _retranscribing = false;
+
+  // Task 111: режим выделения последовательных строк для экспорта фрагмента.
+  bool _selectMode = false;
+  final Set<int> _selected = <int>{};
+  bool _exportingFragment = false;
 
   @override
   void initState() {
@@ -267,6 +274,18 @@ class _DialogueEditorState extends State<DialogueEditor> {
           ),
           actions: [
             IconButton(
+              icon: Icon(
+                _selectMode ? Icons.close_rounded : Icons.content_cut_rounded,
+                size: 18,
+                color: _selectMode ? tk.mint : tk.ink2,
+              ),
+              tooltip: AppStrings.t('fragment_mode', context),
+              onPressed: () => setState(() {
+                _selectMode = !_selectMode;
+                _selected.clear();
+              }),
+            ),
+            IconButton(
               icon: const Icon(Icons.copy_rounded),
               iconSize: 18,
               color: tk.ink2,
@@ -356,8 +375,44 @@ class _DialogueEditorState extends State<DialogueEditor> {
                 },
               ),
             ),
+            if (_selectMode) _selectionBar(tk),
           ],
         ),
+      ),
+    );
+  }
+
+  // Task 111: панель «Выбрано N строк» + «Вырезать фрагмент».
+  Widget _selectionBar(DictaTokens tk) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      decoration: BoxDecoration(
+        color: tk.surface2,
+        border: Border(top: BorderSide(color: tk.line)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              AppStrings.tf('fragment_selected', context,
+                  {'n': '${_selected.length}'}),
+              style: TextStyle(fontSize: 12, color: tk.ink2),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: (_selected.isEmpty || _exportingFragment)
+                ? null
+                : _exportFragment,
+            icon: _exportingFragment
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.content_cut_rounded, size: 16),
+            label: Text(AppStrings.t('fragment_export', context)),
+          ),
+        ],
       ),
     );
   }
@@ -379,12 +434,17 @@ class _DialogueEditorState extends State<DialogueEditor> {
 
   Widget _segmentBlock(DictaTokens tk, int index, Map<String, int> speakerNo) {
     final segment = _segments[index];
-    return Container(
+    final body = Container(
       margin: const EdgeInsets.only(bottom: 11),
       padding: const EdgeInsets.only(left: 10),
       decoration: BoxDecoration(
         border: Border(
-          left: BorderSide(color: tk.mint.withValues(alpha: 0.35), width: 2),
+          left: BorderSide(
+            color: _selected.contains(index)
+                ? tk.mint
+                : tk.mint.withValues(alpha: 0.35),
+            width: _selected.contains(index) ? 3 : 2,
+          ),
         ),
       ),
       child: Column(
@@ -433,6 +493,68 @@ class _DialogueEditorState extends State<DialogueEditor> {
           ),
           const SizedBox(height: 2),
         ],
+      ),
+    );
+    if (!_selectMode) return body;
+    return InkWell(
+      onTap: () => setState(() {
+        if (!_selected.remove(index)) _selected.add(index);
+      }),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Checkbox(
+              value: _selected.contains(index),
+              onChanged: (_) => setState(() {
+                if (!_selected.remove(index)) _selected.add(index);
+              }),
+            ),
+          ),
+          Expanded(child: body),
+        ],
+      ),
+    );
+  }
+
+  // Task 111: вырезать фрагмент по выделенным строкам.
+  Future<void> _exportFragment() async {
+    if (_selected.isEmpty || _exportingFragment) return;
+    final idx = _selected.toList()..sort();
+    final first = idx.first;
+    final last = idx.last;
+    final start = _segments[first].startTime;
+    var end = _segments[last].endTime;
+    if (end <= start) end = start + AudioFragmentService.fallbackSec;
+
+    setState(() => _exportingFragment = true);
+    final path = await AudioFragmentService.exportFragment(
+      storedPath: widget.recording.filePath,
+      startSec: start,
+      endSec: end,
+    );
+    if (!mounted) return;
+    setState(() => _exportingFragment = false);
+
+    if (path == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.t('fragment_failed', context))),
+      );
+      return;
+    }
+
+    setState(() {
+      _selectMode = false;
+      _selected.clear();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(AppStrings.t('fragment_saved', context)),
+        action: SnackBarAction(
+          label: AppStrings.t('share_title', context),
+          onPressed: () => Share.shareXFiles([XFile(path)]),
+        ),
       ),
     );
   }

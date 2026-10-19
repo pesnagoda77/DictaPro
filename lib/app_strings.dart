@@ -1473,6 +1473,27 @@ class AppStrings {
       'ru': 'до {d}', 'es': 'hasta {d}', 'fr': 'jusqu\'au {d}', 'en': 'until {d}',
       'de': 'bis {d}', 'it': 'fino al {d}',
     },
+    // Task 111: экспорт фрагмента аудио по выделенным строкам.
+    'fragment_mode': {
+      'ru': 'Выбрать строки для фрагмента', 'es': 'Elegir líneas para el fragmento', 'fr': 'Choisir des lignes pour le fragment', 'en': 'Select lines for a fragment',
+      'de': 'Zeilen für Fragment wählen', 'it': 'Seleziona righe per il frammento',
+    },
+    'fragment_selected': {
+      'ru': 'Выбрано строк: {n}', 'es': 'Líneas elegidas: {n}', 'fr': 'Lignes sélectionnées : {n}', 'en': 'Lines selected: {n}',
+      'de': 'Ausgewählte Zeilen: {n}', 'it': 'Righe selezionate: {n}',
+    },
+    'fragment_export': {
+      'ru': 'Вырезать фрагмент', 'es': 'Recortar fragmento', 'fr': 'Découper le fragment', 'en': 'Cut fragment',
+      'de': 'Fragment ausschneiden', 'it': 'Ritaglia frammento',
+    },
+    'fragment_saved': {
+      'ru': 'Фрагмент сохранён в папку записей', 'es': 'Fragmento guardado en la carpeta de grabaciones', 'fr': 'Fragment enregistré dans le dossier des enregistrements', 'en': 'Fragment saved to the recordings folder',
+      'de': 'Fragment im Aufnahmeordner gespeichert', 'it': 'Frammento salvato nella cartella delle registrazioni',
+    },
+    'fragment_failed': {
+      'ru': 'Не удалось вырезать фрагмент', 'es': 'No se pudo recortar el fragmento', 'fr': 'Impossible de découper le fragment', 'en': 'Could not cut the fragment',
+      'de': 'Fragment konnte nicht ausgeschnitten werden', 'it': 'Impossibile ritagliare il frammento',
+    },
     'sub_current_plan': {
       'ru': 'Текущий тариф', 'es': 'Plan actual', 'fr': 'Plan actuel', 'en': 'Current plan',
       'de': 'Aktueller Tarif', 'it': 'Piano attuale',
