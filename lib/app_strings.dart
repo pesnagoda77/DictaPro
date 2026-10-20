@@ -1292,8 +1292,6 @@ class AppStrings {
     'dialogue_speaker': {
       'ru': 'ФРАЗА {n}', 'es': 'FRASE {n}', 'fr': 'PHRASE {n}', 'en': 'PHRASE {n}',
       'de': 'PHRASE {n}', 'it': 'FRASE {n}',
-    },', 'es': 'HABLANTE {n}', 'fr': 'LOCUTEUR {n}', 'en': 'SPEAKER {n}',
-      'de': 'SPRECHER {n}', 'it': 'PARLANTE {n}',
     },
     'dialogue_tool_speaker': {
       'ru': 'Поменять говорящего', 'es': 'Cambiar hablante', 'fr': 'Changer de locuteur', 'en': 'Change speaker',
