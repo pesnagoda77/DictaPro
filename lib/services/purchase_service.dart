@@ -1,4 +1,4 @@
-// Task 059: подписки и пакеты ИИ-часов для онлайн-итогов.
+﻿// Task 059: подписки и пакеты ИИ-часов для онлайн-итогов.
 // Task 066: год в Google Play покупается как базовый план внутри подписки,
 //           а не как отдельный товар (iOS: год — отдельный продукт, как раньше).
 // Task 079: пакеты ИИ-часов — расходуемые (consumable) + строго одно
@@ -97,6 +97,7 @@ class PurchaseService {
   static const _kCodeTier = 'code_activated_tier_v1';
   static const _kCodeExpiry = 'code_activated_expiry_v1';
 static const _kPlayExpiry = 'play_subscription_expiry_v1'; // Task 110: expiryTimeMillis активной Play-подписки
+static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены, по которым бонус ИИ-часов уже начислен
   // Task 079: токены уже зачисленных покупок пакетов (Set<String>) —
   // защита от перезачисления при redelivery/restore.
   static const _kAppliedPacks = 'applied_pack_tokens_v1';
@@ -509,12 +510,30 @@ static const _kPlayExpiry = 'play_subscription_expiry_v1'; // Task 110: expiryTi
     if (t != SubscriptionTier.none) {
       // Task 087: сохраняем реальный purchaseToken для сверки.
       await _recordRealToken(purchase);
+
+      // 20.10: бонусные ИИ-часы тарифа (Дневник 10 / Ассистент 20 / Безлимит 40).
+      // Раньше были только текстом в карточке — покупатель не получал ничего.
+      // Начисляем один раз на покупку (по purchaseID), в том числе при restore.
+      final pref = await SharedPreferences.getInstance();
+      final bonusKey =
+          purchase.purchaseID ?? '${purchase.productID}:${purchase.transactionDate}';
+      final applied = (pref.getStringList(_kSubBonusApplied) ?? []).toSet();
+      if (!applied.contains(bonusKey)) {
+        final bonus = includedHours[t] ?? 0;
+        if (bonus > 0) {
+          await AiHoursService.instance.addPackHours(bonus.toDouble());
+          debugPrint('[purchase] бонус ИИ-часов +$bonus за $t');
+        }
+        applied.add(bonusKey);
+        await pref.setStringList(_kSubBonusApplied, applied.toList());
+      }
+
       if (_rebuild) {
         // Идёт пересборка — копим подтверждённые подписки до финализации.
         _rebuildBuf.add(productId);
         return;
       }
-      final p = await SharedPreferences.getInstance();
+      final p = pref;
       final set = (p.getStringList(_kActiveSubs) ?? []).toSet()..add(productId);
       await p.setStringList(_kActiveSubs, set.toList());
       // Fix 19.10: Play отдаёт expiryTimeMillis только внутри originalJson
