@@ -52,6 +52,15 @@ android {
         main.java.srcDirs += 'src/main/kotlin'
     }
 
+    // 20.10: жёстко вырезаем чужие ABI из APK/AAB. abiFilters в buildType
+    // Flutter перезаписывает своим списком, а плагины (onnxruntime) кладут
+    // библиотеки под все архитектуры — это +47 МБ мёртвого груза.
+    packagingOptions {
+        jniLibs {
+            excludes += ['lib/x86_64/**', 'lib/armeabi-v7a/**']
+        }
+    }
+
     defaultConfig {
         applicationId "com.dictapro.app"
         minSdkVersion flutter.minSdkVersion
