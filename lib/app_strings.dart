@@ -125,6 +125,26 @@ class AppStrings {
     },
     // Task 113: мягкий экран «Лимит исчерпан» — объясняем, а не давим.
     // {n} — дневной лимит минут, {u} — уже использовано сегодня.
+    'limit_left_title': {
+      'ru': 'Остаток бесплатных минут расшифровки: {n}. Возможно, Вам необходим больший лимит минут.', 'es': 'Quedan {n} minutos gratuitos de transcripción. Quizá necesite un límite mayor.', 'fr': 'Il reste {n} minutes gratuites de transcription. Un quota plus large vous serait peut-être utile.', 'en': 'You have {n} free transcription minutes left. You may need a larger limit.',
+      'de': 'Verbleibende kostenlose Transkriptionsminuten: {n}. Möglicherweise benötigen Sie ein größeres Limit.', 'it': 'Minuti gratuiti di trascrizione rimasti: {n}. Potrebbe servire un limite maggiore.',
+    },
+    'limit_free_note': {
+      'ru': 'Приложение бесплатное. Каждый день Вы можете бесплатно расшифровывать одно или несколько аудио общей длительностью до 30 минут. Возможно, сейчас Ваша попытка расшифровать аудио превышает дневной лимит бесплатной расшифровки.', 'es': 'La aplicación es gratuita. Cada día puede transcribir gratis uno o varios audios de hasta 30 minutos en total. Es posible que este intento supere el límite diario gratuito.', 'fr': 'L\'application est gratuite. Chaque jour, vous pouvez transcrire gratuitement un ou plusieurs audios d\'une durée totale de 30 minutes. Votre tentative dépasse peut-être le quota quotidien gratuit.', 'en': 'The app is free. Every day you can transcribe one or several audio files of up to 30 minutes in total for free. This attempt may exceed the daily free limit.',
+      'de': 'Die App ist kostenlos. Jeden Tag können Sie ein oder mehrere Audios mit insgesamt bis zu 30 Minuten kostenlos transkribieren. Dieser Versuch überschreitet möglicherweise das kostenlose Tageslimit.', 'it': 'L\'app è gratuita. Ogni giorno puoi trascrivere gratuitamente uno o più audio della durata totale fino a 30 minuti. Questo tentativo potrebbe superare il limite giornaliero gratuito.',
+    },
+    'limit_free_always_title': {
+      'ru': 'Что всегда бесплатно и без ограничений:', 'es': 'Siempre gratis y sin límites:', 'fr': 'Toujours gratuit et sans limites :', 'en': 'Always free and unlimited:',
+      'de': 'Immer kostenlos und unbegrenzt:', 'it': 'Sempre gratuito e senza limiti:',
+    },
+    'limit_free_list': {
+      'ru': '• Запись и прослушивание аудио\n• Импорт аудио любых типов\n• Экспорт аудио\n• Ручное редактирование текста расшифровки\n• Экспорт расшифровки в удобных форматах\n• Сверка расшифровки по аудио в режиме реального времени\n• Обрезка аудиофрагмента по фразам\nи многое другое', 'es': '• Grabar y escuchar audio\n• Importar audio de cualquier tipo\n• Exportar audio\n• Editar manualmente el texto de la transcripción\n• Exportar la transcripción en formatos cómodos\n• Verificar la transcripción con el audio en tiempo real\n• Recortar fragmentos de audio por frases\ny mucho más', 'fr': '• Enregistrer et écouter l\'audio\n• Importer des audios de tout type\n• Exporter l\'audio\n• Modifier manuellement le texte de transcription\n• Exporter la transcription dans des formats pratiques\n• Vérifier la transcription avec l\'audio en temps réel\n• Découper un fragment audio par phrases\net bien plus', 'en': '• Record and listen to audio\n• Import audio of any type\n• Export audio\n• Manually edit the transcript text\n• Export the transcript in convenient formats\n• Check the transcript against audio in real time\n• Cut an audio fragment by phrases\nand much more',
+      'de': '• Audio aufnehmen und anhören\n• Audio in beliebigen Formaten importieren\n• Audio exportieren\n• Transkriptionstext manuell bearbeiten\n• Transkription in praktischen Formaten exportieren\n• Transkription in Echtzeit mit dem Audio abgleichen\n• Audiofragment nach Phrasen zuschneiden\nund vieles mehr', 'it': '• Registrare e ascoltare audio\n• Importare audio di qualsiasi tipo\n• Esportare l\'audio\n• Modificare manualmente il testo della trascrizione\n• Esportare la trascrizione in formati pratici\n• Verificare la trascrizione con l\'audio in tempo reale\n• Ritagliare un frammento audio per frasi\ne molto altro',
+    },
+    'limit_free_continue': {
+      'ru': 'Продолжить без расшифровки', 'es': 'Continuar sin transcribir', 'fr': 'Continuer sans transcription', 'en': 'Continue without transcription',
+      'de': 'Ohne Transkription fortfahren', 'it': 'Continua senza trascrizione',
+    },
     'limit_reached_title': {
       'ru': 'На сегодня бесплатные минуты закончились', 'es': 'Se acabaron los minutos gratuitos de hoy', 'fr': 'Les minutes gratuites du jour sont épuisées',
       'en': 'Today\'s free minutes are used up',
@@ -342,7 +362,7 @@ class AppStrings {
       'it': 'Nessun timer',
     },
     'minutes_15': {
-      'ru': '15 минут', 'es': '15 minutos', 'fr': '15 minutes', 'en': '15 minutes', 'de': '15 Minuten', 'it': '15 minuti',
+      'ru': '30 минут', 'es': '15 minutos', 'fr': '15 minutes', 'en': '15 minutes', 'de': '15 Minuten', 'it': '15 minuti',
     },
     'minutes_30': {
       'ru': '30 минут', 'es': '30 minutos', 'fr': '30 minutes', 'en': '30 minutes', 'de': '30 Minuten', 'it': '30 minuti',
@@ -1270,7 +1290,9 @@ class AppStrings {
       'it': '{n} righe · {s} parlanti · annotazione manuale',
     },
     'dialogue_speaker': {
-      'ru': 'ГОВОРЯЩИЙ {n}', 'es': 'HABLANTE {n}', 'fr': 'LOCUTEUR {n}', 'en': 'SPEAKER {n}',
+      'ru': 'ФРАЗА {n}', 'es': 'FRASE {n}', 'fr': 'PHRASE {n}', 'en': 'PHRASE {n}',
+      'de': 'PHRASE {n}', 'it': 'FRASE {n}',
+    },', 'es': 'HABLANTE {n}', 'fr': 'LOCUTEUR {n}', 'en': 'SPEAKER {n}',
       'de': 'SPRECHER {n}', 'it': 'PARLANTE {n}',
     },
     'dialogue_tool_speaker': {

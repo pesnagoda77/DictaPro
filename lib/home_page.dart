@@ -2139,8 +2139,8 @@ class _HomePageState extends State<HomePage>
                                   builder: (_) => const HowToUsePage()),
                             ),
                             child: Text(
-                              AppStrings.freeLimitBanner(context,
-                                  limit: UsageLimitService.dailyMinutesLimit),
+                              '${AppStrings.t('splash_slogan', context)} · '
+                              '${AppStrings.freeLimitBanner(context, limit: UsageLimitService.dailyMinutesLimit)}',
                               style: TextStyle(
                                 fontSize: 10.5,
                                 color: DictaTokens.of(context).mint,
