@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'services/share_helper.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'audio_service.dart';
@@ -17,7 +18,7 @@ class ExportService {
   }
 
   static Future<void> shareAudioFile(String filePath) async {
-    await Share.shareXFiles([XFile(filePath)], text: AppStrings.tGlobal('share_audio_caption'));
+    await shareFileWithReturn(filePath, text: AppStrings.tGlobal('share_audio_caption'));
   }
 
   static Future<String> saveAsTxt(String text, String fileName) async {
@@ -36,7 +37,7 @@ class ExportService {
     final path = '${dir.path}/$fileName';
     final file = File(path);
     await file.writeAsString(text);
-    await Share.shareXFiles([XFile(path)], text: AppStrings.tGlobal('share_subject_transcript'));
+    await shareFileWithReturn(path, text: AppStrings.tGlobal('share_subject_transcript'));
   }
 
   static String formatTranscriptTxt(Recording rec) {

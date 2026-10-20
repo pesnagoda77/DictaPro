@@ -3,6 +3,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app_strings.dart';
 import 'package:share_plus/share_plus.dart';
+import 'services/share_helper.dart';
 import 'services/audio_fragment_service.dart';
 import 'audio_service.dart';
 import 'theme/app_theme.dart';
@@ -605,7 +606,7 @@ class _PlayerPageState extends State<PlayerPage> {
         content: Text(AppStrings.t('fragment_saved', context)),
         action: SnackBarAction(
           label: AppStrings.t('share_title', context),
-          onPressed: () => Share.shareXFiles([XFile(path)]),
+          onPressed: () async => await shareFileWithReturn(path),
         ),
       ),
     );

@@ -3,6 +3,7 @@ import 'app_strings.dart';
 import 'audio_service.dart';
 import 'export_service.dart';
 import 'package:share_plus/share_plus.dart';
+import 'services/share_helper.dart';
 import 'services/audio_fragment_service.dart';
 import 'services/glossary_service.dart';
 import 'theme/app_theme.dart';
@@ -561,7 +562,7 @@ class _DialogueEditorState extends State<DialogueEditor> {
         content: Text(AppStrings.t('fragment_saved', context)),
         action: SnackBarAction(
           label: AppStrings.t('share_title', context),
-          onPressed: () => Share.shareXFiles([XFile(path)]),
+          onPressed: () async => await shareFileWithReturn(path),
         ),
       ),
     );

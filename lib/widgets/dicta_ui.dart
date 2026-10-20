@@ -380,3 +380,99 @@ class DictaChip extends StatelessWidget {
     );
   }
 }
+
+
+/// 21.10: бегущая строка для шапки (текст длиннее ширины) — без внешних пакетов.
+class DictaMarquee extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+  final double width;
+
+  const DictaMarquee({
+    super.key,
+    required this.text,
+    required this.style,
+    this.width = 180,
+  });
+
+  @override
+  State<DictaMarquee> createState() => _DictaMarqueeState();
+}
+
+class _DictaMarqueeState extends State<DictaMarquee>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: widget.width,
+      height: 18,
+      child: ClipRect(
+        child: AnimatedBuilder(
+          animation: _ctrl,
+          builder: (context, _) {
+            // Текст + отступ + повтор: прокрутка слева направо циклично.
+            const gap = 40.0;
+            return CustomPaint(
+              painter: _MarqueePainter(
+                text: widget.text + '      ' + widget.text,
+                style: widget.style,
+                progress: _ctrl.value,
+                gap: gap,
+              ),
+              size: Size(widget.width, 18),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _MarqueePainter extends CustomPainter {
+  final String text;
+  final TextStyle style;
+  final double progress;
+  final double gap;
+
+  _MarqueePainter({
+    required this.text,
+    required this.style,
+    required this.progress,
+    required this.gap,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final single = (tp.width - gap) / 2;
+    if (single <= 0) return;
+    final dx = -((single + gap) * progress);
+    tp.paint(canvas, Offset(dx, (size.height - tp.height) / 2));
+    // Вторая копия для бесшовности.
+    tp.paint(canvas, Offset(dx + single + gap, (size.height - tp.height) / 2));
+  }
+
+  @override
+  bool shouldRepaint(_MarqueePainter old) =>
+      old.progress != progress || old.text != text;
+}

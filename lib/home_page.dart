@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:share_plus/share_plus.dart';
+import 'services/share_helper.dart';
 import 'package:hive/hive.dart';
 import 'audio_service.dart' hide DialogueSegment;
 import 'subscription_page.dart';
@@ -1808,9 +1809,9 @@ class _HomePageState extends State<HomePage>
           break;
         case 'pdf':
           _showExportingDialog();
-          ExportService.exportAsPdf(rec).then((path) {
+          ExportService.exportAsPdf(rec).then((path) async {
             _hideExportingDialog();
-            Share.shareXFiles([XFile(path)], text: AppStrings.t('share_pdf_caption', context));
+            await shareFileWithReturn(path, text: AppStrings.t('share_pdf_caption', context));
           }).catchError((e) {
             _hideExportingDialog();
             if (mounted) {
@@ -1903,9 +1904,9 @@ class _HomePageState extends State<HomePage>
           break;
         case 'pdf':
           _showExportingDialog();
-          ExportService.exportAsPdf(rec).then((path) {
+          ExportService.exportAsPdf(rec).then((path) async {
             _hideExportingDialog();
-            Share.shareXFiles([XFile(path)], text: AppStrings.t('share_pdf_caption', context));
+            await shareFileWithReturn(path, text: AppStrings.t('share_pdf_caption', context));
           }).catchError((e) {
             _hideExportingDialog();
             if (mounted) {
@@ -2138,13 +2139,17 @@ class _HomePageState extends State<HomePage>
                               MaterialPageRoute(
                                   builder: (_) => const HowToUsePage()),
                             ),
-                            child: Text(
-                              '${AppStrings.t('splash_slogan', context)} · '
-                              '${AppStrings.freeLimitBanner(context, limit: UsageLimitService.dailyMinutesLimit)}',
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                color: DictaTokens.of(context).mint,
-                                fontWeight: FontWeight.w500,
+                            child: SizedBox(
+                              width: 180,
+                              child: DictaMarquee(
+                                text:
+                                    '${AppStrings.t('splash_slogan', context)}. '
+                                    '${AppStrings.freeLimitBanner(context, limit: UsageLimitService.dailyMinutesLimit)}',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  color: DictaTokens.of(context).mint,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ),
                           )
