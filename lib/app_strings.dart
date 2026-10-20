@@ -123,29 +123,151 @@ class AppStrings {
     'online_summary_refresh': {
       'ru': 'Обновить', 'es': 'Actualizar', 'fr': 'Actualiser', 'en': 'Refresh', 'de': 'Aktualisieren', 'it': 'Aggiorna',
     },
+    // Task 113: мягкий экран «Лимит исчерпан» — объясняем, а не давим.
+    // {n} — дневной лимит минут, {u} — уже использовано сегодня.
     'limit_reached_title': {
-      'ru': 'Лимит исчерпан', 'es': 'Límite alcanzado', 'fr': 'Limite atteinte',
-      'en': 'Daily limit reached',
-      'de': 'Tageslimit erreicht',
-      'it': 'Limite giornaliero raggiunto',
+      'ru': 'На сегодня бесплатные минуты закончились', 'es': 'Se acabaron los minutos gratuitos de hoy', 'fr': 'Les minutes gratuites du jour sont épuisées',
+      'en': 'Today\'s free minutes are used up',
+      'de': 'Die kostenlosen Minuten für heute sind aufgebraucht',
+      'it': 'I minuti gratuiti di oggi sono finiti',
     },
     'limit_reached_body': {
-      'ru': 'Сегодня использовано {u} из {n} минут расшифровки.\n\n'
-          'Оформите подписку — от 24 часов расшифровки в месяц, плюс ИИ-часы для онлайн-итогов.',
-      'en': 'You have used {u} of {n} transcription minutes today.\n\n'
-          'Subscribe — from 24 hours of transcription per month, plus AI hours for online summaries.',
-      'de': 'Heute wurden {u} von {n} Transkriptionsminuten genutzt.\n\n'
-          'Abonnieren Sie — ab 24 Stunden Transkription pro Monat, plus KI-Stunden für Online-Zusammenfassungen.',
-      'es': 'Hoy has usado {u} de {n} minutos de transcripción.\n\n'
-          'Suscríbete: desde 24 horas de transcripción al mes, más horas de IA para resúmenes online.',
-      'fr': "Aujourd'hui : {u} minutes de transcription sur {n} utilisées.\n\n"
-          "Abonnez-vous : à partir de 24 heures de transcription par mois, plus des heures IA pour les résumés en ligne.",
-      'it': "Oggi hai usato {u} di {n} minuti di trascrizione.\n\n"
-          "Abbonati: da 24 ore di trascrizione al mese, più ore AI per i riepiloghi online.",
+      'ru': 'Приложение бесплатное. Каждый день вы можете расшифровывать до {n} минут без оплаты. На сегодня этот запас израсходован — завтра он обновится.\n\n'
+          'Подписка снимает дневной лимит: расшифровка на устройстве без ограничений и ИИ-итоги записей.',
+      'en': 'The app is free. Every day you can transcribe up to {n} minutes at no cost. Today\'s allowance is spent — it resets tomorrow.\n\n'
+          'A subscription removes the daily limit: unlimited on-device transcription and AI summaries.',
+      'de': 'Die App ist kostenlos. Jeden Tag können Sie bis zu {n} Minuten kostenlos transkribieren. Der heutige Vorrat ist aufgebraucht — morgen wird er erneuert.\n\n'
+          'Ein Abo hebt das Tageslimit auf: unbegrenzte Transkription auf dem Gerät und KI-Zusammenfassungen.',
+      'es': 'La aplicación es gratuita. Cada día puedes transcribir hasta {n} minutos sin pagar. El cupo de hoy se agotó — mañana se renovará.\n\n'
+          'La suscripción elimina el límite diario: transcripción ilimitada en el dispositivo y resúmenes con IA.',
+      'fr': 'L\'application est gratuite. Chaque jour, vous pouvez transcrire jusqu\'à {n} minutes sans paiement. Le quota d\'aujourd\'hui est épuisé — il sera renouvelé demain.\n\n'
+          'L\'abonnement supprime la limite quotidienne : transcription illimitée sur l\'appareil et résumés IA.',
+      'it': 'L\'app è gratuita. Ogni giorno puoi trascrivere fino a {n} minuti senza pagare. La quota di oggi è esaurita — domani si rinnova.\n\n'
+          'L\'abbonamento rimuove il limite giornaliero: trascrizione illimitata sul dispositivo e riepiloghi AI.',
+    },
+    // Task 113: что остаётся бесплатным (5–6 пунктов, списком на экране лимита).
+    'limit_free_list_title': {
+      'ru': 'Что остаётся бесплатным', 'es': 'Lo que sigue siendo gratis', 'fr': 'Ce qui reste gratuit',
+      'en': 'What stays free',
+      'de': 'Was kostenlos bleibt',
+      'it': 'Cosa resta gratis',
+    },
+    'limit_free_item_1': {
+      'ru': 'Запись аудио без ограничений', 'es': 'Grabación de audio sin límites', 'fr': 'Enregistrement audio sans limites',
+      'en': 'Unlimited audio recording',
+      'de': 'Audioaufnahme ohne Einschränkungen',
+      'it': 'Registrazione audio senza limiti',
+    },
+    'limit_free_item_2': {
+      'ru': 'Хранение записей', 'es': 'Almacenamiento de grabaciones', 'fr': 'Stockage des enregistrements',
+      'en': 'Recording storage',
+      'de': 'Speicherung der Aufnahmen',
+      'it': 'Archiviazione delle registrazioni',
+    },
+    'limit_free_item_3': {
+      'ru': 'Прослушивание с таймкодами', 'es': 'Escucha con marcas de tiempo', 'fr': 'Écoute avec timecodes',
+      'en': 'Playback with timecodes',
+      'de': 'Wiedergabe mit Zeitcodes',
+      'it': 'Riproduzione con timecode',
+    },
+    'limit_free_item_4': {
+      'ru': 'Ручное редактирование текста', 'es': 'Edición manual del texto', 'fr': 'Modification manuelle du texte',
+      'en': 'Manual text editing',
+      'de': 'Manuelle Textbearbeitung',
+      'it': 'Modifica manuale del testo',
+    },
+    'limit_free_item_5': {
+      'ru': 'Экспорт и отправка расшифровки', 'es': 'Exportación y envío de transcripciones', 'fr': 'Export et envoi des transcriptions',
+      'en': 'Export and share transcripts',
+      'de': 'Export und Versand von Transkripten',
+      'it': 'Esportazione e invio delle trascrizioni',
+    },
+    'limit_free_item_6': {
+      'ru': 'Коды активации', 'es': 'Códigos de activación', 'fr': 'Codes d\'activation',
+      'en': 'Activation codes',
+      'de': 'Aktivierungscodes',
+      'it': 'Codici di attivazione',
+    },
+    'limit_continue_free': {
+      'ru': 'Продолжить без расшифровки', 'es': 'Continuar sin transcripción', 'fr': 'Continuer sans transcription',
+      'en': 'Continue without transcription',
+      'de': 'Ohne Transkription fortfahren',
+      'it': 'Continua senza trascrizione',
+    },
+    'buy_subscription': {
+      'ru': 'Приобрести подписку', 'es': 'Comprar suscripción', 'fr': 'Acheter un abonnement',
+      'en': 'Buy subscription',
+      'de': 'Abo kaufen',
+      'it': 'Acquista abbonamento',
     },
     'buy_full': {
       'ru': 'Выбрать тариф', 'es': 'Elegir plan', 'fr': 'Choisir une formule',
       'en': 'Choose a plan', 'de': 'Tarif wählen', 'it': 'Scegli un piano',
+    },
+    // ---------- Task 113: баннер бесплатного лимита на главном экране ----------
+    // {n} — фактический дневной лимит минут (UsageLimitService.dailyMinutesLimit).
+    'free_limit_banner': {
+      'ru': 'Бесплатно: {n} минут расшифровки в день', 'es': 'Gratis: {n} minutos de transcripción al día', 'fr': 'Gratuit : {n} minutes de transcription par jour',
+      'en': 'Free: {n} minutes of transcription per day',
+      'de': 'Kostenlos: {n} Transkriptionsminuten pro Tag',
+      'it': 'Gratis: {n} minuti di trascrizione al giorno',
+    },
+    // ---------- Task 113: экран «Как пользоваться» (how_to_use_page) ----------
+    'howto_what_title': {
+      'ru': 'Что делает приложение', 'es': 'Qué hace la aplicación', 'fr': 'Ce que fait l\'application',
+      'en': 'What the app does',
+      'de': 'Was die App macht',
+      'it': 'Cosa fa l\'app',
+    },
+    'howto_what_body': {
+      'ru': 'Записывает аудио и расшифровывает его в текст прямо на телефоне. Интернет не нужен — модель распознавания встроена в приложение.',
+      'es': 'Graba audio y lo transcribe a texto directamente en el teléfono. No hace falta internet: el modelo de reconocimiento está integrado.',
+      'fr': 'Enregistre l\'audio et le transcrit en texte directement sur le téléphone. Pas besoin d\'internet : le modèle de reconnaissance est intégré.',
+      'en': 'Records audio and transcribes it to text right on your phone. No internet needed — the recognition model is built in.',
+      'de': 'Nimmt Audio auf und transkribiert es direkt auf dem Handy in Text. Kein Internet nötig — das Erkennungsmodell ist integriert.',
+      'it': 'Registra audio e lo trascrive in testo direttamente sul telefono. Nessun internet necessario: il modello di riconoscimento è integrato.',
+    },
+    'howto_free_title': {
+      'ru': 'Что бесплатно каждый день', 'es': 'Qué es gratis cada día', 'fr': 'Ce qui est gratuit chaque jour',
+      'en': 'What\'s free every day',
+      'de': 'Was jeden Tag kostenlos ist',
+      'it': 'Cosa è gratis ogni giorno',
+    },
+    'howto_free_body': {
+      'ru': '{n} минут расшифровки + все остальные функции: запись, хранение, прослушивание, редактирование текста, экспорт и отправка.',
+      'es': '{n} minutos de transcripción + todas las demás funciones: grabación, almacenamiento, escucha, edición de texto, exportación y envío.',
+      'fr': '{n} minutes de transcription + toutes les autres fonctions : enregistrement, stockage, écoute, modification du texte, export et envoi.',
+      'en': '{n} minutes of transcription + all other features: recording, storage, playback, text editing, export and sharing.',
+      'de': '{n} Minuten Transkription + alle anderen Funktionen: Aufnahme, Speicherung, Wiedergabe, Textbearbeitung, Export und Versand.',
+      'it': '{n} minuti di trascrizione + tutte le altre funzioni: registrazione, archiviazione, riproduzione, modifica del testo, esportazione e invio.',
+    },
+    'howto_sub_title': {
+      'ru': 'Что даёт подписка', 'es': 'Qué ofrece la suscripción', 'fr': 'Ce que donne l\'abonnement',
+      'en': 'What a subscription gives',
+      'de': 'Was ein Abo bietet',
+      'it': 'Cosa offre l\'abbonamento',
+    },
+    'howto_sub_body': {
+      'ru': 'Расшифровка без дневного лимита и ИИ-итоги записей. Тарифы от 24 часов расшифровки в месяц.',
+      'es': 'Transcripción sin límite diario y resúmenes con IA. Planes desde 24 horas de transcripción al mes.',
+      'fr': 'Transcription sans limite quotidienne et résumés IA. Formules à partir de 24 heures de transcription par mois.',
+      'en': 'Transcription with no daily limit and AI summaries. Plans from 24 hours of transcription per month.',
+      'de': 'Transkription ohne Tageslimit und KI-Zusammenfassungen. Tarife ab 24 Stunden Transkription pro Monat.',
+      'it': 'Trascrizione senza limite giornaliero e riepiloghi AI. Piani da 24 ore di trascrizione al mese.',
+    },
+    'howto_privacy_title': {
+      'ru': 'Приватность', 'es': 'Privacidad', 'fr': 'Confidentialité',
+      'en': 'Privacy',
+      'de': 'Datenschutz',
+      'it': 'Privacy',
+    },
+    'howto_privacy_body': {
+      'ru': 'Файлы не покидают телефон. Записи, тексты и ключи хранятся только на устройстве.',
+      'es': 'Los archivos no salen del teléfono. Grabaciones, textos y claves se guardan solo en el dispositivo.',
+      'fr': 'Les fichiers ne quittent pas le téléphone. Enregistrements, textes et clés sont stockés uniquement sur l\'appareil.',
+      'en': 'Files never leave your phone. Recordings, texts and keys are stored on the device only.',
+      'de': 'Dateien verlassen das Handy nicht. Aufnahmen, Texte und Schlüssel werden nur auf dem Gerät gespeichert.',
+      'it': 'I file non lasciano il telefono. Registrazioni, testi e chiavi sono salvati solo sul dispositivo.',
     },
     'restore_purchase': {
       'ru': 'Восстановить покупку', 'es': 'Restaurar compra', 'fr': 'Restaurer l\'achat',
@@ -1046,8 +1168,8 @@ class AppStrings {
       'de': '{n} KI-Stunden', 'it': '{n} ore AI',
     },
     'sub_buy': {
-      'ru': 'Оформить', 'es': 'Suscribirse', 'fr': 'S\'abonner', 'en': 'Subscribe',
-      'de': 'Abschließen', 'it': 'Attiva',
+      'ru': 'Приобрести', 'es': 'Comprar', 'fr': 'Acheter', 'en': 'Buy',
+      'de': 'Kaufen', 'it': 'Acquista',
     },
     'sub_buy_pack': {
       'ru': 'Купить', 'es': 'Comprar', 'fr': 'Acheter', 'en': 'Buy',
@@ -1499,12 +1621,12 @@ class AppStrings {
       'de': 'Aktueller Tarif', 'it': 'Piano attuale',
     },
     'sub_buy_year': {
-      'ru': 'Подписаться на год', 'es': 'Suscribirse al año', 'fr': 'S\'abonner pour un an', 'en': 'Subscribe for a year',
-      'de': 'Jahrabo abschließen', 'it': 'Abbonati all\'anno',
+      'ru': 'Приобрести на год', 'es': 'Comprar al año', 'fr': 'Acheter pour un an', 'en': 'Buy for a year',
+      'de': 'Jahresabo kaufen', 'it': 'Acquista per un anno',
     },
     'sub_buy_month': {
-      'ru': 'Подписаться на месяц', 'es': 'Suscribirse al mes', 'fr': 'S\'abonner pour un mois', 'en': 'Subscribe monthly',
-      'de': 'Monatsabo abschließen', 'it': 'Abbonati al mese',
+      'ru': 'Приобрести на месяц', 'es': 'Comprar al mes', 'fr': 'Acheter pour un mois', 'en': 'Buy monthly',
+      'de': 'Monatsabo kaufen', 'it': 'Acquista per un mese',
     },
     // Task 110: кнопки смены тарифа/периода.
     'sub_switch_year': {
@@ -1917,6 +2039,47 @@ class AppStrings {
 
   static String storeUnavailable(BuildContext context) =>
       _t('store_unavailable', context);
+
+  // ---------- Task 113: баннер бесплатного лимита и экран «Как пользоваться» ----------
+
+  static String freeLimitBanner(BuildContext context, {required int limit}) =>
+      _fmt(_t('free_limit_banner', context), {'n': '$limit'});
+
+  static String limitFreeListTitle(BuildContext context) =>
+      _t('limit_free_list_title', context);
+
+  static String limitFreeItem(BuildContext context, int index) =>
+      _t('limit_free_item_$index', context);
+
+  static String limitContinueFree(BuildContext context) =>
+      _t('limit_continue_free', context);
+
+  static String buySubscription(BuildContext context) =>
+      _t('buy_subscription', context);
+
+  static String howtoWhatTitle(BuildContext context) =>
+      _t('howto_what_title', context);
+
+  static String howtoWhatBody(BuildContext context) =>
+      _t('howto_what_body', context);
+
+  static String howtoFreeTitle(BuildContext context) =>
+      _t('howto_free_title', context);
+
+  static String howtoFreeBody(BuildContext context, {required int limit}) =>
+      _fmt(_t('howto_free_body', context), {'n': '$limit'});
+
+  static String howtoSubTitle(BuildContext context) =>
+      _t('howto_sub_title', context);
+
+  static String howtoSubBody(BuildContext context) =>
+      _t('howto_sub_body', context);
+
+  static String howtoPrivacyTitle(BuildContext context) =>
+      _t('howto_privacy_title', context);
+
+  static String howtoPrivacyBody(BuildContext context) =>
+      _t('howto_privacy_body', context);
 
   /// Человекочитаемая длительность: «16 ч 40 мин», «40 мин», «5 мин».
   static String humanDuration(int ms, {String lang = 'ru'}) {

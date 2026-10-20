@@ -28,6 +28,7 @@ import 'tag_service.dart';
 import 'app_strings.dart';
 import 'widgets/dicta_ui.dart';
 import 'export_service.dart';
+import 'how_to_use_page.dart';
 import 'player_page.dart';
 import 'settings_page.dart';
 import 'summary_page.dart';
@@ -1317,7 +1318,8 @@ class _HomePageState extends State<HomePage>
   /// «продолжить/начать заново».
   // ---------- Task 054: монетизация (разовая покупка) ----------
 
-  /// Paywall: лимит исчерпан → «Купить полную версию» / «Восстановить покупку».
+  /// Task 113: экран «Лимит исчерпан» — мягкий, объясняет модель,
+  /// показывает что остаётся бесплатным, предлагает подписку.
   Future<void> _showPaywall({bool tierQuota = false}) async {
     final used = await UsageLimitService.instance.usedMinutesToday();
     if (!mounted) return;
@@ -1325,12 +1327,49 @@ class _HomePageState extends State<HomePage>
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(AppStrings.limitReachedTitle(ctx)),
-        content: Text(tierQuota
-            ? AppStrings.limitReachedTierBody(ctx)
-            : AppStrings.limitReachedBody(ctx,
-                used: used, limit: UsageLimitService.dailyMinutesLimit)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                tierQuota
+                    ? AppStrings.limitReachedTierBody(ctx)
+                    : AppStrings.limitReachedBody(ctx,
+                        used: used, limit: UsageLimitService.dailyMinutesLimit),
+                style: const TextStyle(fontSize: 13, height: 1.5),
+              ),
+              if (!tierQuota) ...[
+                const SizedBox(height: 14),
+                Text(AppStrings.limitFreeListTitle(ctx),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 13)),
+                const SizedBox(height: 6),
+                for (var i = 1; i <= 6; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('• ',
+                            style: TextStyle(
+                                color: Theme.of(ctx).colorScheme.primary)),
+                        Expanded(
+                          child: Text(AppStrings.limitFreeItem(ctx, i),
+                              style: const TextStyle(fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        ),
         actions: [
-          // Task 083: «Восстановить» — реальный restore с индикатором и результатом.
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(AppStrings.limitContinueFree(ctx)),
+          ),
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
@@ -1338,8 +1377,6 @@ class _HomePageState extends State<HomePage>
             },
             child: Text(AppStrings.restorePurchase(ctx)),
           ),
-          // Task 083: «Купить полную версию» — сразу открывает экран тарифов,
-          // а не пытается buyFullUnlock() со снекбаром «магазин недоступен».
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
@@ -1347,7 +1384,7 @@ class _HomePageState extends State<HomePage>
                 MaterialPageRoute(builder: (_) => const SubscriptionPage()),
               );
             },
-            child: Text(AppStrings.buyFull(ctx)),
+            child: Text(AppStrings.buySubscription(ctx)),
           ),
         ],
       ),
@@ -2067,17 +2104,64 @@ class _HomePageState extends State<HomePage>
                 ),
                 onChanged: (value) => setState(() => _searchQuery = value),
               )
-            : DictaBrand(
-                title: widget.tab == 1
-                    ? AppStrings.t('nav_texts', context)
-                    : (widget.tab == 2
-                        ? AppStrings.t('nav_summaries', context)
-                        : null),
-                subtitle: widget.tab == 1
-                    ? AppStrings.t('texts_subtitle', context)
-                    : (widget.tab == 2
-                        ? AppStrings.t('summaries_subtitle', context)
-                        : AppStrings.splashSlogan(context)),
+            : Row(
+                children: [
+                  // Task 113: иконка приложения вместо заглушки-градиента.
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
+                      'assets/icons/launcher_icon.png',
+                      width: 32,
+                      height: 32,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.tab == 1
+                              ? AppStrings.t('nav_texts', context)
+                              : (widget.tab == 2
+                                  ? AppStrings.t('nav_summaries', context)
+                                  : AppStrings.t('app_title', context)),
+                          style: Theme.of(context).textTheme.titleMedium,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (widget.tab == 0)
+                          GestureDetector(
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const HowToUsePage()),
+                            ),
+                            child: Text(
+                              AppStrings.freeLimitBanner(context,
+                                  limit: UsageLimitService.dailyMinutesLimit),
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                color: DictaTokens.of(context).mint,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          )
+                        else
+                          Text(
+                            widget.tab == 1
+                                ? AppStrings.t('texts_subtitle', context)
+                                : AppStrings.t('summaries_subtitle', context),
+                            style: TextStyle(
+                                fontSize: 10.5,
+                                color: DictaTokens.of(context).mint,
+                                fontWeight: FontWeight.w500),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
         centerTitle: !_isSearching,
         elevation: 0,
