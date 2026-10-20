@@ -62,6 +62,7 @@ flutter:
     # Task 109: тексты лицензий сторонних компонентов (обязательны в дистрибутиве;
     # в UI не показываются — пункт «Лицензии» убран).
     - assets/licenses/
+    - assets/icons/launcher_icon.png
     - assets/fonts/Roboto-Regular.ttf
   fonts:
     - family: Roboto
