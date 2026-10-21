@@ -308,7 +308,14 @@ class MainActivity : FlutterActivity() {
             put32(40, pcmBytes.toInt())
             // приклеиваем PCM
             wav.seek(44)
-            java.io.FileInputStream(pcm).use { it.copyTo(wav) }
+            java.io.FileInputStream(pcm).use { fis ->
+                val buf = ByteArray(1 shl 20)
+                while (true) {
+                    val n = fis.read(buf)
+                    if (n <= 0) break
+                    wav.write(buf, 0, n)
+                }
+            }
             wav.close()
             pcm.delete()
         } finally {
