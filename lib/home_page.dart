@@ -906,7 +906,10 @@ class _HomePageState extends State<HomePage>
     ticker = Timer.periodic(const Duration(seconds: 1), (_) => elapsed.value++);
     var elapsedSec = 0;
     try {
+      final convStart = DateTime.now();
       wav16k = await AudioConvert.toWav16k(filePath);
+      final convSec = DateTime.now().difference(convStart).inMilliseconds / 1000.0;
+      diagLines.add('конвертация: ${convSec.toStringAsFixed(1)} с (${filePath.split('.').last.toLowerCase()} → wav16k)');
       stage.value = skipChunks > 0
           ? AppStrings.tf('stage_resume_skip', context, {'n': '$skipChunks'})
           : AppStrings.t('stage_transcribing', context);

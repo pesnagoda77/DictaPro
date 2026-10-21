@@ -1022,13 +1022,14 @@ void _gigaamIsolateEntry(_GigaamJob job) {
       }
     }
 
+    final t0 = DateTime.now();
     final wave = sherpa.readWave(job.wavPath);
     final samples = wave.samples;
     final total = samples.length;
     job.progressPort.send([
       'log',
       'start: rate=${wave.sampleRate} samples=$total (${(total / 16000).toStringAsFixed(1)} c) '
-          'silence>=0.8 c, max=20 c'
+          'silence>=0.8 c, max=20 c, threads=${job.threads ?? 4}'
     ]);
 
     // Как на эталонном прогоне: кормим по 512 сэмплов (32 мс), буфер 60 с.
@@ -1058,6 +1059,7 @@ void _gigaamIsolateEntry(_GigaamJob job) {
       vad.pop();
     }
 
+    final vadEnd = DateTime.now();
     // Фаза 2 — расшифровка. Число проходов известно заранее: показываем «кусок X из N».
     for (final s in segs) {
       planned += (s.length <= maxSegSamples)
@@ -1077,10 +1079,22 @@ void _gigaamIsolateEntry(_GigaamJob job) {
       decodeSegment(segs[i], i < segStarts.length ? segStarts[i] : 0);
     }
 
+    final tEnd = DateTime.now();
+    final vadSec = vadEnd.difference(t0).inMilliseconds / 1000.0;
+    final decSec = tEnd.difference(vadEnd).inMilliseconds / 1000.0;
+    final totalSec = total / 16000.0;
     job.progressPort.send([
       'log',
       'vad segments=$vadSegs decoded=$idx parts=${parts.length} '
           'lens=${segLens.take(40).join(',')}'
+    ]);
+    job.progressPort.send([
+      'log',
+      'фазы: vad=${vadSec.toStringAsFixed(1)} с, декод=${decSec.toStringAsFixed(1)} с, '
+          'аудио=${totalSec.toStringAsFixed(1)} с → '
+          'скорость ${(totalSec / (vadSec + decSec)).toStringAsFixed(1)}:1 '
+          '(vad ${(totalSec / (vadSec <= 0 ? 0.01 : vadSec)).toStringAsFixed(1)}:1, '
+          'decode ${(totalSec / (decSec <= 0 ? 0.01 : decSec)).toStringAsFixed(1)}:1)'
     ]);
 
     job.progressPort.send(['done', parts.join(' '), chunkTimes, chunkWords]);
