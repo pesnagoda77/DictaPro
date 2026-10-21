@@ -1327,7 +1327,12 @@ class _HomePageState extends State<HomePage>
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(AppStrings.limitReachedTitle(ctx)),
+        title: Text(
+                      AppStrings.limitReachedTitle(ctx,
+                          left: UsageLimitService.dailyMinutesLimit -
+                              used.round()),
+                      style: const TextStyle(fontSize: 16, height: 1.35),
+                    ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1346,7 +1351,7 @@ class _HomePageState extends State<HomePage>
                     style: const TextStyle(
                         fontWeight: FontWeight.w600, fontSize: 13)),
                 const SizedBox(height: 6),
-                for (var i = 1; i <= 6; i++)
+                for (var i = 1; i <= 7; i++)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 3),
                     child: Row(
@@ -1362,6 +1367,14 @@ class _HomePageState extends State<HomePage>
                       ],
                     ),
                   ),
+                const SizedBox(height: 6),
+                Text(
+                  AppStrings.t('limit_free_and_more', ctx),
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                      color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                ),
               ],
             ],
           ),

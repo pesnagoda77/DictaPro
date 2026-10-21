@@ -464,12 +464,11 @@ class _MarqueePainter extends CustomPainter {
       text: TextSpan(text: text, style: style),
       textDirection: TextDirection.ltr,
     )..layout();
-    final single = (tp.width - gap) / 2;
-    if (single <= 0) return;
-    final dx = -((single + gap) * progress);
+    // Одна копия: прокат слева направо, без наложения.
+    final travel = tp.width + size.width; // от правого края до полного выхода
+    final dx = size.width - travel * progress;
+    if (dx + tp.width < 0) return;
     tp.paint(canvas, Offset(dx, (size.height - tp.height) / 2));
-    // Вторая копия для бесшовности.
-    tp.paint(canvas, Offset(dx + single + gap, (size.height - tp.height) / 2));
   }
 
   @override

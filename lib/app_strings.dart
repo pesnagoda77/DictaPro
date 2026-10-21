@@ -1,4 +1,4 @@
-// Локализованные строки DictaPro (tasks 052, 053).
+﻿// Локализованные строки DictaPro (tasks 052, 053).
 // Полноценной i18n-инфраструктуры в проекте нет — UI исторически русский.
 // Здесь компактный словарь для строк, которые ТЗ требует на 4 языках
 // (ru/en/de/it). Язык берём из системной локали, дефолт — русский.
@@ -146,67 +146,60 @@ class AppStrings {
       'de': 'Ohne Transkription fortfahren', 'it': 'Continua senza trascrizione',
     },
     'limit_reached_title': {
-      'ru': 'На сегодня бесплатные минуты закончились', 'es': 'Se acabaron los minutos gratuitos de hoy', 'fr': 'Les minutes gratuites du jour sont épuisées',
-      'en': 'Today\'s free minutes are used up',
-      'de': 'Die kostenlosen Minuten für heute sind aufgebraucht',
-      'it': 'I minuti gratuiti di oggi sono finiti',
+      'ru': 'Остаток бесплатных минут расшифровки: {n}. Возможно, Вам необходим больший лимит минут', 'es': 'Quedan {n} minutos gratuitos de transcripción. Quizá necesite un límite mayor', 'fr': 'Il reste {n} minutes gratuites de transcription. Un quota plus large vous serait peut-être utile', 'en': 'You have {n} free transcription minutes left. You may need a larger limit',
+      'de': 'Verbleibende kostenlose Transkriptionsminuten: {n}. Möglicherweise benötigen Sie ein größeres Limit', 'it': 'Minuti gratuiti di trascrizione rimasti: {n}. Potrebbe servire un limite maggiore',
     },
     'limit_reached_body': {
-      'ru': 'Приложение бесплатное. Каждый день вы можете расшифровывать до {n} минут без оплаты. На сегодня этот запас израсходован — завтра он обновится.\n\n'
+      'ru': 'Приложение бесплатное. Каждый день Вы можете бесплатно расшифровывать одно или несколько аудио общей длительностью до {n} минут. Возможно, сейчас Ваша попытка расшифровать аудио превышает дневной лимит бесплатной расшифровки.\n\n'
           'Подписка снимает дневной лимит: расшифровка на устройстве без ограничений и ИИ-итоги записей.',
-      'en': 'The app is free. Every day you can transcribe up to {n} minutes at no cost. Today\'s allowance is spent — it resets tomorrow.\n\n'
+      'en': 'The app is free. Every day you can transcribe one or several audio files with a total length of up to {n} minutes for free. This attempt may exceed the daily free transcription limit.\n\n'
           'A subscription removes the daily limit: unlimited on-device transcription and AI summaries.',
-      'de': 'Die App ist kostenlos. Jeden Tag können Sie bis zu {n} Minuten kostenlos transkribieren. Der heutige Vorrat ist aufgebraucht — morgen wird er erneuert.\n\n'
+      'de': 'Die App ist kostenlos. Jeden Tag können Sie ein oder mehrere Audios mit einer Gesamtdauer von bis zu {n} Minuten kostenlos transkribieren. Dieser Versuch überschreitet möglicherweise das kostenlose Tageslimit.\n\n'
           'Ein Abo hebt das Tageslimit auf: unbegrenzte Transkription auf dem Gerät und KI-Zusammenfassungen.',
-      'es': 'La aplicación es gratuita. Cada día puedes transcribir hasta {n} minutos sin pagar. El cupo de hoy se agotó — mañana se renovará.\n\n'
+      'es': 'La aplicación es gratuita. Cada día puede transcribir gratis uno o varios audios con una duración total de hasta {n} minutos. Este intento puede superar el límite diario gratuito.\n\n'
           'La suscripción elimina el límite diario: transcripción ilimitada en el dispositivo y resúmenes con IA.',
-      'fr': 'L\'application est gratuite. Chaque jour, vous pouvez transcrire jusqu\'à {n} minutes sans paiement. Le quota d\'aujourd\'hui est épuisé — il sera renouvelé demain.\n\n'
-          'L\'abonnement supprime la limite quotidienne : transcription illimitée sur l\'appareil et résumés IA.',
-      'it': 'L\'app è gratuita. Ogni giorno puoi trascrivere fino a {n} minuti senza pagare. La quota di oggi è esaurita — domani si rinnova.\n\n'
-          'L\'abbonamento rimuove il limite giornaliero: trascrizione illimitata sul dispositivo e riepiloghi AI.',
+      'fr': "L'application est gratuite. Chaque jour, vous pouvez transcrire gratuitement un ou plusieurs audios d'une durée totale allant jusqu'à {n} minutes. Cette tentative dépasse peut-être le quota quotidien gratuit.\n\n"
+          "L'abonnement supprime la limite quotidienne : transcription illimitée sur l'appareil et résumés IA.",
+      'it': 'L\'app è gratuita. Ogni giorno puoi trascrivere gratuitamente uno o più audio della durata totale fino a {n} minuti. Questo tentativo potrebbe superare il limite giornaliero gratuito.\n\n'
+          'L\'abbonamento rimuove il limite giornaliero: trascrizione illimitata sul dispositivo e riassunti IA.',
     },
     // Task 113: что остаётся бесплатным (5–6 пунктов, списком на экране лимита).
     'limit_free_list_title': {
-      'ru': 'Что остаётся бесплатным', 'es': 'Lo que sigue siendo gratis', 'fr': 'Ce qui reste gratuit',
-      'en': 'What stays free',
-      'de': 'Was kostenlos bleibt',
-      'it': 'Cosa resta gratis',
+      'ru': 'Что всегда бесплатно и без ограничений:', 'es': 'Siempre gratis y sin límites:', 'fr': 'Toujours gratuit et sans limites :', 'en': 'Always free and unlimited:',
+      'de': 'Immer kostenlos und unbegrenzt:', 'it': 'Sempre gratuito e senza limiti:',
+    },
+    'limit_free_and_more': {
+      'ru': 'и многое другое', 'en': 'and much more', 'de': 'und vieles mehr',
+      'es': 'y mucho más', 'fr': 'et bien plus', 'it': 'e molto altro',
     },
     'limit_free_item_1': {
-      'ru': 'Запись аудио без ограничений', 'es': 'Grabación de audio sin límites', 'fr': 'Enregistrement audio sans limites',
-      'en': 'Unlimited audio recording',
-      'de': 'Audioaufnahme ohne Einschränkungen',
-      'it': 'Registrazione audio senza limiti',
+      'ru': 'Запись и прослушивание аудио', 'en': 'Recording and playback of audio',
+      'de': 'Recording and playback of audio', 'es': 'Recording and playback of audio', 'fr': 'Recording and playback of audio', 'it': 'Recording and playback of audio',
     },
     'limit_free_item_2': {
-      'ru': 'Хранение записей', 'es': 'Almacenamiento de grabaciones', 'fr': 'Stockage des enregistrements',
-      'en': 'Recording storage',
-      'de': 'Speicherung der Aufnahmen',
-      'it': 'Archiviazione delle registrazioni',
+      'ru': 'Импорт аудио любых типов', 'en': 'Import audio of any type',
+      'de': 'Import audio of any type', 'es': 'Import audio of any type', 'fr': 'Import audio of any type', 'it': 'Import audio of any type',
     },
     'limit_free_item_3': {
-      'ru': 'Прослушивание с таймкодами', 'es': 'Escucha con marcas de tiempo', 'fr': 'Écoute avec timecodes',
-      'en': 'Playback with timecodes',
-      'de': 'Wiedergabe mit Zeitcodes',
-      'it': 'Riproduzione con timecode',
+      'ru': 'Экспорт аудио', 'en': 'Export audio',
+      'de': 'Export audio', 'es': 'Export audio', 'fr': 'Export audio', 'it': 'Export audio',
     },
     'limit_free_item_4': {
-      'ru': 'Ручное редактирование текста', 'es': 'Edición manual del texto', 'fr': 'Modification manuelle du texte',
-      'en': 'Manual text editing',
-      'de': 'Manuelle Textbearbeitung',
-      'it': 'Modifica manuale del testo',
+      'ru': 'Ручное редактирование текста расшифровки', 'en': 'Manual editing of the transcript text',
+      'de': 'Manual editing of the transcript text', 'es': 'Manual editing of the transcript text', 'fr': 'Manual editing of the transcript text', 'it': 'Manual editing of the transcript text',
     },
     'limit_free_item_5': {
-      'ru': 'Экспорт и отправка расшифровки', 'es': 'Exportación y envío de transcripciones', 'fr': 'Export et envoi des transcriptions',
-      'en': 'Export and share transcripts',
-      'de': 'Export und Versand von Transkripten',
-      'it': 'Esportazione e invio delle trascrizioni',
+      'ru': 'Экспорт расшифровки в удобных форматах', 'en': 'Export transcripts in convenient formats',
+      'de': 'Export transcripts in convenient formats', 'es': 'Export transcripts in convenient formats', 'fr': 'Export transcripts in convenient formats', 'it': 'Export transcripts in convenient formats',
     },
     'limit_free_item_6': {
-      'ru': 'Коды активации', 'es': 'Códigos de activación', 'fr': 'Codes d\'activation',
-      'en': 'Activation codes',
-      'de': 'Aktivierungscodes',
-      'it': 'Codici di attivazione',
+      'ru': 'Сверка расшифровки по аудио в режиме реального времени', 'en': 'Check the transcript against audio in real time',
+      'de': 'Check the transcript against audio in real time', 'es': 'Check the transcript against audio in real time', 'fr': 'Check the transcript against audio in real time', 'it': 'Check the transcript against audio in real time',
+    },
+    'limit_free_item_7': {
+      'ru': 'Обрезка аудиофрагмента по фразам', 'en': 'Cutting an audio fragment by phrases',
+      'de': 'Cutting an audio fragment by phrases', 'es': 'Cutting an audio fragment by phrases',
+      'fr': 'Cutting an audio fragment by phrases', 'it': 'Cutting an audio fragment by phrases',
     },
     'limit_continue_free': {
       'ru': 'Продолжить без расшифровки', 'es': 'Continuar sin transcripción', 'fr': 'Continuer sans transcription',
@@ -2038,8 +2031,8 @@ class AppStrings {
   static String tfGlobal(String key, Map<String, String> params) =>
       _fmt(tGlobal(key), params);
 
-  static String limitReachedTitle(BuildContext context) =>
-      _t('limit_reached_title', context);
+  static String limitReachedTitle(BuildContext context, {required int left}) =>
+      _fmt(_t('limit_reached_title', context), {'n': '$left'});
 
   static String limitReachedBody(
     BuildContext context, {
