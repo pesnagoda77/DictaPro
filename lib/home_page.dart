@@ -1698,10 +1698,18 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _importFile() async {
+    // 21.10: файловый пикер открывается в Documents (обычная стартовая
+    // точка для пользователя), а не где придётся.
+    String? initialDir;
+    try {
+      final docs = Directory('/storage/emulated/0/Documents');
+      if (await docs.exists()) initialDir = docs.path;
+    } catch (_) {}
     final result = await FilePicker.platform.pickFiles(
       type: FileType.any,
       allowMultiple: true,
       allowCompression: false,
+      initialDirectory: initialDir,
     );
 
     if (result == null || result.files.isEmpty) return;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'audio_service.dart';
@@ -405,11 +406,14 @@ class _SettingsPageState extends State<SettingsPage> {
     return FutureBuilder<String>(
       future: AudioService.recordingsDir().then((d) => d.path),
       builder: (context, snap) {
-        final path = snap.data ?? '…';
+        final raw = snap.data ?? '…';
+        final human = raw
+            .replaceFirst('/storage/emulated/0/', '')
+            .replaceFirst('/data/user/0/com.dictapro.app/app_flutter', 'Данные приложения');
         return _tile(
           context,
           title: AppStrings.t('folder_recordings_title', context),
-          sub: path,
+          sub: human,
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -433,6 +437,13 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _openRecordingsFolder(BuildContext context) async {
     try {
       final dir = await AudioService.recordingsDir();
+      // 21.10: сначала нативный intent (лучше работает на Vivo/MIUI).
+      try {
+        const platform = MethodChannel('dictapro/convert');
+        final ok = await platform.invokeMethod<bool>(
+            'openFolder', {'path': dir.path});
+        if (ok == true) return;
+      } catch (_) {}
       final uri = Uri.directory(dir.path);
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri);

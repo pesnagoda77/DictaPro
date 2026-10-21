@@ -82,6 +82,25 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
+                "openFolder" -> {
+                    val path = call.argument<String>("path") ?: ""
+                    try {
+                        val dir = java.io.File(path)
+                        if (!dir.exists()) dir.mkdirs()
+                        val uri = android.net.Uri.parse(
+                            "content://com.android.externalstorage.documents/document/primary%3A" +
+                                path.removePrefix("/storage/emulated/0/").replace("/", "%2F")
+                        )
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+                        intent.setDataAndType(uri, "resource/folder")
+                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(intent)
+                        runOnUiThread { result.success(true) }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "openFolder failed", e)
+                        runOnUiThread { result.success(false) }
+                    }
+                }
                 "extractFragmentWav" -> {
                     val path = call.argument<String>("path")
                     val fromMs = (call.argument<Int>("fromMs")) ?: 0
