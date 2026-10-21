@@ -1,17 +1,18 @@
-// Task 111 v3 (21.10): фрагменты из любых аудиоформатов.
+﻿// Task 111 v4 (21.10 вечер): надёжные фрагменты из ЛЮБЫХ форматов.
 //
-// WAV  — байтовая резка по PCM (точно).
-// MP3  — копирование MPEG-кадров (~26 мс точность).
-// M4A/AAC/FLAC/OGG/OPUS — побитовая резка «контейнер + кусок потока»:
-//   контейнер (MP4/M4A: ftyp+moov+mdat, OGG: страницы, FLAC: блоки) сохраняется,
-//   из потока берутся полные пакеты, попадающие в диапазон времени. Точную
-//   границу кадра без декодирования для этих форматов гарантировать нельзя,
-//   поэтому начало/конец могут сместиться до ~0,5 с; это осознанный компромисс,
-//   чтобы фрагмент вырезался из ЛЮБОГО импортированного файла.
+// Урок +98: побитовая резка контейнеров (m4a/ogg/flac) даёт битые файлы —
+// на другом устройстве не играют (повреждённые боксы MP4/страницы OGG).
 //
-// Если формат распознать не удалось — внятная ошибка с сигнатурой.
+// Новая стратегия: перекодирование нативным декодером платформы.
+// Android: MediaExtractor+MediaCodec → PCM → пишем WAV (гарантированно
+// играбельный на всём). iOS: AVAssetExportSession (позже).
+// Это медленнее побитовой (реальное декодирование), но файл всегда валидный.
+// WAV-исходники режутся по-прежнему байт-точно без перекодирования.
+// MP3 — копированием кадров (проверено, играет).
 import 'dart:io';
 import 'dart:typed_data';
+
+import 'package:flutter/services.dart';
 
 import '../audio_service.dart';
 
@@ -36,9 +37,6 @@ class WavInfo {
   double get durationSec => byteRate > 0 ? dataLength / byteRate : 0;
 }
 
-/// Что распознал [AudioFragmentService.detectFormat].
-enum MediaKind { wav, mp3, mp4, ogg, flac, unknown }
-
 class AudioFragmentService {
   /// Отступ с обеих сторон, чтобы не обрезать начало/конец слова.
   static const int paddingMs = 150;
@@ -48,6 +46,8 @@ class AudioFragmentService {
 
   /// Причина последней неудачи — показываем в интерфейсе для диагностики.
   static String? lastError;
+
+  static const _convertChannel = MethodChannel('dictapro/convert');
 
   static String? _fail(String reason) {
     lastError = reason;
@@ -71,9 +71,6 @@ class AudioFragmentService {
     if (!await src.exists()) {
       return _fail('файл записи не найден: $resolved');
     }
-    final fileLen = await src.length();
-    // ignore: avoid_print
-    print('[fragment] size=$fileLen');
 
     final raf = await src.open();
     try {
@@ -85,15 +82,13 @@ class AudioFragmentService {
           return await _exportWav(raf, head, startSec, endSec);
         case MediaKind.mp3:
           return await _exportMp3(raf, head, startSec, endSec, src);
+        // Контейнерные форматы: только перекодирование — побитая резка
+        // рождает невалидные файлы (урок +98).
         case MediaKind.mp4:
-          return await _exportGeneric(raf, head, startSec, endSec, src,
-              ext: 'm4a', label: 'M4A/MP4');
         case MediaKind.ogg:
-          return await _exportGeneric(raf, head, startSec, endSec, src,
-              ext: 'ogg', label: 'OGG/OPUS');
         case MediaKind.flac:
-          return await _exportGeneric(raf, head, startSec, endSec, src,
-              ext: 'flac', label: 'FLAC');
+          return await _exportTranscode(
+              resolved, startSec, endSec, kind, src);
         case MediaKind.unknown:
           final sig = head.length >= 12
               ? '${String.fromCharCodes(head.sublist(0, 4))} / '
@@ -160,7 +155,7 @@ class AudioFragmentService {
     var firstFrame = head.length >= 10 &&
             String.fromCharCodes(head.sublist(0, 3)) == 'ID3'
         ? ((head[6] << 21) | (head[7] << 14) | (head[8] << 7) | head[9]) + 10
-        : kindMp3FirstFrame(head);
+        : mp3FirstFrame(head);
     await raf.setPosition(firstFrame);
     final probe = await raf.read(4096);
     final br = mp3Bitrate(probe);
@@ -182,7 +177,6 @@ class AudioFragmentService {
     final startByte = firstFrame + (from * br / 8).round();
     var endByte = firstFrame + (to * br / 8).round();
     if (endByte > fileLen) endByte = fileLen;
-    // Выравниваем начало на границу кадра (sync 0xFFE назад, максимум 2 КБ).
     final back = startByte - 2048 > firstFrame ? 2048 : (startByte - firstFrame);
     await raf.setPosition(startByte - back);
     final sync = await raf.read(back + 4);
@@ -210,81 +204,50 @@ class AudioFragmentService {
     return outPath;
   }
 
-  // ─────────── M4A/AAC (MP4), OGG/OPUS, FLAC — побитовая резка ───────────
+  // ─────── M4A/AAC, OGG, FLAC: перекодирование в WAV через натив ───────
 
-  /// Стратегия: сохраняем голову контейнера (метаданные) + потоковые данные
-  /// от [startByte] до [endByte]. Для MP4 отдельно важно не порвать боксы —
-  /// но mdat в большинстве записей один и тянется до конца файла, поэтому
-  /// резка внутри mdat безопасна для воспроизведения фрагмента в плеерах
-  /// с «догоняющим» парсингом. Точность ~0,3–0,5 с.
-  static Future<String?> _exportGeneric(
-    RandomAccessFile raf,
-    Uint8List head,
-    double startSec,
-    double endSec,
-    File src, {
-    required String ext,
-    required String label,
-  }) async {
+  static Future<String?> _exportTranscode(String resolvedPath,
+      double startSec, double endSec, MediaKind kind, File src) async {
     final fileLen = await src.length();
-
-    // Оценка длительности по среднему битрейту неизвестна без полного парса,
-    // поэтому используем пропорцию: расшифровка знает длительность записи
-    // (durationMs), она совпадает с длительностью файла.
-    // Здесь durationSec приходим к через диапазон пропорционально времени.
-    // Для простоты берём битрейт из факта: весь файл = запись.
-    // durationSec неизвестен в этом методе — его передают выше по цепочке
-    // через startSec/endSec, нормированные на длительность записи.
-    final pad = paddingMs / 1000.0;
-    var from = (startSec - pad).clamp(0.0, double.maxFinite);
-    var to = (endSec + pad).clamp(0.0, double.maxFinite);
-    if (to <= from) {
-      from = startSec;
-      to = from + fallbackSec;
-    }
-
-    // Считаем весь файл «полем» времени 0…recordDuration: находим доли.
-    // startSec/endSec уже в секундах записи. Чтобы перевести в байты, нужен
-    // битрейт; берём эффективный: bytes*8/duration. duration = endSec у конца.
-    // Практика: (from/estimatedDur) — пропорция не нужна, т.к. биты равномерны.
-    // Оценка длительности файла: try через хвостовой заголовок невозможен
-    // без полного парса, поэтому: estimatedDur = max(endSec, 1) — резать
-    // пропорционально не выйдет; применяем «полный битрейт» модель:
-    // первый проход — средний битрейт всего файла при известной длительности
-    // записи не доступен, значит берём эмпирику: 128 kbps для m4a/aac.
     const fallbackKbps = 128;
-    final avgBytesPerSec = fallbackKbps * 1000 / 8;
+    final estDurationSec = fileLen * 8 / (fallbackKbps * 1000);
 
-    var startByte = (from * avgBytesPerSec).round();
-    var endByte = (to * avgBytesPerSec).round();
-    final audioStart = head.length; // после головы контейнера
-    if (startByte < audioStart) startByte = audioStart;
-    if (endByte > fileLen) endByte = fileLen;
-    if (endByte - startByte < 4096) {
-      startByte = audioStart;
-      endByte = fileLen; // слишком короткий запрос — отдаём весь файл
+    final pad = paddingMs / 1000.0;
+    final fromMs = ((startSec - pad).clamp(0.0, estDurationSec) * 1000).round();
+    var toMs = ((endSec + pad).clamp(0.0, estDurationSec) * 1000).round();
+    if (toMs - fromMs < 500) toMs = fromMs + (fallbackSec * 1000).round();
+
+    // Нативная конвертация диапазона: Android MediaExtractor+MediaCodec
+    // декодирует вход в PCM WAV (моно 16к не обязательно — сохраняем родные
+    // частоту/каналы, WAV-заголовок пишем по факту). Обработчик: MainActivity.
+    final String wavTmp;
+    try {
+      wavTmp = await _convertChannel.invokeMethod<String>(
+        'extractFragmentWav',
+        {
+          'path': resolvedPath,
+          'fromMs': fromMs,
+          'toMs': toMs,
+        },
+      ) ?? '';
+    } on PlatformException catch (e) {
+      return _fail('нативная конвертация ${kind.name}: ${e.code} ${e.message}');
+    }
+    if (wavTmp.isEmpty || !await File(wavTmp).exists()) {
+      return _fail('нативная конвертация не создала файл');
     }
 
     final dir = await AudioService.recordingsDir();
-    final outPath = '${dir.path}/фрагмент ${_fmt(from)}–${_fmt(to)}.$ext';
-
-    final sink = File(outPath).openWrite();
-    try {
-      sink.add(head.sublist(0, audioStart)); // голова контейнера
-      await _copyRange(raf, sink, startByte, endByte);
-    } finally {
-      await sink.close();
-    }
-    // ignore: avoid_print
-    print('[fragment] $label: bytes $startByte…$endByte (~'
-        '${((endByte - startByte) / 1024).round()} КБ, точность ±0,5 с)');
+    final outPath =
+        '${dir.path}/фрагмент ${_fmt(fromMs / 1000)}–${_fmt(toMs / 1000)}.wav';
+    await File(wavTmp).rename(outPath);
     return outPath;
   }
 
   // ───────────────────────── утилиты ─────────────────────────
 
   /// MP3: смещение первого кадра, если нет ID3.
-  static int kindMp3FirstFrame(Uint8List b) {
+  static int mp3FirstFrame(Uint8List b) {
     for (var i = 0; i + 2 < b.length && i < 4096; i++) {
       if (b[i] == 0xFF && (b[i + 1] & 0xE0) == 0xE0) return i;
     }
@@ -324,7 +287,6 @@ class AudioFragmentService {
     if (b.length >= 4 && String.fromCharCodes(b.sublist(0, 4)) == 'fLaC') {
       return MediaKind.flac;
     }
-    // Голый MPEG-кадр.
     for (var i = 0; i + 2 < b.length && i < 4096; i++) {
       if (b[i] == 0xFF && (b[i + 1] & 0xE0) == 0xE0) {
         return MediaKind.mp3;
@@ -440,3 +402,8 @@ class AudioFragmentService {
     return '$m-$s';
   }
 }
+
+
+
+/// Форматы, которые умеет резать сервис.
+enum MediaKind { wav, mp3, mp4, ogg, flac, unknown }

@@ -49,9 +49,12 @@ class ExportService {
     buffer.writeln();
 
     if (rec.segments != null && rec.segments!.isNotEmpty) {
+      var phraseNo = 0;
       for (var seg in rec.segments!) {
+        phraseNo++;
         final time = seg['time'] != null ? _fmtTime(seg['time'] as int) : '';
-        buffer.writeln(time.isNotEmpty ? '[$time] ${seg['speaker']}: ${seg['text']}' : '[${seg['speaker']}] ${seg['text']}');
+        final label = AppStrings.tfGlobal('dialogue_speaker', {'n': '$phraseNo'});
+        buffer.writeln(time.isNotEmpty ? '[$time] $label: ${seg['text']}' : '$label: ${seg['text']}');
       }
     } else {
       buffer.writeln(rec.transcription ?? AppStrings.tGlobal('no_text'));
@@ -77,8 +80,11 @@ class ExportService {
     buffer.writeln();
 
     if (rec.segments != null && rec.segments!.isNotEmpty) {
+      var phraseNo = 0;
       for (var seg in rec.segments!) {
-        buffer.writeln('[${seg['speaker']}] ${seg['text']}');
+        phraseNo++;
+        final label = AppStrings.tfGlobal('dialogue_speaker', {'n': '$phraseNo'});
+        buffer.writeln('$label: ${seg['text']}');
       }
     } else {
       buffer.writeln(rec.transcription ?? AppStrings.tGlobal('no_text'));
@@ -107,11 +113,11 @@ class ExportService {
             '</div>');
 
     if (rec.segments != null && rec.segments!.isNotEmpty) {
+      var phraseNo = 0;
       for (var seg in rec.segments!) {
-        final isA = seg['speaker'] == 'A';
-        buffer.writeln('<div class="${isA ? 'speaker-a' : 'speaker-b'}">');
-        final spk = seg['speaker'];
-        buffer.writeln('<div class="label">${AppStrings.tfGlobal('export_speaker_label', {'s': '$spk'})}</div>');
+        phraseNo++;
+        buffer.writeln('<div class="speaker-a">');
+        buffer.writeln('<div class="label">${AppStrings.tfGlobal('dialogue_speaker', {'n': '$phraseNo'})}</div>');
         buffer.writeln('<div class="text">${seg['text']}</div>');
         buffer.writeln('</div>');
       }

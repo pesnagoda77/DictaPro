@@ -82,6 +82,25 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
+                "extractFragmentWav" -> {
+                    val path = call.argument<String>("path")
+                    val fromMs = (call.argument<Int>("fromMs")) ?: 0
+                    val toMs = (call.argument<Int>("toMs")) ?: 0
+                    if (path == null) {
+                        result.error("INVALID_ARGUMENTS", "path is null", null)
+                        return@setMethodCallHandler
+                    }
+                    Thread {
+                        try {
+                            val tmp = File(cacheDir, "fragment_tmp.wav")
+                            extractRangeToWav(path, tmp.absolutePath, fromMs.toLong(), toMs.toLong())
+                            runOnUiThread { result.success(tmp.absolutePath) }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "extractFragmentWav FAILED", e)
+                            runOnUiThread { result.error("EXTRACT_FAILED", e.message, null) }
+                        }
+                    }.start()
+                }
                 "convertToWav" -> {
                     val inputPath = call.argument<String>("inputPath")
                     val outputPath = call.argument<String>("outputPath")
@@ -163,6 +182,137 @@ class MainActivity : FlutterActivity() {
                 }
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    // 21.10: вырезка диапазона [fromMs; toMs) в отдельный WAV через
+    // MediaExtractor+MediaCodec (декодирование в PCM, без перекодирования
+    // формата контейнера — файл гарантированно валидный WAV).
+    private fun extractRangeToWav(inputPath: String, outputPath: String, fromMs: Long, toMs: Long) {
+        val extractor = MediaExtractor()
+        try {
+            extractor.setDataSource(inputPath)
+            var trackIndex = -1
+            var mime = ""
+            var sampleRate = 16000
+            var channels = 1
+            for (i in 0 until extractor.trackCount) {
+                val fmt = extractor.getTrackFormat(i)
+                val m = fmt.getString(MediaFormat.KEY_MIME) ?: continue
+                if (m.startsWith("audio/")) {
+                    trackIndex = i
+                    mime = m
+                    sampleRate = fmt.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+                    channels = fmt.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                    break
+                }
+            }
+            if (trackIndex < 0) throw Exception("no audio track")
+            extractor.selectTrack(trackIndex)
+
+            val codec = MediaCodec.createDecoderByType(mime)
+            val fmt = extractor.getTrackFormat(trackIndex)
+            codec.configure(fmt, null, null, 0)
+            codec.start()
+
+            val fromUs = fromMs * 1000L
+            val toUs = toMs * 1000L
+            extractor.seekTo(fromUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+
+            val pcm = File(outputPath + ".pcm")
+            val outStream = java.io.FileOutputStream(pcm)
+            var pcmBytes = 0L
+            var sawInputEos = false
+            var sawOutputEos = false
+            val info = MediaCodec.BufferInfo()
+            var guard = 0
+            while (!sawOutputEos && guard < 100000) {
+                guard++
+                if (!sawInputEos) {
+                    val inIdx = codec.dequeueInputBuffer(10000)
+                    if (inIdx >= 0) {
+                        val ib = codec.getInputBuffer(inIdx)!!
+                        val sz = extractor.readSampleData(ib, 0)
+                        if (sz < 0) {
+                            codec.queueInputBuffer(inIdx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                            sawInputEos = true
+                        } else {
+                            val pts = extractor.sampleTime
+                            if (pts > toUs) {
+                                codec.queueInputBuffer(inIdx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                                sawInputEos = true
+                            } else {
+                                codec.queueInputBuffer(inIdx, 0, sz, pts, 0)
+                            }
+                            extractor.advance()
+                        }
+                    }
+                }
+                val outIdx = codec.dequeueOutputBuffer(info, 10000)
+                if (outIdx >= 0) {
+                    val ob = codec.getOutputBuffer(outIdx)!!
+                    // Пишем только сэмплы, попавшие в диапазон времени.
+                    val ptsUs = info.presentationTimeUs
+                    val bytesPerSample = 2 // 16-бит PCM после декодера
+                    val samplesTotal = info.size / (2 * channels)
+                    val secPerSample = 1_000_000.0 / (sampleRate * channels)
+                    var writeFrom = 0
+                    var writeUntil = samplesTotal
+                    if (ptsUs < fromUs) {
+                        val skip = ((fromUs - ptsUs) / secPerSample).toLong()
+                        writeFrom = skip.toInt()
+                    }
+                    if (ptsUs + samplesTotal.toLong() * secPerSample.toLong() > toUs) {
+                        val keep = ((toUs - ptsUs) / secPerSample).toLong().toInt()
+                        if (keep in 0 until writeUntil) writeUntil = keep
+                    }
+                    if (writeUntil > writeFrom) {
+                        ob.position(writeFrom * 2 * channels)
+                        val bytesToWrite = (writeUntil - writeFrom) * 2 * channels
+                        val arr = ByteArray(bytesToWrite)
+                        ob.get(arr)
+                        outStream.write(arr)
+                        pcmBytes += bytesToWrite
+                    }
+                    codec.releaseOutputBuffer(outIdx, false)
+                    if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) sawOutputEos = true
+                } else if (outIdx == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                    if (sawInputEos) { /* ждём хвост декода */ }
+                }
+            }
+            codec.stop()
+            codec.release()
+            extractor.release()
+            outStream.flush()
+            outStream.close()
+            if (pcmBytes <= 0L) throw Exception("empty extract")
+
+            // WAV-заголовок поверх PCM.
+            val out = File(outputPath)
+            val wav = java.io.RandomAccessFile(out, "rw")
+            val hdr = ByteArray(44)
+            fun put32(off: Int, v: Int) { wav.seek(off.toLong()); wav.writeInt(Integer.reverseBytes(v)) }
+            fun put16(off: Int, v: Int) { wav.seek(off.toLong()); wav.writeShort(Integer.reverseBytes(v).toInt() shr 16) }
+            wav.seek(0); wav.write(byteArrayOf(0x52,0x49,0x46,0x46)) // RIFF
+            put32(4, 36 + pcmBytes.toInt())
+            wav.seek(8); wav.write(byteArrayOf(0x57,0x41,0x56,0x45)) // WAVE
+            wav.seek(12); wav.write(byteArrayOf(0x66,0x6D,0x74,0x20)) // fmt
+            put32(16, 16)
+            put16(20, 1) // PCM
+            put16(22, channels)
+            put32(24, sampleRate)
+            put32(28, sampleRate * channels * 2)
+            put16(32, channels * 2)
+            put16(34, 16)
+            wav.seek(36); wav.write(byteArrayOf(0x64,0x61,0x74,0x61)) // data
+            put32(40, pcmBytes.toInt())
+            // приклеиваем PCM
+            wav.seek(44)
+            java.io.FileInputStream(pcm).use { it.copyTo(wav) }
+            wav.close()
+            pcm.delete()
+        } finally {
+            try { extractor.release() } catch (_: Exception) {}
         }
     }
 
