@@ -502,7 +502,7 @@ class _HomePageState extends State<HomePage>
               size: 56,
               color: scheme.onSurface.withOpacity(0.25),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 6),
             Text(
               isSearch
                   ? AppStrings.t('empty_search_title', context)
@@ -1177,7 +1177,7 @@ class _HomePageState extends State<HomePage>
         b = totalChars > 0 ? t0 + (t1 - t0) * acc / totalChars : 0.0;
       }
       segs.add(DialogueSegment(
-        speaker: 'Speaker 1',
+        speaker: 'Фраза 1',
         text: s,
         startTime: a,
         endTime: b,
@@ -1185,7 +1185,7 @@ class _HomePageState extends State<HomePage>
     }
     if (segs.isEmpty) {
       segs.add(DialogueSegment(
-        speaker: 'Speaker 1',
+        speaker: 'Фраза 1',
         text: text,
         startTime: 0,
         endTime: 0,
@@ -1346,7 +1346,7 @@ class _HomePageState extends State<HomePage>
                 style: const TextStyle(fontSize: 13, height: 1.5),
               ),
               if (!tierQuota) ...[
-                const SizedBox(height: 14),
+                const SizedBox(height: 6),
                 Text(AppStrings.limitFreeListTitle(ctx),
                     style: const TextStyle(
                         fontWeight: FontWeight.w600, fontSize: 13)),
@@ -1362,16 +1362,16 @@ class _HomePageState extends State<HomePage>
                                 color: Theme.of(ctx).colorScheme.primary)),
                         Expanded(
                           child: Text(AppStrings.limitFreeItem(ctx, i),
-                              style: const TextStyle(fontSize: 12)),
+                              style: const TextStyle(fontSize: 11.5)),
                         ),
                       ],
                     ),
                   ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 Text(
                   AppStrings.t('limit_free_and_more', ctx),
                   style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 11.5,
                       fontStyle: FontStyle.italic,
                       color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                 ),

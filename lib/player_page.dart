@@ -54,7 +54,7 @@ class _PlayerPageState extends State<PlayerPage> {
     if (_segments.isEmpty && widget.recording.transcription != null) {
       _segments = [
         DialogueSegment(
-            speaker: 'Speaker 1', text: widget.recording.transcription!)
+            speaker: 'Фраза 1', text: widget.recording.transcription!)
       ];
     }
     // Task 107: следим за скроллом — для стрелки-индикатора в свободном режиме
