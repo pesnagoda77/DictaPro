@@ -462,8 +462,9 @@ class _DialogueEditorState extends State<DialogueEditor> {
           Row(
             children: [
               Text(
+                // 21.10 fix: номер = номер строки (index+1), не номер спикера.
                 AppStrings.tf('dialogue_speaker', context,
-                    {'n': '${speakerNo[segment.speaker] ?? 1}'}),
+                    {'n': '${index + 1}'}),
                 style: TextStyle(
                   fontSize: 10.5,
                   fontWeight: FontWeight.w700,

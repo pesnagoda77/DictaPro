@@ -788,7 +788,7 @@ class _PlayerPageState extends State<PlayerPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '$timecode · ${AppStrings.tf('dialogue_speaker', context, {'n': '${speakerNo[segment.speaker] ?? 1}'})}',
+              '$timecode · ${AppStrings.tf('dialogue_speaker', context, {'n': '${i + 1}'})}',
               style: tk.mono(10.5, FontWeight.w700,
                   isActive ? tk.mint : tk.ink3),
             ),
