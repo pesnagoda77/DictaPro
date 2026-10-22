@@ -118,6 +118,13 @@ class _HomePageState extends State<HomePage>
       _checkUnfinishedTranscription();
     });
     _liveTimer = Timer.periodic(const Duration(seconds: 3), (_) => _refreshLiveStatus());
+    // Task 114: при активации кода/покупке (planRevision) перерисовываемся —
+    // лимиты/плашки берут актуальный тариф без входа-выхода.
+    PurchaseService.instance.planRevision.addListener(_onPlanChanged);
+  }
+
+  void _onPlanChanged() {
+    if (mounted) setState(() {});
   }
 
   /// Обновляет состояние живой плашки: идёт ли расшифровка и сколько готово.
@@ -2105,6 +2112,7 @@ class _HomePageState extends State<HomePage>
   }
 
   void dispose() {
+    PurchaseService.instance.planRevision.removeListener(_onPlanChanged);
     WidgetsBinding.instance.removeObserver(this);
     _levelSub?.cancel();
     _timer?.cancel();

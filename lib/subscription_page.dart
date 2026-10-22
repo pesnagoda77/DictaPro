@@ -32,6 +32,30 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
   void initState() {
     super.initState();
     _refreshBalance();
+    _initPeriodFromPlan();
+    // Task 114: шапка обновляется СРАЗУ после активации кода/покупки —
+    // без входа-выхода со страницы (planRevision в PurchaseService).
+    _purchases.planRevision.addListener(_onPlanChanged);
+  }
+
+  @override
+  void dispose() {
+    _purchases.planRevision.removeListener(_onPlanChanged);
+    super.dispose();
+  }
+
+  void _onPlanChanged() {
+    if (mounted) _refreshBalance();
+  }
+
+  /// Task 114 п.5: переключатель месяц/год изначально показывает ПЕРИОД,
+  /// который реально активен по коду (честные карточки, не «всегда месяц»).
+  Future<void> _initPeriodFromPlan() async {
+    final period = await _purchases.codePeriod();
+    if (!mounted) return;
+    if (period == PurchaseService.yearlyBasePlanId && !_yearly) {
+      setState(() => _yearly = true);
+    }
   }
 
   Future<void> _refreshBalance() async {
