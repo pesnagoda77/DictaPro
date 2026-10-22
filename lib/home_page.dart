@@ -22,6 +22,7 @@ import 'services/online_transcribe_service.dart';
 import 'services/keep_alive.dart';
 import 'services/purchase_service.dart';
 import 'services/ai_hours_service.dart';
+import 'services/transcription_hours_service.dart';
 import 'services/usage_limit_service.dart';
 import 'services/local_notify.dart';
 import 'dialogue_editor.dart';
@@ -1472,10 +1473,11 @@ class _HomePageState extends State<HomePage>
     if (ps.unlocked.value) return true;
     final tier = ps.tier.value;
     if (tier != SubscriptionTier.none) {
-      final quotaHours = PurchaseService.includedTranscriptionHours[tier];
-      if (quotaHours == null) return true; // Безлимит
-      final ok = await UsageLimitService.instance
-          .canTranscribeMonthly(durationMs, quotaHours);
+      // 21.10 fix: проверка лимита тарифа — через ТЕ ЖЕ счётчики, что и
+      // списание/шапка (TranscriptionHoursService), иначе шапка врёт.
+      final th = TranscriptionHoursService.instance;
+      if (th.isUnlimited) return true; // Безлимит
+      final ok = await th.canSpend(durationMs);
       if (!ok) {
         await _showPaywall(tierQuota: true);
         return false;
@@ -1490,14 +1492,18 @@ class _HomePageState extends State<HomePage>
     return true;
   }
 
-  /// Фиксация траты минут после УСПЕШНОЙ расшифровки (только бесплатный режим).
+  /// Фиксация траты минут после УСПЕШНОЙ расшифровки.
+  /// 21.10 fix: при тарифе списываем через TranscriptionHoursService
+  /// (те же счётчики, что показывает шапка «использовано X из 24 ч») —
+  /// раньше списание шло в другой сервис (UsageLimitService), и шапка
+  /// всегда показывала 0.0.
   Future<void> _recordTranscribeUsage(int durationMs) async {
     final ps = PurchaseService.instance;
     if (ps.unlocked.value) return;
     final tier = ps.tier.value;
     if (tier != SubscriptionTier.none) {
-      if (PurchaseService.includedTranscriptionHours[tier] != null) {
-        await UsageLimitService.instance.recordMonthlyUsage(durationMs);
+      if (!TranscriptionHoursService.instance.isUnlimited) {
+        await TranscriptionHoursService.instance.spend(durationMs);
       }
       return;
     }

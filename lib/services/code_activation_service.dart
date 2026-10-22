@@ -121,6 +121,17 @@ class CodeActivationService {
     final tier = tierOfTypeKey(typeKey);
     if (tier != SubscriptionTier.none) {
       await _grantTierFromCode(tier, result.expiresAt, typeKey);
+      // 21.10 fix: при активации тарифа кодом начисляем и его бонусные
+      // ИИ-часы (Дневник 10 / Ассистент 20 / Безлимит 40) — один раз.
+      final aiBonus = switch (typeKey) {
+        'DIARY_MONTH' || 'DIARY_YEAR' => 10.0,
+        'ASSISTANT_MONTH' || 'ASSISTANT_YEAR' => 20.0,
+        'UNLIMITED_MONTH' || 'UNLIMITED_YEAR' => 40.0,
+        _ => 0.0,
+      };
+      if (aiBonus > 0) {
+        await AiHoursService.instance.addPackHours(aiBonus);
+      }
       return;
     }
 
@@ -161,25 +172,44 @@ class CodeActivationService {
     final purchase = PurchaseService.instance;
     final currentTier = purchase.tier.value;
 
-    // Берём максимальный тариф из текущего и кода
-    final maxTier = _maxTier(currentTier, codeTier);
-
-    // Период кода: месяц или год
+    // 21.10 fix: срок доступа берём ИЗ КОДА (expiresAt = payload expDays —
+    // это конец доступа «до ДД.ММ» по SPEC). Период кода (месяц/год) —
+    // резервный расчёт только если в коде нет даты (expDays = 0).
     final isYearly = typeKey.endsWith('_YEAR');
     final periodDays = isYearly ? 365 : 30;
-
-    // Текущий срок из кода (если есть)
     final now = DateTime.now();
-    final currentEnd = await purchase.codeExpiryDate();
-    // base = max(текущий срок, сейчас) — не укорачиваем остаток
-    final base = (currentEnd != null && currentEnd.isAfter(now))
-        ? currentEnd
-        : now;
-    final newExpiry = base.add(Duration(days: periodDays));
 
-    // Если код даёт более высокий или равный тариф — продлеваем/устанавливаем
+    DateTime newExpiry;
+    if (expiresAt != null && expiresAt.isAfter(now)) {
+      // Дата в коде — и она в будущем: это и есть срок доступа.
+      // Тариф кода может быть ниже текущего (даунгрейд по окончании
+      // старого) — тогда доступ кода начнётся ПОСЛЕ окончания текущего:
+      // берём max(конец текущего, начало кода) + срок кода.
+      final currentEnd = await purchase.codeExpiryDate();
+      if (_tierRank(codeTier) < _tierRank(currentTier) &&
+          currentEnd != null &&
+          currentEnd.isAfter(now)) {
+        newExpiry = currentEnd.add(Duration(days: periodDays));
+      } else {
+        newExpiry = expiresAt;
+      }
+    } else {
+      // В коде нет даты — считаем от текущего конца (накопление, task 096).
+      final currentEnd = await purchase.codeExpiryDate();
+      final base = (currentEnd != null && currentEnd.isAfter(now))
+          ? currentEnd
+          : now;
+      newExpiry = base.add(Duration(days: periodDays));
+    }
+
+    final maxTier = _maxTier(currentTier, codeTier);
     if (_tierRank(maxTier) >= _tierRank(currentTier)) {
       await purchase.setTierFromCode(maxTier, newExpiry);
+    } else {
+      // Код ниже текущего тарифа: не укорачиваем доступ — тариф остаётся,
+      // но запоминаем expiry кода как минимум (уже сохранено setTierFromCode
+      // при более высоком). Ничего не делаем — текущий тариф важнее.
+      await purchase.setTierFromCode(currentTier, newExpiry);
     }
   }
 
