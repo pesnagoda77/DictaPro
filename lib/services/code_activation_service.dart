@@ -130,7 +130,7 @@ class CodeActivationService {
         _ => 0.0,
       };
       if (aiBonus > 0) {
-        await AiHoursService.instance.addPackHours(aiBonus);
+        await AiHoursService.instance.addMonthlyBonus(aiBonus);
       }
       return;
     }

@@ -1,4 +1,4 @@
-﻿// Task 059: подписки и пакеты ИИ-часов для онлайн-итогов.
+// Task 059: подписки и пакеты ИИ-часов для онлайн-итогов.
 // Task 066: год в Google Play покупается как базовый план внутри подписки,
 //           а не как отдельный товар (iOS: год — отдельный продукт, как раньше).
 // Task 079: пакеты ИИ-часов — расходуемые (consumable) + строго одно
@@ -16,6 +16,15 @@
 // завершается completePurchase, логика идентична — отдельного фока нет.
 // Task 083: жизненный цикл подписок — restore пересобирает набор, отменённые
 //           подписки снимаются, офлайн-грейс 7 дней, разовые покупки не трогаем.
+// Task 114: ЕДИНАЯ ЛОГИКА ТАРИФОВ И ЧАСОВ. Один источник правды — этот
+//           сервис. Код активации больше НЕ пишет tier/expiry сам —
+//           только через [activateCode]. ИИ-часы начисляются там же,
+//           один раз на каждый код (дедуп по 'code:<rawCode>'). Накопление:
+//           новый срок = max(текущий конец, сейчас) + период кода —
+//           и для того же тарифа, и для другого (остаток не теряется).
+//           payload-дата кода больше не используется как абсолютный срок
+//           доступа (в кодах это «код действует до», а не «доступ до» —
+//           из-за неё сроки дублировались и год превращался в 60 дней).
 //
 // Модель (из ТЗ 059, цены/лимиты подтвердил Славан):
 //   тарифы:      Дневник 10 ч/мес · Ассистент 20 ч/мес · Безлимит 40 ч/мес
@@ -96,6 +105,8 @@ class PurchaseService {
   static const _kActiveSubs = 'subscription_products_v1'; // Set<String>
   static const _kCodeTier = 'code_activated_tier_v1';
   static const _kCodeExpiry = 'code_activated_expiry_v1';
+  /// Task 114: период последнего активированного кода ('monthly'/'yearly').
+  static const _kCodePeriod = 'code_activated_period_v1';
 static const _kPlayExpiry = 'play_subscription_expiry_v1'; // Task 110: expiryTimeMillis активной Play-подписки
 static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены, по которым бонус ИИ-часов уже начислен
   // Task 079: токены уже зачисленных покупок пакетов (Set<String>) —
@@ -121,6 +132,10 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
   /// Task 059: активный тариф подписки (максимальный из активных).
   final ValueNotifier<SubscriptionTier> tier =
       ValueNotifier<SubscriptionTier>(SubscriptionTier.none);
+
+  /// Task 114: счётчик изменений плана (тариф/срок/активация кода).
+  /// UI подписывается и перечитывает шапку БЕЗ входа-выхода со страницы.
+  final ValueNotifier<int> planRevision = ValueNotifier<int>(0);
 
   /// Task 079: последняя ошибка покупки человекочитаемым текстом
   /// (null — всё чисто). UI показывает вместе с общим «магазин недоступен».
@@ -521,7 +536,7 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       if (!applied.contains(bonusKey)) {
         final bonus = includedHours[t] ?? 0;
         if (bonus > 0) {
-          await AiHoursService.instance.addPackHours(bonus.toDouble());
+          await AiHoursService.instance.addMonthlyBonus(bonus.toDouble());
           debugPrint('[purchase] бонус ИИ-часов +$bonus за $t');
         }
         applied.add(bonusKey);
@@ -698,16 +713,85 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
     return null;
   }
 
-  /// Task 089: выдать тариф из кода активации (максимум с текущим).
-  Future<void> setTierFromCode(SubscriptionTier t, DateTime? expiresAt) async {
+  /// Task 089/114: выдать тариф из кода активации. ЕДИНАЯ точка установки
+  /// tier+expiry+бонусных ИИ-часов из кода (см. шапку файла, task 114).
+  ///
+  /// Накопление срока: новый срок = max(текущий конец доступа, сейчас)
+  /// + период кода. Тот же тариф (месяц+месяц) и другой тариф (остаток
+  /// не теряется) дают одну формулу. Период берём из typeKey (30/365 дней);
+  /// [payloadExpiresAt] больше не используется как абсолютная дата доступа.
+  ///
+  /// Бонусные ИИ-часы тарифа (Дневник 10 / Ассистент 20 / Безлимит 40)
+  /// начисляются один раз на каждый активированный код (дедуп по
+  /// 'code:<rawCode>' в _kSubBonusApplied).
+  Future<void> activateCode({
+    required SubscriptionTier codeTier,
+    required String typeKey,
+    required String rawCode,
+    DateTime? payloadExpiresAt,
+  }) async {
     final p = await SharedPreferences.getInstance();
-    await p.setString(_kCodeTier, t.name);
-    if (expiresAt != null) {
-      await p.setInt(_kCodeExpiry, expiresAt.millisecondsSinceEpoch);
-    } else {
-      await p.remove(_kCodeExpiry);
+    final now = DateTime.now();
+    final isYearly = typeKey.endsWith('_YEAR');
+
+    final currentEnd = await codeExpiryDate();
+    final newExpiry = computeCodeExpiry(
+      now: now,
+      currentEnd: currentEnd,
+      yearly: isYearly,
+    );
+
+    // Сохраняем выданный кодом тариф (если сильнее уже сохранённого) —
+    // эффективный тариф всё равно пересчитает max с Play-подписками.
+    final storedName = p.getString(_kCodeTier);
+    final storedTier = SubscriptionTier.values.firstWhere(
+      (e) => e.name == storedName,
+      orElse: () => SubscriptionTier.none,
+    );
+    final tierToStore = _tierRank(codeTier) >= _tierRank(storedTier)
+        ? codeTier
+        : storedTier;
+
+    await p.setString(_kCodeTier, tierToStore.name);
+    await p.setInt(_kCodeExpiry, newExpiry.millisecondsSinceEpoch);
+    await p.setString(
+        _kCodePeriod, isYearly ? yearlyBasePlanId : monthlyBasePlanId);
+
+    // Бонусные ИИ-часы тарифа — один раз на код.
+    final bonus = includedHours[codeTier] ?? 0;
+    if (bonus > 0 && rawCode.isNotEmpty) {
+      final applied = (p.getStringList(_kSubBonusApplied) ?? []).toSet();
+      final key = 'code:$rawCode';
+      if (!applied.contains(key)) {
+        await AiHoursService.instance.addPackHours(bonus);
+        applied.add(key);
+        await p.setStringList(_kSubBonusApplied, applied.toList());
+        debugPrint('[purchase] код $typeKey: бонус ИИ-часов +$bonus');
+      }
     }
+
     await _applyEffectiveTier();
+  }
+
+  /// Task 114: чистая формула накопления срока кода.
+  /// base = max(currentEnd, now); срок = base + период.
+  /// Покрыто юнит-тестом (test/code_expiry_test.dart).
+  static DateTime computeCodeExpiry({
+    required DateTime now,
+    required DateTime? currentEnd,
+    required bool yearly,
+  }) {
+    final base = (currentEnd != null && currentEnd.isAfter(now))
+        ? currentEnd
+        : now;
+    return base.add(Duration(days: yearly ? 365 : 30));
+  }
+
+  /// Task 114: период последнего активированного кода ('monthly'/'yearly').
+  /// null — кода не было. Для честного отображения периода на экране подписки.
+  Future<String?> codePeriod() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getString(_kCodePeriod);
   }
 
   /// Эффективный тариф: максимум из Play-подписок и активного кода (089).
@@ -728,6 +812,9 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
     }
     tier.value =
         _tierRank(playTier) >= _tierRank(codeTier) ? playTier : codeTier;
+    // Task 114: оповещаем UI (шапка подписки/главной) — тариф или срок
+    // могли измениться. Слушатели перечитывают балансы без пересоздания.
+    planRevision.value++;
   }
 
   static int _tierRank(SubscriptionTier t) => switch (t) {

@@ -1,13 +1,12 @@
-// Task 059: кошелёк ИИ-часов для онлайн-итогов.
+﻿// Task 114 (доп. Славан 22.10): бонусные ИИ-часы тарифа должны СГОРАТЬ
+// в конце месяца, как и часы расшифровки. Раньше addPackHours клал их
+// в «пакетную» корзину (не сгорает) — это неверно для бонуса тарифа.
 //
-// Две корзины:
-//   1) Включённые часы подписки — месячные (ключ «YYYY-MM»), не переносятся.
-//   2) Купленные пакеты — не сгорают, тратятся после включённых.
-//
-// Списание: объём = минуты аудио / 60, минимум 0.1 ч, округление вверх
-// до 0.1 ч. Трактовка единицы «1 ИИ-час = 1 час аудиоматериала» —
-// зафиксирована в ТЗ-обсуждении (модель эконом-класса, 29 ₽/час).
-// Anti-rollback — тот же приём, что в UsageLimitService (054).
+// Решение: добавляем отдельный метод addMonthlyBonus(hours) — кладёт в
+// МЕСЯЧНУЮ корзину через уменьшение списанного: includedUsed -= hours
+// (клэмп до 0). Месячная корзина обнуляется сама при смене месяца
+// (ключ YYYY-MM) — значит, бонус сгорит 1-го числа следующего месяца.
+// Купленные ПАКЕТЫ (продаваемые за деньги) остаются бессрочными.
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -98,15 +97,33 @@ class AiHoursService {
     return need;
   }
 
-  /// Зачисление пакета (вызывается из PurchaseService при покупке).
+  /// Зачисление купленного пакета (бессрочный — не сгорает).
+  /// Вызывается из PurchaseService при покупке пакета за деньги.
   Future<void> addPackHours(double hours) async {
     final p = await SharedPreferences.getInstance();
     final cur = p.getDouble(_kPackMinutes) ?? 0;
     await p.setDouble(_kPackMinutes, cur + hours * 60.0);
   }
 
+  /// Task 114 (Славан 22.10): начисление БОНУСНЫХ ИИ-часов тарифа
+  /// (Дневник 10 / Ассистент 20 / Безлимит 40 за месяц подписки).
+  /// Кладём в МЕСЯЧНУЮ корзину (сгорают в конце месяца), а не в пакетную.
+  /// Реализация: уменьшаем includedUsed (т.е. «возвращаем» неиспользованное
+  /// из месячной квоты), с клэмпом в 0. Корзина привязана к ключу YYYY-MM —
+  /// 1-го числа следующего месяца бонус естественно сгорает.
+  Future<void> addMonthlyBonus(double hours) async {
+    final p = await SharedPreferences.getInstance();
+    if (p.getString(_kMonth) != _monthKey()) {
+      await p.setString(_kMonth, _monthKey());
+      await p.setDouble(_kIncludedUsed, 0);
+    }
+    final used = p.getDouble(_kIncludedUsed) ?? 0;
+    final newVal = (used - hours).clamp(0.0, double.infinity);
+    await p.setDouble(_kIncludedUsed, newVal);
+    debugPrint('[ai-hours] месячный бонус +$hours ч (сгорит в конце месяца)');
+  }
+
   /// Task 087: списать неиспользованные часы пакета при возврате.
-  /// Списываем минимум(текущий пакетный баланс, объём пакета).
   Future<void> revokePackHours(double hours) async {
     final p = await SharedPreferences.getInstance();
     final cur = p.getDouble(_kPackMinutes) ?? 0;
