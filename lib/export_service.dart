@@ -152,13 +152,19 @@ class ExportService {
               pw.Divider(),
               pw.SizedBox(height: 8),
               if (rec.segments != null && rec.segments!.isNotEmpty)
-                ...rec.segments!.map((seg) => pw.Padding(
-                      padding: const pw.EdgeInsets.symmetric(vertical: 4),
-                      child: pw.Text(
-                        '[${seg['speaker']}] ${seg['text']}',
-                        style: pw.TextStyle(fontSize: 14, font: ttf),
-                      ),
-                    ))
+                // Task 115: номер фразы = index+1 (как в TXT/HTML), а не
+                // seg['speaker'] — у всех сегментов он «Фраза 1».
+                ...rec.segments!.asMap().entries.map((e) {
+                  final no = e.key + 1;
+                  final seg = e.value;
+                  return pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                    child: pw.Text(
+                      '[${AppStrings.tfGlobal('dialogue_speaker', {'n': '$no'})}] ${seg['text']}',
+                      style: pw.TextStyle(fontSize: 14, font: ttf),
+                    ),
+                  );
+                })
               else
                 pw.Text(
                   rec.transcription ?? AppStrings.tGlobal('no_text'),
