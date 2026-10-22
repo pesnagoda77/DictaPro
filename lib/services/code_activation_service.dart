@@ -121,17 +121,6 @@ class CodeActivationService {
     final tier = tierOfTypeKey(typeKey);
     if (tier != SubscriptionTier.none) {
       await _grantTierFromCode(tier, result.expiresAt, typeKey);
-      // 21.10 fix: при активации тарифа кодом начисляем и его бонусные
-      // ИИ-часы (Дневник 10 / Ассистент 20 / Безлимит 40) — один раз.
-      final aiBonus = switch (typeKey) {
-        'DIARY_MONTH' || 'DIARY_YEAR' => 10.0,
-        'ASSISTANT_MONTH' || 'ASSISTANT_YEAR' => 20.0,
-        'UNLIMITED_MONTH' || 'UNLIMITED_YEAR' => 40.0,
-        _ => 0.0,
-      };
-      if (aiBonus > 0) {
-        await AiHoursService.instance.addMonthlyBonus(aiBonus);
-      }
       return;
     }
 
@@ -202,15 +191,15 @@ class CodeActivationService {
       newExpiry = base.add(Duration(days: periodDays));
     }
 
-    final maxTier = _maxTier(currentTier, codeTier);
-    if (_tierRank(maxTier) >= _tierRank(currentTier)) {
-      await purchase.setTierFromCode(maxTier, newExpiry);
-    } else {
-      // Код ниже текущего тарифа: не укорачиваем доступ — тариф остаётся,
-      // но запоминаем expiry кода как минимум (уже сохранено setTierFromCode
-      // при более высоком). Ничего не делаем — текущий тариф важнее.
-      await purchase.setTierFromCode(currentTier, newExpiry);
-    }
+    // Единая точка: PurchaseService.activateCode (tier + срок + ИИ-часы).
+    // Дата payload не используется напрямую — activateCode сам применяет
+    // накопление периодов и дедуплицирует бонус.
+    await purchase.activateCode(
+      codeTier: codeTier,
+      typeKey: typeKey,
+      rawCode: 'manual:${typeKey}:${newExpiry.millisecondsSinceEpoch}',
+      payloadExpiresAt: null,
+    );
   }
 
   int _tierRank(SubscriptionTier t) => switch (t) {

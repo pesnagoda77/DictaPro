@@ -763,7 +763,8 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       final applied = (p.getStringList(_kSubBonusApplied) ?? []).toSet();
       final key = 'code:$rawCode';
       if (!applied.contains(key)) {
-        await AiHoursService.instance.addPackHours(bonus);
+        // 22.10 (Славан): бонус тарифа СГОРАЕТ в конце месяца — месячная корзина.
+        await AiHoursService.instance.addMonthlyBonus(bonus);
         applied.add(key);
         await p.setStringList(_kSubBonusApplied, applied.toList());
         debugPrint('[purchase] код $typeKey: бонус ИИ-часов +$bonus');
