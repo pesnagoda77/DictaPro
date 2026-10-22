@@ -103,6 +103,8 @@ class TranscriptionHoursService {
     await p.setDouble(_kIncludedUsed, usedNew);
     await p.setDouble(_kPackMinutes, packNew);
     await p.setInt(_kLastSeen, now.millisecondsSinceEpoch);
+    // Task 115: шапка обновляется сразу после траты (без пересоздания).
+    PurchaseService.instance.planRevision.value++;
     return need;
   }
 

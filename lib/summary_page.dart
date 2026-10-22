@@ -197,6 +197,13 @@ class _SummaryPageState extends State<SummaryPage> {
           ? AppStrings.t('online_summary_from_cache', context)
           : AppStrings.tf('online_summary_spent', context,
               {'h': _fmtHours(res.aiHoursSpent)}));
+      // Task 115 п.2: сервер списал СВОЙ баланс (balanceMs), но шапка
+      // приложения показывает локальный кошелёк AiHoursService — при
+      // успешных (не из кэша) итогах списываем и его. Повторный просмотр
+      // из кэша — бесплатен.
+      if (!res.fromCache) {
+        await AiHoursService.instance.spend(_audioMs);
+      }
       await _refreshHoursLabel();
       await widget.onSave?.call(res.text);
     } on InsufficientException catch (e) {
