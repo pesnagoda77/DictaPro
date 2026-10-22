@@ -120,7 +120,14 @@ class CodeActivationService {
     // Тариф?
     final tier = tierOfTypeKey(typeKey);
     if (tier != SubscriptionTier.none) {
-      await _grantTierFromCode(tier, result.expiresAt, typeKey);
+      // Task 114: вся логика (срок с накоплением, запись tier/expiry,
+      // бонусные ИИ-часы с дедупликацией по коду) — в PurchaseService.
+      await PurchaseService.instance.activateCode(
+        codeTier: tier,
+        typeKey: typeKey,
+        rawCode: rawCode ?? '',
+        payloadExpiresAt: result.expiresAt,
+      );
       return;
     }
 
@@ -152,63 +159,4 @@ class CodeActivationService {
       _ => null,
     };
   }
-
-  /// Выдать тариф по коду: объединяем с Play-подпиской (берём максимум).
-  /// Task 096: накопление — новый код прибавляется к остатку, а не
-  /// перезаписывает. base = max(текущий срок, сейчас); target = base + период.
-  Future<void> _grantTierFromCode(
-      SubscriptionTier codeTier, DateTime? expiresAt, String typeKey) async {
-    final purchase = PurchaseService.instance;
-    final currentTier = purchase.tier.value;
-
-    // 21.10 fix: срок доступа берём ИЗ КОДА (expiresAt = payload expDays —
-    // это конец доступа «до ДД.ММ» по SPEC). Период кода (месяц/год) —
-    // резервный расчёт только если в коде нет даты (expDays = 0).
-    final isYearly = typeKey.endsWith('_YEAR');
-    final periodDays = isYearly ? 365 : 30;
-    final now = DateTime.now();
-
-    DateTime newExpiry;
-    if (expiresAt != null && expiresAt.isAfter(now)) {
-      // Дата в коде — и она в будущем: это и есть срок доступа.
-      // Тариф кода может быть ниже текущего (даунгрейд по окончании
-      // старого) — тогда доступ кода начнётся ПОСЛЕ окончания текущего:
-      // берём max(конец текущего, начало кода) + срок кода.
-      final currentEnd = await purchase.codeExpiryDate();
-      if (_tierRank(codeTier) < _tierRank(currentTier) &&
-          currentEnd != null &&
-          currentEnd.isAfter(now)) {
-        newExpiry = currentEnd.add(Duration(days: periodDays));
-      } else {
-        newExpiry = expiresAt;
-      }
-    } else {
-      // В коде нет даты — считаем от текущего конца (накопление, task 096).
-      final currentEnd = await purchase.codeExpiryDate();
-      final base = (currentEnd != null && currentEnd.isAfter(now))
-          ? currentEnd
-          : now;
-      newExpiry = base.add(Duration(days: periodDays));
-    }
-
-    // Единая точка: PurchaseService.activateCode (tier + срок + ИИ-часы).
-    // Дата payload не используется напрямую — activateCode сам применяет
-    // накопление периодов и дедуплицирует бонус.
-    await purchase.activateCode(
-      codeTier: codeTier,
-      typeKey: typeKey,
-      rawCode: 'manual:${typeKey}:${newExpiry.millisecondsSinceEpoch}',
-      payloadExpiresAt: null,
-    );
-  }
-
-  int _tierRank(SubscriptionTier t) => switch (t) {
-        SubscriptionTier.none => 0,
-        SubscriptionTier.diary => 1,
-        SubscriptionTier.assistant => 2,
-        SubscriptionTier.unlimited => 3,
-      };
-
-  SubscriptionTier _maxTier(SubscriptionTier a, SubscriptionTier b) =>
-      _tierRank(a) >= _tierRank(b) ? a : b;
 }
