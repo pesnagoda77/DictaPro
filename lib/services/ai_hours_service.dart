@@ -1,12 +1,13 @@
-﻿// Task 114 (доп. Славан 22.10): бонусные ИИ-часы тарифа должны СГОРАТЬ
-// в конце месяца, как и часы расшифровки. Раньше addPackHours клал их
-// в «пакетную» корзину (не сгорает) — это неверно для бонуса тарифа.
+﻿// Task 115: НАКОПИТЕЛЬНЫЙ месячный бонус + цикл от дня активации.
 //
-// Решение: добавляем отдельный метод addMonthlyBonus(hours) — кладёт в
-// МЕСЯЧНУЮ корзину через уменьшение списанного: includedUsed -= hours
-// (клэмп до 0). Месячная корзина обнуляется сама при смене месяца
-// (ключ YYYY-MM) — значит, бонус сгорит 1-го числа следующего месяца.
-// Купленные ПАКЕТЫ (продаваемые за деньги) остаются бессрочными.
+// Бонусные ИИ-часы тарифа (Дневник 10 / Ассистент 20 / Безлимит 40) сгорают
+// в конце месячного цикла, но ПРИ АПГРЕЙДЕ суммируются с остатком:
+// было 10 (Дневник) → активирован Ассистент (+20) → баланс 30 (не 20).
+// Реализация: _kIncludedTotal — выданная сумма бонусов текущего цикла,
+// addMonthlyBonus делает total += hours. Месячный цикл считается от дня
+// активации (billingAnchor в PurchaseService), а не от 1-го числа; при
+// ролловере used = 0, total = бонус текущего тарифа (остаток сгорает).
+// Купленные ПАКЕТЫ (за деньги) — бессрочные, не сгорают.
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -19,6 +20,8 @@ class AiHoursService {
 
   static const _kMonth = 'aihours_month_v1';
   static const _kIncludedUsed = 'aihours_included_used_v1';
+  /// Task 115: накопленный месячный бонус текущего цикла.
+  static const _kIncludedTotal = 'aihours_included_total_v1';
   static const _kPackMinutes = 'aihours_pack_minutes_v1';
   static const _kLastSeen = 'aihours_last_seen_ms_v1';
 
@@ -27,9 +30,33 @@ class AiHoursService {
     return '${n.year.toString().padLeft(4, '0')}-${n.month.toString().padLeft(2, '0')}';
   }
 
-  /// Сколько часов включено у текущего тарифа (0 — без подписки).
-  double includedHours() =>
+  /// Сколько часов включено у текущего тарифа по константе (0 — без подписки).
+  double tierIncludedHours() =>
       PurchaseService.includedHours[PurchaseService.instance.tier.value] ?? 0;
+
+  /// Task 115: ролловер месячного цикла (от дня активации). При смене
+  /// цикла — сброс used и свежий бонус текущего тарифа (остаток сгорает).
+  Future<void> _rolloverIfNeeded() async {
+    if (!await PurchaseService.instance.rolloverBillingCycleIfNeeded()) return;
+    final p = await SharedPreferences.getInstance();
+    await p.setDouble(_kIncludedUsed, 0);
+    await p.setString(_kMonth, _monthKey());
+    await p.setDouble(_kIncludedTotal, tierIncludedHours());
+    PurchaseService.instance.planRevision.value++;
+    debugPrint('[ai-hours] новый месячный цикл: used=0, '
+        'bonus=${tierIncludedHours()}');
+  }
+
+  /// Task 115: накопленный месячный бонус (миграция: null → константа тарифа).
+  Future<double> includedTotal() async {
+    await _rolloverIfNeeded();
+    final p = await SharedPreferences.getInstance();
+    final t = p.getDouble(_kIncludedTotal);
+    if (t != null) return t;
+    final base = tierIncludedHours();
+    await p.setDouble(_kIncludedTotal, base);
+    return base;
+  }
 
   /// Сколько минут осталось из пакетов.
   Future<double> packMinutesLeft() async {
@@ -46,7 +73,7 @@ class AiHoursService {
 
   /// Полный баланс (в часах): включённые (за вычетом месячного расхода) + пакеты.
   Future<double> balanceHours() async {
-    final incl = includedHours();
+    final incl = await includedTotal();
     final used = await includedUsedThisMonth();
     final pack = await packMinutesLeft();
     final inclLeft = (incl - used).clamp(0.0, double.infinity);
@@ -58,19 +85,21 @@ class AiHoursService {
       (await balanceHours()) >= _chargeOf(audioMs);
 
   /// Списание. Возвращает фактически списанные часы (0 — не хватило).
-  /// Сначала едятся включённые (месячные), потом пакеты.
+  /// Сначала едятся включённые (из накопленного total), потом пакеты.
   Future<double> spend(int audioMs) async {
     final need = _chargeOf(audioMs);
     final p = await SharedPreferences.getInstance();
     final now = DateTime.now();
+    await _rolloverIfNeeded(); // Task 115: цикл от дня активации
     final lastSeen = p.getInt(_kLastSeen) ?? 0;
     final month = p.getString(_kMonth) ?? _monthKey();
     final monthOk = month == _monthKey() &&
         now.millisecondsSinceEpoch >= lastSeen; // anti-rollback
     final used = monthOk ? (p.getDouble(_kIncludedUsed) ?? 0.0) : 0.0;
     final packMin = p.getDouble(_kPackMinutes) ?? 0;
+    final total = p.getDouble(_kIncludedTotal) ?? tierIncludedHours();
 
-    double inclLeft = (includedHours() - used).clamp(0.0, double.infinity).toDouble();
+    double inclLeft = (total - used).clamp(0.0, double.infinity).toDouble();
     var needHours = need;
 
     double usedNew = used;
@@ -107,22 +136,19 @@ class AiHoursService {
     await p.setDouble(_kPackMinutes, cur + hours * 60.0);
   }
 
-  /// Task 114 (Славан 22.10): начисление БОНУСНЫХ ИИ-часов тарифа
-  /// (Дневник 10 / Ассистент 20 / Безлимит 40 за месяц подписки).
-  /// Кладём в МЕСЯЧНУЮ корзину (сгорают в конце месяца), а не в пакетную.
-  /// Реализация: уменьшаем includedUsed (т.е. «возвращаем» неиспользованное
-  /// из месячной квоты), с клэмпом в 0. Корзина привязана к ключу YYYY-MM —
-  /// 1-го числа следующего месяца бонус естественно сгорает.
+  /// Task 115: начисление БОНУСНЫХ ИИ-часов тарифа (Дневник 10 /
+  /// Ассистент 20 / Безлимит 40). СУММИРУЕТСЯ с остатком цикла
+  /// (апгрейд 10 + 20 = 30), сгорает при ролловере месячного цикла.
   Future<void> addMonthlyBonus(double hours) async {
+    if (hours <= 0) return;
+    await _rolloverIfNeeded();
     final p = await SharedPreferences.getInstance();
-    if (p.getString(_kMonth) != _monthKey()) {
-      await p.setString(_kMonth, _monthKey());
-      await p.setDouble(_kIncludedUsed, 0);
-    }
-    final used = p.getDouble(_kIncludedUsed) ?? 0;
-    final newVal = (used - hours).clamp(0.0, double.infinity);
-    await p.setDouble(_kIncludedUsed, newVal);
-    debugPrint('[ai-hours] месячный бонус +$hours ч (сгорит в конце месяца)');
+    final cur =
+        p.getDouble(_kIncludedTotal) ?? tierIncludedHours();
+    await p.setDouble(_kIncludedTotal, cur + hours);
+    PurchaseService.instance.planRevision.value++;
+    debugPrint('[ai-hours] месячный бонус +$hours ч, всего ${cur + hours} '
+        '(сгорит при смене цикла)');
   }
 
   /// Task 087: списать неиспользованные часы пакета при возврате.
@@ -137,7 +163,7 @@ class AiHoursService {
 
   /// Строка для UI: «осталось 12.5 ч (вкл. 10 + пакеты 2.5)».
   Future<String> balanceLabel() async {
-    final incl = includedHours();
+    final incl = await includedTotal();
     final used = await includedUsedThisMonth();
     final pack = await packMinutesLeft();
     final inclLeft = (incl - used).clamp(0.0, double.infinity);

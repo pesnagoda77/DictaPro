@@ -47,4 +47,27 @@ void main() {
         now: now, currentEnd: e, yearly: false);
     expect(e, now.add(month + month));
   });
+
+  group('addMonthsClamped (Task 115: цикл от дня активации)', () {
+    test('обычный переход', () {
+      expect(PurchaseService.addMonthsClamped(DateTime(2026, 10, 22), 1),
+          DateTime(2026, 11, 22));
+    });
+    test('год через границу', () {
+      expect(PurchaseService.addMonthsClamped(DateTime(2026, 12, 15), 1),
+          DateTime(2027, 1, 15));
+    });
+    test('31 янв → 28 фев (не високосный)', () {
+      expect(PurchaseService.addMonthsClamped(DateTime(2026, 1, 31), 1),
+          DateTime(2026, 2, 28));
+    });
+    test('31 янв → 29 фев (високосный)', () {
+      expect(PurchaseService.addMonthsClamped(DateTime(2028, 1, 31), 1),
+          DateTime(2028, 2, 29));
+    });
+    test('31 мар → 30 апр (кламп 31→30)', () {
+      expect(PurchaseService.addMonthsClamped(DateTime(2026, 3, 31), 1),
+          DateTime(2026, 4, 30));
+    });
+  });
 }

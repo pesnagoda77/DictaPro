@@ -1,7 +1,16 @@
-// Task 110: кошелёк часов расшифровки (по образцу AiHoursService).
+// Task 115: НАКОПИТЕЛЬНЫЙ лимит включённых часов + цикл от дня активации.
+//
+// Раньше лимит брался из константы тарифа — при апгрейде Дневник→Ассистент
+// остаток 22.1 ч просто исчезал (лимит «заменялся» 24 → 120). Теперь:
+//   • _kIncludedTotal — выданная сумма часов текущего цикла (24+120=144);
+//   • при активации/покупке тарифа total += includedHours[newTier];
+//   • месячный цикл — от billingAnchor (день активации), см. PurchaseService.
+//     При ролловере: used = 0, total = includedHours[текущего тарифа]
+//     (неиспользованный остаток сгорает, свежий пакет текущего тарифа);
+//   • купленные пакеты (packTr) — бессрочные, не сгорают.
 //
 // Две корзины:
-//   1) Включённые часы тарифа — месячные (ключ «YYYY-MM»), не переносятся.
+//   1) Включённые часы тарифа — месячные (цикл от якоря), не переносятся.
 //   2) Купленные пакеты — не сгорают, тратятся после включённых.
 //
 // Списание: сначала включённые, затем пакет; при безлимитном тарифе
@@ -19,6 +28,8 @@ class TranscriptionHoursService {
 
   static const _kMonth = 'transcr_month_v1';
   static const _kIncludedUsed = 'transcr_included_used_v1';
+  /// Task 115: накопленный лимит включённых часов текущего цикла.
+  static const _kIncludedTotal = 'transcr_included_total_v1';
   static const _kPackMinutes = 'transcr_pack_minutes_v1';
   static const _kLastSeen = 'transcr_last_seen_ms_v1';
 
@@ -27,12 +38,53 @@ class TranscriptionHoursService {
     return '${n.year.toString().padLeft(4, '0')}-${n.month.toString().padLeft(2, '0')}';
   }
 
-  /// Сколько часов включено у текущего тарифа (null — безлимит).
-  int? includedHours() =>
+  /// Сколько часов включено у текущего тарифа по константе (null — безлимит).
+  int? tierIncludedHours() =>
       PurchaseService.includedTranscriptionHours[PurchaseService.instance.tier.value];
 
   /// True — текущий тариф безлимитный (часы не списываются).
-  bool get isUnlimited => includedHours() == null;
+  bool get isUnlimited => tierIncludedHours() == null;
+
+  /// Task 115: ролловер месячного цикла (от дня активации). При смене
+  /// цикла — сброс used и выдача свежего пакета текущего тарифа
+  /// (остаток сгорает). Пакеты не трогаем.
+  Future<void> _rolloverIfNeeded() async {
+    if (!await PurchaseService.instance.rolloverBillingCycleIfNeeded()) return;
+    final p = await SharedPreferences.getInstance();
+    await p.setDouble(_kIncludedUsed, 0);
+    await p.setString(_kMonth, _monthKey());
+    await p.setDouble(
+        _kIncludedTotal, (tierIncludedHours() ?? 0).toDouble());
+    PurchaseService.instance.planRevision.value++;
+    debugPrint('[transcr-hours] новый месячный цикл: used=0, '
+        'total=${tierIncludedHours() ?? 0}');
+  }
+
+  /// Task 115: накопленный лимит включённых часов (миграция: если ключа
+  /// нет — берём константу текущего тарифа).
+  Future<double> includedTotal() async {
+    if (isUnlimited) return double.infinity;
+    await _rolloverIfNeeded();
+    final p = await SharedPreferences.getInstance();
+    final t = p.getDouble(_kIncludedTotal);
+    if (t != null) return t;
+    final base = (tierIncludedHours() ?? 0).toDouble();
+    await p.setDouble(_kIncludedTotal, base);
+    return base;
+  }
+
+  /// Task 115: начислить включённые часы тарифа (активация/покупка).
+  /// Суммируется с остатком (24 + 120 = 144); used не трогаем.
+  Future<void> addIncludedHours(double hours) async {
+    if (hours <= 0) return;
+    await _rolloverIfNeeded();
+    final p = await SharedPreferences.getInstance();
+    final cur = p.getDouble(_kIncludedTotal) ??
+        (tierIncludedHours() ?? 0).toDouble();
+    await p.setDouble(_kIncludedTotal, cur + hours);
+    PurchaseService.instance.planRevision.value++;
+    debugPrint('[transcr-hours] включённые часы +$hours, всего ${cur + hours}');
+  }
 
   /// Сколько минут осталось из пакетов.
   Future<double> packMinutesLeft() async {
@@ -51,7 +103,7 @@ class TranscriptionHoursService {
   /// Для безлимитного тарифа — double.infinity.
   Future<double> balanceHours() async {
     if (isUnlimited) return double.infinity;
-    final incl = includedHours()!.toDouble();
+    final incl = await includedTotal();
     final used = await includedUsedThisMonth();
     final pack = await packMinutesLeft();
     final inclLeft = (incl - used).clamp(0.0, double.infinity);
@@ -66,20 +118,23 @@ class TranscriptionHoursService {
 
   /// Списание минут расшифровки. Возвращает фактически списанные часы
   /// (0 — не хватило; для безлимита — всегда 0, но true через canSpend).
-  /// Сначала едятся включённые (месячные), потом пакеты.
+  /// Сначала едятся включённые (из накопленного total), потом пакеты.
   Future<double> spend(int audioMs) async {
     if (isUnlimited) return 0; // безлимит — часы не тратятся
     final need = _chargeOf(audioMs);
     final p = await SharedPreferences.getInstance();
     final now = DateTime.now();
+    await _rolloverIfNeeded(); // Task 115: цикл от дня активации
     final lastSeen = p.getInt(_kLastSeen) ?? 0;
     final month = p.getString(_kMonth) ?? _monthKey();
     final monthOk = month == _monthKey() &&
         now.millisecondsSinceEpoch >= lastSeen; // anti-rollback
     final used = monthOk ? (p.getDouble(_kIncludedUsed) ?? 0.0) : 0.0;
     final packMin = p.getDouble(_kPackMinutes) ?? 0;
+    final total = p.getDouble(_kIncludedTotal) ??
+        (tierIncludedHours() ?? 0).toDouble();
 
-    double inclLeft = (includedHours()!.toDouble() - used).clamp(0.0, double.infinity).toDouble();
+    double inclLeft = (total - used).clamp(0.0, double.infinity).toDouble();
     var needHours = need;
 
     double usedNew = used;
@@ -125,13 +180,14 @@ class TranscriptionHoursService {
     debugPrint('[transcr-hours] возврат пакета: списано $hours ч, остаток ${newVal / 60} ч');
   }
 
-  /// Строка для UI: «Расшифровка: 12,4 из 24 ч · Пакет: +30 ч»
+  /// Строка для UI: «Расшифровка: 12,4 из 144 ч · Пакет: +30 ч»
+  /// (знаменатель — накопленный лимит текущего цикла, task 115).
   /// Для безлимита: «Расшифровка: без ограничений».
   Future<String> balanceLabel() async {
     if (isUnlimited) {
       return AppStrings.tGlobal('transcr_unlimited_label');
     }
-    final incl = includedHours()!.toDouble();
+    final incl = await includedTotal();
     final used = await includedUsedThisMonth();
     final pack = await packMinutesLeft();
     final buf = StringBuffer();

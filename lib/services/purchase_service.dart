@@ -119,6 +119,11 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
   static const _kLastVerifiedMs = 'subscription_last_verified_ms_v1';
   static const int _graceDays = 3;
 
+  /// Task 115: месячный цикл включённых часов считается от ДНЯ АКТИВАЦИИ
+  /// тарифа (покупки/кода), а не от 1-го числа. Храним дату начала
+  /// текущего цикла; ролловер — см. [rolloverBillingCycleIfNeeded].
+  static const _kBillingCycleStartMs = 'billing_cycle_start_ms_v1';
+
   /// Task 066 п.5: Play не сообщает basePlanId в покупке — период, выбранный
   /// пользователем, запоминаем локально. Точная дата продления — только
   /// серверной проверкой (Play Developer API) — отдельная задача.
@@ -541,6 +546,10 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
         }
         applied.add(bonusKey);
         await pref.setStringList(_kSubBonusApplied, applied.toList());
+        // Task 115: якорь цикла + включённые часы расшифровки при покупке.
+        await ensureBillingCycle();
+        await TranscriptionHoursService.instance
+            .addIncludedHours(includedTranscriptionHours[t]?.toDouble() ?? 0);
       }
 
       if (_rebuild) {
@@ -771,6 +780,12 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       }
     }
 
+    // Task 115: якорь месячного цикла (первый тариф) + накопление
+    // включённых часов расшифровки (24 + 120 = 144 при апгрейде).
+    await ensureBillingCycle();
+    await TranscriptionHoursService.instance
+        .addIncludedHours(includedTranscriptionHours[codeTier]?.toDouble() ?? 0);
+
     await _applyEffectiveTier();
   }
 
@@ -793,6 +808,51 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
   Future<String?> codePeriod() async {
     final p = await SharedPreferences.getInstance();
     return p.getString(_kCodePeriod);
+  }
+
+  /// Task 115: первый тариф (код/покупка) ставит якорь месячного цикла.
+  /// Апгрейды в середине цикла якорь НЕ двигают.
+  Future<void> ensureBillingCycle() async {
+    final p = await SharedPreferences.getInstance();
+    if (p.getInt(_kBillingCycleStartMs) == null) {
+      await p.setInt(
+          _kBillingCycleStartMs, DateTime.now().millisecondsSinceEpoch);
+    }
+  }
+
+  /// +1 месяц с клампом дня (31.01 → 28/29.02). Покрыто юнит-тестом.
+  static DateTime addMonthsClamped(DateTime d, int months) {
+    final total = d.month - 1 + months;
+    final y = d.year + total ~/ 12;
+    final m = total % 12 + 1;
+    const daysIn = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    var maxDay = daysIn[m - 1];
+    if (m == 2 && (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0))) {
+      maxDay = 29;
+    }
+    final day = d.day <= maxDay ? d.day : maxDay;
+    return DateTime(y, m, day, d.hour, d.minute, d.second);
+  }
+
+  /// Task 115: если наступил следующий месяц цикла — сдвигаем cycleStart
+  /// (на случай пропуска нескольких месяцев — while). true — цикл обновлён;
+  /// кошельки (TranscriptionHoursService/AiHoursService) при true сбрасывают
+  /// used и выдают свежий пакет текущего тарифа (остаток сгорает).
+  Future<bool> rolloverBillingCycleIfNeeded() async {
+    final p = await SharedPreferences.getInstance();
+    final startMs = p.getInt(_kBillingCycleStartMs);
+    if (startMs == null) return false;
+    var start = DateTime.fromMillisecondsSinceEpoch(startMs);
+    final now = DateTime.now();
+    var changed = false;
+    while (!now.isBefore(addMonthsClamped(start, 1))) {
+      start = addMonthsClamped(start, 1);
+      changed = true;
+    }
+    if (changed) {
+      await p.setInt(_kBillingCycleStartMs, start.millisecondsSinceEpoch);
+    }
+    return changed;
   }
 
   /// Эффективный тариф: максимум из Play-подписок и активного кода (089).
