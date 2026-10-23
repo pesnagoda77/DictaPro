@@ -199,6 +199,9 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       // При запуске — сверка если нужна.
       await BillingVerifyService.instance.verifyAll();
       await restore();
+      // Task 116 П.5: санитар балансов после старта — лечит устройства,
+      // уже накопившие лишние бонусы (2210 ч у тестера BY).
+      lastSanitizeReport = await _runBalanceSanity();
       }
     } catch (e) {
       debugPrint('[purchase] store недоступен ($e) — работаем на локальном кэше');
@@ -209,6 +212,32 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       // Task 116: init завершён (успешно или кэш-режим) — выпускаем ждущих.
       if (!_ready.isCompleted) _ready.complete();
     }
+  }
+
+  /// Task 116: последний отчёт санитара балансов ('' — всё чисто).
+  /// Экрана диагностики в приложении нет (убран в task 109) — отчёт
+  /// читается из логов и этого поля.
+  String lastSanitizeReport = '';
+
+  /// Task 116 П.5: санитар балансов. Ожидаемый месячный лимит = база
+  /// текущего тарифа + бонусы, записанные в журнале текущего цикла.
+  /// Фактический баланс больше — следы бага 2210 ч → клэмп + отчёт.
+  /// Запускается после старта — уже заражённые устройства лечатся.
+  Future<String> _runBalanceSanity() async {
+    final ai = await AiHoursService.instance.sanitizeBalance();
+    final tr = await TranscriptionHoursService.instance.sanitizeBalance();
+    final report = [ai, tr].where((e) => e.isNotEmpty).join('\n');
+    if (report.isNotEmpty) {
+      debugPrint('[purchase] SANITY:\n$report');
+    }
+    return report;
+  }
+
+  /// Task 116: старт текущего месячного цикла (мс) — нужен журналу
+  /// начислений и санитару.
+  Future<int?> billingCycleStartMs() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getInt(_kBillingCycleStartMs);
   }
 
   /// Task 116 П.4: перечитать продукты (цены) из магазина.
@@ -572,7 +601,11 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       final bonusKey = () {
         final base = baseOrderId(purchase.purchaseID);
         if (base.isNotEmpty) return 'order:$base';
-        return '${purchase.productID}:${purchase.transactionDate}';
+        // Task 116 П.5: iOS/нет orderId — продления меняют transactionDate,
+        // ограничиваем одним бонусом в месяц на продукт (месячную выдачу
+        // делает ролловер цикла).
+        final n = DateTime.now();
+        return 'sub:${purchase.productID}:m${n.year}-${n.month.toString().padLeft(2, '0')}';
       }();
       final applied = (pref.getStringList(_kSubBonusApplied) ?? []).toSet();
       if (!applied.contains(bonusKey)) {
@@ -626,7 +659,7 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
   /// каждые ~5 мин; после отмены expiry сжимается до минут и быстро
   /// оказывается в прошлом. Нет данных (iOS/пустой originalJson) —
   /// не решаем, считаем живой (решит restore/серверная сверка).
-  Future<bool> _isSubscriptionExpired(PurchaseDetails purchase) {
+  Future<bool> _isSubscriptionExpired(PurchaseDetails purchase) async {
     try {
       final raw = purchase is GooglePlayPurchaseDetails
           ? purchase.billingClientPurchase.originalJson

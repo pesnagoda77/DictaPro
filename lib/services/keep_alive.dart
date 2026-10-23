@@ -23,19 +23,19 @@ void dictaTaskCallback() {
 
 class DictaTaskHandler extends TaskHandler {
   @override
-  void onStart(DateTime timestamp) {}
+  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {}
 
   @override
-  void onRepeatEvent(DateTime timestamp) {}
+  Future<void> onRepeatEvent(DateTime timestamp) async {}
 
   @override
-  void onDestroy(DateTime timestamp) {}
+  Future<void> onDestroy(DateTime timestamp) async {}
 
   @override
-  void onReceiveData(Object data) {}
+  Future<void> onReceiveData(Object data) async {}
 
   @override
-  void onNotificationPressed() {
+  Future<void> onNotificationPressed() async {
     try {
       FlutterForegroundTask.launchApp('/');
     } catch (e) {
@@ -44,10 +44,10 @@ class DictaTaskHandler extends TaskHandler {
   }
 
   @override
-  void onNotificationDismissed() {}
+  Future<void> onNotificationDismissed() async {}
 
   @override
-  void onNotificationButtonPressed(String id) {}
+  Future<void> onNotificationButtonPressed(String id) async {}
 }
 
 /// Задача 036. Длинная операция (расшифровка файла) должна выживать при

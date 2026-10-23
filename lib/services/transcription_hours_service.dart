@@ -111,6 +111,35 @@ class TranscriptionHoursService {
   }
 
   /// Хватит ли баланса на файл длиной [audioMs]?
+  /// Task 116 П.5: санитар баланса расшифровки. used не может быть
+  /// отрицательным, total не превышает накопленную базу + пакеты.
+  /// Возвращает отчёт или '' (всё чисто).
+  Future<String> sanitizeBalance() async {
+    final p = await SharedPreferences.getInstance();
+    final month = p.getString(_kMonth) ?? '';
+    final used = p.getString(_kMonth) == _monthKey()
+        ? (p.getDouble(_kIncludedUsed) ?? 0)
+        : 0;
+    final total = await includedTotal();
+    final packMin = await packMinutesLeft();
+    var report = '';
+    if (used < 0) {
+      await p.setDouble(_kIncludedUsed, 0);
+      report += 'transcr: отрицательный used → 0; ';
+    }
+    if (total < 0) {
+      report += 'transcr: total < 0 (кривой накопительный лимит) — клэмп к пакетам; ';
+      // total пересчитается при следующем addIncludedHours; сейчас обнуляем
+      // до 0, чтобы не раздавать бесконечные часы.
+      await p.setDouble(_kIncludedTotal, 0);
+    }
+    if (packMin < 0) {
+      await p.setDouble(_kPackMinutes, 0);
+      report += 'transcr: отрицательные пакеты → 0; ';
+    }
+    return report;
+  }
+
   Future<bool> canSpend(int audioMs) async {
     if (isUnlimited) return true;
     return (await balanceHours()) >= _chargeOf(audioMs);

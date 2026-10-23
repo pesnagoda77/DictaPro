@@ -24,6 +24,9 @@ class AiHoursService {
   static const _kIncludedTotal = 'aihours_included_total_v1';
   static const _kPackMinutes = 'aihours_pack_minutes_v1';
   static const _kLastSeen = 'aihours_last_seen_ms_v1';
+  /// Task 116 П.5: журнал начислений месячного бонуса
+  /// ('<cycleStartMs>:<hours>') — основа санитара балансов.
+  static const _kBonusLedger = 'aihours_bonus_ledger_v1';
 
   static String _monthKey() {
     final n = DateTime.now();
@@ -69,6 +72,24 @@ class AiHoursService {
     final p = await SharedPreferences.getInstance();
     if (p.getString(_kMonth) != _monthKey()) return 0;
     return p.getDouble(_kIncludedUsed) ?? 0;
+  }
+
+  /// Task 116 П.5: санитар баланса. Месячная часть (включённые тарифа)
+  /// не может превышать includedHours(tier). Пакеты не трогаем — они
+  /// бессрочные и приходят отдельно. Возвращает отчёт или '' (всё чисто).
+  Future<String> sanitizeBalance() async {
+    final p = await SharedPreferences.getInstance();
+    final base = tierIncludedHours();
+    final used = p.getString(_kMonth) == _monthKey()
+        ? (p.getDouble(_kIncludedUsed) ?? 0)
+        : 0;
+    final inclLeft = (base - used).clamp(0.0, double.infinity);
+    if (base <= 0 && inclLeft <= 0) return ''; // без тарифа лечить нечем
+    if (used < 0) {
+      await p.setDouble(_kIncludedUsed, 0);
+      return 'ai_hours: отрицательный used → 0';
+    }
+    return ''; // месячная корзина сама ограничена base − used
   }
 
   /// Полный баланс (в часах): включённые (за вычетом месячного расхода) + пакеты.
