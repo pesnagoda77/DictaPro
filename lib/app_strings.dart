@@ -108,6 +108,13 @@ class AppStrings {
       'de': 'KI-Stunden sind aufgebraucht. Abo verlängern oder Stundenpaket kaufen.',
       'it': 'Ore AI esaurite. Rinnova l\'abbonamento o acquista un pacchetto di ore.',
     },
+    // Task 116 П.6: отказ с реальными цифрами вместо абстрактного «0.0 часов».
+    'online_summary_no_hours_detail': {
+      'ru': 'Не хватает ИИ-часов: есть {h} ч, нужно ~{n} ч. Докупите пакет или оформите тариф.', 'es': 'Faltan horas de IA: tienes {h} h, necesitas ~{n} h. Compra un paquete o suscripción.', 'fr': 'Heures IA insuffisantes : {h} h disponibles, ~{n} h nécessaires. Achetez un pack ou un abonnement.',
+      'en': 'Not enough AI hours: you have {h} h, need ~{n} h. Buy a pack or subscribe.',
+      'de': 'Zu wenig KI-Stunden: du hast {h} h, brauchst ~{n} h. Kaufe ein Paket oder ein Abo.',
+      'it': 'Ore AI insufficienti: hai {h} h, servono ~{n} h. Compra un pacchetto o un abbonamento.',
+    },
     'online_summary_from_cache': {
       'ru': 'Взято из кэша — бесплатно.', 'es': 'Desde la caché — gratis.', 'fr': 'Servi depuis le cache — gratuit.',
       'en': 'Served from cache — free.',

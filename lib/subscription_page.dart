@@ -31,11 +31,19 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
   @override
   void initState() {
     super.initState();
+    // Task 116 П.4: перечитать цены (продукты могли активироваться недавно).
+    PurchaseService.instance.refreshProducts().then((_) {
+      if (mounted) setState(() {});
+    });
     _refreshBalance();
     _initPeriodFromPlan();
     // Task 114: шапка обновляется СРАЗУ после активации кода/покупки —
     // без входа-выхода со страницы (planRevision в PurchaseService).
     _purchases.planRevision.addListener(_onPlanChanged);
+    // Task 116 П.4: переопрос цен при открытии — продукты, добавленные
+    // в консоль после установки приложения, подхватываются без рестарта.
+    // planRevision перечитает шапку/карточки, когда цены придут.
+    _purchases.refreshProducts();
   }
 
   @override
@@ -582,32 +590,35 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
         childAspectRatio: 2.4,
         children: [
           for (final e in entries)
-            InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: _busy ? null : () => _buyPack(e.key),
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: tk.surface2,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: tk.line),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(AppStrings.tf('sub_hours_short', context, {'n': e.value.toStringAsFixed(0)}),
-                        style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 3),
-                    Text(
-                        _purchases.priceOf(e.key) ??
-                            AppStrings.t('sub_price_pending', context),
-                        style: tk.mono(12.5, FontWeight.w600, tk.mint)),
-                  ],
+            // Task 116 П.4: без заглушек «цена появится после запуска» —
+            // карточка пакета показывается только когда цена реально
+            // пришла из магазина.
+            if (_purchases.priceOf(e.key) != null)
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _busy ? null : () => _buyPack(e.key),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: tk.surface2,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: tk.line),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(AppStrings.tf('sub_hours_short', context, {'n': e.value.toStringAsFixed(0)}),
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 3),
+                      Text(
+                          _purchases.priceOf(e.key)!,
+                          style: tk.mono(12.5, FontWeight.w600, tk.mint)),
+                    ],
+                  ),
                 ),
               ),
-            ),
         ],
       ),
       const SizedBox(height: 6),
@@ -631,32 +642,33 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
         childAspectRatio: 2.4,
         children: [
           for (final e in entries)
-            InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: _busy ? null : () => _buyPackTr(e.key),
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: tk.surface2,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: tk.line),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(AppStrings.tf('sub_hours_short', context, {'n': e.value.toStringAsFixed(0)}),
-                        style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 3),
-                    Text(
-                        _purchases.priceOf(e.key) ??
-                            AppStrings.t('sub_price_pending', context),
-                        style: tk.mono(12.5, FontWeight.w600, tk.mint)),
-                  ],
+            // Task 116 П.4: карточка только с реальной ценой из магазина.
+            if (_purchases.priceOf(e.key) != null)
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _busy ? null : () => _buyPackTr(e.key),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: tk.surface2,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: tk.line),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(AppStrings.tf('sub_hours_short', context, {'n': e.value.toStringAsFixed(0)}),
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 3),
+                      Text(
+                          _purchases.priceOf(e.key)!,
+                          style: tk.mono(12.5, FontWeight.w600, tk.mint)),
+                    ],
+                  ),
                 ),
               ),
-            ),
         ],
       ),
       const SizedBox(height: 6),

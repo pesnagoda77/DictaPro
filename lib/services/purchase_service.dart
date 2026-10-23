@@ -175,6 +175,12 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
     SubscriptionTier.unlimited: null,
   };
 
+  /// Task 116 П.6: завершённость полного init (включая restore).
+  /// UI (ИИ-итоги) ждёт [ready] перед проверкой баланса — иначе гонка
+  /// «0.0 часов» с первого тапа.
+  final Completer<void> _ready = Completer<void>();
+  Future<void> get ready => _ready.future;
+
   Future<void> init() async {
     final p = await SharedPreferences.getInstance();
     unlocked.value = p.getBool(_kUnlocked) ?? false;
@@ -187,23 +193,7 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       if (_storeAvailable) {
         // Task 066: год на Android — базовый план внутри подписки, отдельных
         // товаров *_year в Play нет; запрашивать их не нужно.
-        final ids = <String>{
-          fullUnlockId,
-          ...tierSubscriptionId.values,
-          if (!Platform.isAndroid) ...[
-            subDiaryYearId,
-            subAssistantYearId,
-            subUnlimitedYearId,
-          ],
-          ...packIds.keys,
-          ...packTrIds.keys,
-        };
-        final response = await _iap.queryProductDetails(ids);
-        _products = response.productDetails;
-        final missing = response.notFoundIDs;
-        if (missing.isNotEmpty) {
-          debugPrint('[purchase] не найдены в консоли: $missing');
-        }
+        await refreshProducts();
         // Task 087: инициализация серверной сверки (worker URL получим от Краба).
       await BillingVerifyService.instance.init();
       // При запуске — сверка если нужна.
@@ -215,6 +205,32 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       _storeAvailable = false;
       // Task 083: store недоступен — проверяем грейс-период.
       await _applyOfflineGrace();
+    } finally {
+      // Task 116: init завершён (успешно или кэш-режим) — выпускаем ждущих.
+      if (!_ready.isCompleted) _ready.complete();
+    }
+  }
+
+  /// Task 116 П.4: перечитать продукты (цены) из магазина.
+  /// Вызывается из init и при открытии экрана подписки — цены могли
+  /// появиться после активации продуктов в консоли.
+  Future<void> refreshProducts() async {
+    final ids = <String>{
+      fullUnlockId,
+      ...tierSubscriptionId.values,
+      if (!Platform.isAndroid) ...[
+        subDiaryYearId,
+        subAssistantYearId,
+        subUnlimitedYearId,
+      ],
+      ...packIds.keys,
+      ...packTrIds.keys,
+    };
+    final response = await _iap.queryProductDetails(ids);
+    _products = response.productDetails;
+    final missing = response.notFoundIDs;
+    if (missing.isNotEmpty) {
+      debugPrint('[purchase] не найдены в консоли: $missing');
     }
   }
 
@@ -535,8 +551,19 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       // Раньше были только текстом в карточке — покупатель не получал ничего.
       // Начисляем один раз на покупку (по purchaseID), в том числе при restore.
       final pref = await SharedPreferences.getInstance();
-      final bonusKey =
-          purchase.purchaseID ?? '${purchase.productID}:${purchase.transactionDate}';
+      // Task 116 П.5: дедуп по БАЗОВОМУ orderId. Play при авто-продлении
+      // тестовой подписки (каждые 5 мин) выдаёт новый orderId с суффиксом
+      // '..N' — иначе бонус +10 падал на каждое продление (2210 ч).
+      String baseOrderId(String? id) {
+        if (id == null) return '';
+        final i = id.indexOf('..');
+        return i > 0 ? id.substring(0, i) : id;
+      }
+      final bonusKey = () {
+        final base = baseOrderId(purchase.purchaseID);
+        if (base.isNotEmpty) return 'order:$base';
+        return '${purchase.productID}:${purchase.transactionDate}';
+      }();
       final applied = (pref.getStringList(_kSubBonusApplied) ?? []).toSet();
       if (!applied.contains(bonusKey)) {
         final bonus = includedHours[t] ?? 0;

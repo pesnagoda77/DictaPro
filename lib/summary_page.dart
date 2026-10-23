@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'app_strings.dart';
 import 'models/recording_details_model.dart';
 import 'services/ai_hours_service.dart';
+import 'services/purchase_service.dart';
 import 'services/enhanced_summary_service.dart';
 import 'services/online_summary_service.dart';
 import 'theme/app_theme.dart';
@@ -120,6 +121,9 @@ class _SummaryPageState extends State<SummaryPage> {
   }
 
   Future<void> _refreshHoursLabel() async {
+    // Task 116 П.6: гарантия, что кошельки инициализированы (init
+    // идемпотентен) — иначе первый тап видит «0.0 часов» из-за гонки.
+    await PurchaseService.instance.init();
     final label = await AiHoursService.instance.balanceLabel();
     final canSpend = await AiHoursService.instance.canSpend(_audioMs);
     if (mounted) {
@@ -137,10 +141,25 @@ class _SummaryPageState extends State<SummaryPage> {
     final transcript = widget.recording.transcript;
     if (transcript == null || transcript.isEmpty || _onlineBusy) return;
 
-    final canSpend = await AiHoursService.instance.canSpend(_audioMs);
+    // Task 116 П.6: «0.0 часов» с первого тапа — гонка: биллинг ещё
+    // инициализируется, кошелёк пуст. Дождаться restore/ready, перечитать.
+    try {
+      await PurchaseService.instance.ready;
+    } catch (_) {}
+    var canSpend = await AiHoursService.instance.canSpend(_audioMs);
+    if (!canSpend) {
+      // Вторая попытка после короткой паузы (данные могли доехать).
+      await Future.delayed(const Duration(milliseconds: 600));
+      await _refreshHoursLabel();
+      canSpend = await AiHoursService.instance.canSpend(_audioMs);
+    }
     if (!mounted) return;
     if (!canSpend) {
-      _showSnack(AppStrings.t('online_summary_no_hours', context));
+      // Честный отказ: реальный остаток + сколько нужно.
+      final left = await AiHoursService.instance.balanceHours();
+      final need = _audioMs / 3600000.0;
+      _showSnack(AppStrings.t('online_summary_no_hours', context) +
+          ' (${left.toStringAsFixed(1)} ч < ${need.toStringAsFixed(1)} ч)');
       return;
     }
 

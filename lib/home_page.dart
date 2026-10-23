@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
@@ -1224,76 +1226,10 @@ class _HomePageState extends State<HomePage>
       });
       _loadRecordings();
 
-      // Full batch transcription после остановки записи
-      // Task 053: длинные записи (>5 ч) — сначала честный диалог с оценкой,
-      // до показа прогресс-диалога расшифровки.
-      final recordingsPre = AudioService().getAllRecordings();
-      if (recordingsPre.isNotEmpty &&
-          !await _confirmLongTranscription(
-              recordingsPre.first.durationMs as int? ?? 0)) {
-        return;
-      }
-      // Task 054: лимит бесплатной расшифровки действует и на пакетный запуск.
-      if (recordingsPre.isNotEmpty &&
-          !await _checkTranscribeLimit(
-              recordingsPre.first.durationMs as int? ?? 0)) {
-        return;
-      }
-      _showTranscribingDialog();
-      try {
-        final recordings = AudioService().getAllRecordings();
-        if (recordings.isNotEmpty) {
-          final latest = recordings.first;
-          final asrLangRec = await _chooseAsrLang();
-          if (asrLangRec == null) return;
-          final onlineText = await _onlineTranscript(latest.filePath);
-          final result = onlineText == null
-              ? await _transcribeOffline(latest.filePath,
-                  asrLang: asrLangRec,
-                  hotwords: HotwordsStorage.parse(latest.hotwords ?? ''))
-              : null;
-          final fullText = onlineText ?? result!.fullText;
-
-          latest.transcription = fullText;
-          latest.segments = result != null
-              ? result.segments.map((s) => s.toMap()).toList()
-              : null;
-          latest.tags = TagService.extractTags(fullText);
-          // Task 057: саммари ТОЛЬКО на устройстве (BYOK-облако отменено).
-          // Никаких ключей, никакой отправки текста. Недоступно/пусто —
-          // честная строка, а не молчание.
-          _opStage.value = AppStrings.t('summary_computing', context);
-          try {
-            final local = (await EnhancedSummaryService.generateSummaryAsync(
-                    fullText))
-                .formatted
-                .trim();
-            latest.summary =
-                local.isEmpty ? AppStrings.t('summary_failed', context) : local;
-          } catch (_) {
-            latest.summary = AppStrings.t('summary_failed', context);
-          }
-          latest.decisions = SummaryService.getDecisions(fullText);
-          await AudioService().updateRecording(latest);
-          // Task 054: трата минут фиксируется после УСПЕШНОЙ расшифровки.
-          await _recordTranscribeUsage(latest.durationMs as int? ?? 0);
-          // Task 056: готово в фоне → уведомление + плашка при возврате.
-          if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
-            _finishedInBackground = true;
-          }
-          await LocalNotify.instance.showTranscriptionDone();
-          _loadRecordings();
-        }
-      } catch (e) {
-        // Батч не удался — запись остаётся без транскрипции, сообщаем честно
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(AppStrings.tf('transcribe_failed', context, {'e': '$e'}))),
-          );
-        }
-      } finally {
-        _hideTranscribingDialog();
-      }
+      // Task 116 П.1.3 (Славан): автостарт расшифровки УБРАН.
+      // Пользователь после остановки остаётся на экране записи — решает сам:
+      // может записать ещё один кусок. Запуск — кнопкой «Расшифровать»
+      // в карточке записи (_transcribeRecording), там же лимиты и подтверждения.
     } else {
       // 06.10: термины больше не спрашиваем на старте — они вводятся в карточке
       // текста записи («Термины этой записи» → «Заново»).
@@ -2099,7 +2035,27 @@ class _HomePageState extends State<HomePage>
   @override
   /// Task 056: актуальный статус после возврата из фона.
   @override
+  /// Task 116 П.3/П.8: возврат из Play (отменил/купил подписку) — тихо
+  /// перепроверяем покупки: restore пересобирает активный набор,
+  /// тариф и бонусы синхронизируются без перезахода.
+  DateTime? _lastPurchaseRecheck;
+  Future<void> _recheckPurchases() async {
+    final now = DateTime.now();
+    if (_lastPurchaseRecheck != null &&
+        now.difference(_lastPurchaseRecheck!) < const Duration(minutes: 2)) {
+      return; // антиспам: не чаще раза в 2 минуты
+    }
+    _lastPurchaseRecheck = now;
+    try {
+      await PurchaseService.instance.restore();
+    } catch (_) {}
+  }
+
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Task 116 П.3/П.8: вернулись из Play — тихая сверка покупок.
+      _recheckPurchases();
+    }
     if (state == AppLifecycleState.resumed && _finishedInBackground) {
       _finishedInBackground = false;
       if (mounted) {
@@ -2177,18 +2133,9 @@ class _HomePageState extends State<HomePage>
                               MaterialPageRoute(
                                   builder: (_) => const HowToUsePage()),
                             ),
-                            child: SizedBox(
+                            child: const SizedBox(
                               width: 180,
-                              child: DictaMarquee(
-                                text:
-                                    '${AppStrings.t('splash_slogan', context)}. '
-                                    '${AppStrings.freeLimitBanner(context, limit: UsageLimitService.dailyMinutesLimit)}',
-                                style: TextStyle(
-                                  fontSize: 10.5,
-                                  color: DictaTokens.of(context).mint,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
+                              child: _LiveMarquee(),
                             ),
                           )
                         else
@@ -2326,6 +2273,9 @@ class _HomePageState extends State<HomePage>
                 // (нижняя кнопка записи убрана — одна большая кнопка выше)
                 const SizedBox(height: 8),
                 if (!_isRecording)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
                   Align(
                     alignment: Alignment.centerLeft,
                     child: GestureDetector(
@@ -2357,6 +2307,43 @@ class _HomePageState extends State<HomePage>
                         ),
                       ),
                     ),
+                  ),
+                  // Task 116 П.1.2: «Инструкция» — тот же чип, правый край.
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const HowToUsePage()),
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: DictaTokens.of(context).surface2,
+                          borderRadius: BorderRadius.circular(99),
+                          border: Border.all(
+                              color: DictaTokens.of(context).line),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.menu_book_outlined,
+                                size: 14, color: DictaTokens.of(context).ink3),
+                            const SizedBox(width: 5),
+                            Text(
+                              AppStrings.t('help_title', context),
+                              style: TextStyle(
+                                  color: DictaTokens.of(context).ink2,
+                                  fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                    ],
                   ),
               ],
             ),
@@ -2705,6 +2692,107 @@ class _ActionButton extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+
+/// Task 116 П.1.1 (Славан): бегущая строка с живыми данными:
+/// «Без интернета бесплатно: расшифровка 30 минут в день · Тариф «Дневник»
+/// до 21.11.2026 · остаток расшифровки 22,3 ч · ИИ-часы 5,2 ч».
+/// Перечитывается при planRevision (покупка/код/отмена) и после каждой
+/// успешной расшифровки (TranscriptionHoursService тратит — тот же notifer).
+class _LiveMarquee extends StatefulWidget {
+  const _LiveMarquee();
+  @override
+  State<_LiveMarquee> createState() => _LiveMarqueeState();
+}
+
+class _LiveMarqueeState extends State<_LiveMarquee> {
+  String _text = '';
+  int _seenRevision = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    PurchaseService.instance.planRevision.addListener(_reload);
+    _reload();
+  }
+
+  @override
+  void dispose() {
+    PurchaseService.instance.planRevision.removeListener(_reload);
+    super.dispose();
+  }
+
+  Future<void> _reload() async {
+    final rev = PurchaseService.instance.planRevision.value;
+    final tier = PurchaseService.instance.tier.value;
+    final p = await SharedPreferences.getInstance();
+
+    final parts = <String>[];
+    parts.add(AppStrings.tGlobal('splash_slogan').replaceAll('.', ''));
+    if (tier == SubscriptionTier.none) {
+      parts.add(AppStrings.freeLimitBanner(
+          this.context ?? this.context,
+          limit: UsageLimitService.dailyMinutesLimit));
+    } else {
+      // Дата окончания: Play-подписка или код.
+      final expMs = p.getInt('play_subscription_expiry_v1') ??
+          p.getInt('code_activated_expiry_v1');
+      final tierName = switch (tier) {
+        SubscriptionTier.diary => 'Дневник',
+        SubscriptionTier.assistant => 'Ассистент',
+        SubscriptionTier.unlimited => 'Безлимит',
+        SubscriptionTier.none => '',
+      };
+      if (expMs != null) {
+        final d = DateTime.fromMillisecondsSinceEpoch(expMs);
+        parts.add('Тариф «$tierName» до ${d.day.toString().padLeft(2, '0')}.'
+            '${d.month.toString().padLeft(2, '0')}.${d.year}');
+      } else {
+        parts.add('Тариф «$tierName»');
+      }
+      // Остаток часов расшифровки.
+      try {
+        final left = await TranscriptionHoursService.instance.balanceHours();
+        parts.add('остаток расшифровки ${left.toStringAsFixed(1)} ч');
+      } catch (_) {}
+    }
+    // ИИ-часы — всегда (и без тарифа: пакеты/бонусы).
+    try {
+      final ai = await AiHoursService.instance.balanceHours();
+      parts.add('ИИ-часы ${ai.toStringAsFixed(1)} ч');
+    } catch (_) {}
+
+    final text = parts.join(' · ');
+    if (!mounted) return;
+    setState(() {
+      _seenRevision = rev;
+      _text = text;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_text.isEmpty) {
+      return DictaMarquee(
+        text: '${AppStrings.t('splash_slogan', context)}. '
+            '${AppStrings.freeLimitBanner(context, limit: UsageLimitService.dailyMinutesLimit)}',
+        style: TextStyle(
+          fontSize: 10.5,
+          color: DictaTokens.of(context).mint,
+          fontWeight: FontWeight.w500,
+        ),
+      );
+    }
+    return DictaMarquee(
+      text: _text,
+      style: TextStyle(
+        fontSize: 10.5,
+        color: DictaTokens.of(context).mint,
+        fontWeight: FontWeight.w500,
       ),
     );
   }
