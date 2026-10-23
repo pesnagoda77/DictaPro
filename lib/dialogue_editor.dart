@@ -540,7 +540,7 @@ class _DialogueEditorState extends State<DialogueEditor> {
 
     setState(() => _exportingFragment = true);
     final path = await AudioFragmentService.exportFragment(
-      storedPath: widget.recording.filePath,
+      rec: widget.recording,
       startSec: start,
       endSec: end,
     );

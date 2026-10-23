@@ -28,11 +28,71 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL = "dictapro/convert"
     private val MODEL_CHANNEL = "dictapro/model"
     private val KEEPALIVE_CHANNEL = "dictapro/keepalive"
+    private val RECORDINGS_CHANNEL = "dictapro/recordings"
     private val TAG = "DictaPro"
     private val PACK_NAME = "gigaam_pack"
+    /// Task 116 П.2: публичная папка записей (видна пользователю в Files).
+    private val RECORDINGS_RELATIVE_PATH =
+        "${android.os.Environment.DIRECTORY_DOCUMENTS}/DictaPro/Записи"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        // Task 116 П.2: публикация/чтение/удаление записей в публичной
+        // Documents/DictaPro/Записи. На API 29+ — через MediaStore
+        // (scoped storage, разрешения не нужны для своих файлов);
+        // ≤28 — прямой путь + медиасканер.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, RECORDINGS_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "publishRecording" -> {
+                    val srcPath = call.argument<String>("srcPath") ?: ""
+                    val displayName = call.argument<String>("displayName") ?: ""
+                    if (srcPath.isEmpty() || displayName.isEmpty()) {
+                        result.error("INVALID_ARGUMENTS", "srcPath/displayName", null)
+                        return@setMethodCallHandler
+                    }
+                    Thread {
+                        try {
+                            val out = publishRecordingToDocuments(srcPath, displayName)
+                            runOnUiThread { result.success(out) }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "publishRecording FAILED", e)
+                            runOnUiThread { result.success(null) }
+                        }
+                    }.start()
+                }
+                "materializeRecording" -> {
+                    val uri = call.argument<String>("uri") ?: ""
+                    val name = call.argument<String>("name") ?: "recording.wav"
+                    if (uri.isEmpty()) {
+                        result.error("INVALID_ARGUMENTS", "uri", null)
+                        return@setMethodCallHandler
+                    }
+                    Thread {
+                        try {
+                            val path = materializeRecording(uri, name)
+                            runOnUiThread { result.success(path) }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "materializeRecording FAILED", e)
+                            runOnUiThread { result.success(null) }
+                        }
+                    }.start()
+                }
+                "deleteRecording" -> {
+                    val uri = call.argument<String>("uri") ?: ""
+                    try {
+                        if (uri.isNotEmpty()) {
+                            contentResolver.delete(Uri.parse(uri), null, null)
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "deleteRecording: ${e.message}")
+                        result.success(false)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
 
         // Task 038: фактическое состояние исключения из экономии батареи и
         // прямой выход на экран батареи приложения. MIUI-запрос из
@@ -201,6 +261,130 @@ class MainActivity : FlutterActivity() {
                 }
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    // Task 116 П.2: запись → публичная Documents/DictaPro/Записи.
+    // Возвращает map("path" — абсолютный путь для показа в UI,
+    // "uri" — content:// для чтения/удаления через MediaStore;
+    // на ≤API 28 uri отсутствует, читаем напрямую по path).
+    private fun publishRecordingToDocuments(srcPath: String, displayName: String): Map<String, String>? {
+        val src = File(srcPath)
+        if (!src.exists() || !src.canRead()) throw Exception("src missing: $srcPath")
+
+        if (Build.VERSION.SDK_INT >= 29) {
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Files.FileColumns.DISPLAY_NAME, displayName)
+                put(android.provider.MediaStore.Files.FileColumns.MIME_TYPE, mimeForName(displayName))
+                put(android.provider.MediaStore.Files.FileColumns.RELATIVE_PATH, RECORDINGS_RELATIVE_PATH)
+            }
+            val collection = android.provider.MediaStore.Files.getContentUri(
+                android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            val uri = contentResolver.insert(collection, values)
+                ?: throw Exception("MediaStore insert failed")
+            var failed = false
+            try {
+                contentResolver.openOutputStream(uri, "w")?.use { os ->
+                    java.io.BufferedInputStream(java.io.FileInputStream(src)).use { input ->
+                        val buf = ByteArray(1 shl 20)
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n <= 0) break
+                            os.write(buf, 0, n)
+                        }
+                    }
+                } ?: throw Exception("openOutputStream failed")
+            } catch (e: Exception) {
+                failed = true
+                try { contentResolver.delete(uri, null, null) } catch (_: Exception) {}
+                throw e
+            }
+            // Фактическое имя (MediaStore мог добавить суффикс при коллизии).
+            val realName = queryDisplayName(uri) ?: displayName
+            return mapOf(
+                "path" to "/storage/emulated/0/$RECORDINGS_RELATIVE_PATH/$realName",
+                "uri" to uri.toString(),
+            )
+        }
+
+        // ≤API 28: прямой путь, разрешение WRITE_EXTERNAL_STORAGE уже есть.
+        val dir = java.io.File(
+            android.os.Environment.getExternalStoragePublicDirectory(
+                android.os.Environment.DIRECTORY_DOCUMENTS),
+            "DictaPro/Записи")
+        if (!dir.exists()) dir.mkdirs()
+        var dst = java.io.File(dir, displayName)
+        var stem = displayName.substringBeforeLast('.')
+        val ext = displayName.substringAfterLast('.', "")
+        var i = 1
+        while (dst.exists()) {
+            dst = java.io.File(dir, "$stem($i)${if (ext.isEmpty()) "" else ".$ext"}")
+            i++
+        }
+        java.io.BufferedInputStream(java.io.FileInputStream(src)).use { input ->
+            java.io.FileOutputStream(dst).use { os ->
+                val buf = ByteArray(1 shl 20)
+                while (true) {
+                    val n = input.read(buf)
+                    if (n <= 0) break
+                    os.write(buf, 0, n)
+                }
+            }
+        }
+        // Показать файл-менеджерам (MediaScanner).
+        try {
+            android.media.MediaScannerConnection.scanFile(
+                this, arrayOf(dst.absolutePath), null, null)
+        } catch (_: Exception) {}
+        return mapOf("path" to dst.absolutePath)
+    }
+
+    // Task 116 П.2: content:// → временный файл в app-кэше для плеера,
+    // конвертера, шаринга. Scoped storage запрещает читать Documents
+    // напрямую по пути — но создатель читает через ContentResolver.
+    private fun materializeRecording(uriString: String, name: String): String {
+        val uri = Uri.parse(uriString)
+        val safe = name.replace(Regex("[^\\w.\\- ()]"), "_")
+        val dir = java.io.File(cacheDir, "materialized")
+        if (!dir.exists()) dir.mkdirs()
+        var dst = java.io.File(dir, safe)
+        var stem = safe.substringBeforeLast('.')
+        val ext = safe.substringAfterLast('.', "")
+        var i = 1
+        while (dst.exists()) {
+            dst = java.io.File(dir, "$stem(${i})${if (ext.isEmpty()) "" else ".$ext"}")
+            i++
+        }
+        contentResolver.openInputStream(uri)?.use { input ->
+            java.io.FileOutputStream(dst).use { os ->
+                val buf = ByteArray(1 shl 20)
+                while (true) {
+                    val n = input.read(buf)
+                    if (n <= 0) break
+                    os.write(buf, 0, n)
+                }
+            }
+        } ?: throw Exception("openInputStream failed: $uriString")
+        return dst.absolutePath
+    }
+
+    private fun queryDisplayName(uri: Uri): String? {
+        return try {
+            contentResolver.query(uri,
+                arrayOf(android.provider.MediaStore.Files.FileColumns.DISPLAY_NAME),
+                null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0) else null
+            }
+        } catch (_: Exception) { null }
+    }
+
+    private fun mimeForName(name: String): String {
+        val ext = name.substringAfterLast('.', "").lowercase()
+        return when (ext) {
+            "wav" -> "audio/wav"
+            "m4a" -> "audio/mp4"
+            "aac" -> "audio/aac"
+            else -> "application/octet-stream"
         }
     }
 

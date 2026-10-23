@@ -1499,8 +1499,9 @@ class _HomePageState extends State<HomePage>
   Future<void> _transcribeRecording(rec,
       {bool resumeFromPartial = false, bool openEditor = true}) async {
     // Путь может содержать старый UUID контейнера (iOS меняет его при
-    // переустановке) — вычисляем актуальный.
-    final filePath = await AudioService.resolveFilePath(rec.filePath);
+    // переустановке) — вычисляем актуальный. Task 116 П.2: записи в
+    // публичной коллекции материализуются во временный файл (scoped storage).
+    final filePath = await AudioService.materializePath(rec);
     final srcFile = File(filePath);
     if (!await srcFile.exists()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1899,7 +1900,7 @@ class _HomePageState extends State<HomePage>
           break;
       }
     } else if (choice == 'audio') {
-      ExportService.shareAudioFile(await AudioService.resolveFilePath(rec.filePath));
+      ExportService.shareAudioFile(await AudioService.materializePath(rec));
     }
   }
 

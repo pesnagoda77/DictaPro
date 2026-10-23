@@ -1678,6 +1678,31 @@ class AppStrings {
       'ru': 'Не удалось открыть папку', 'es': 'No se pudo abrir la carpeta', 'fr': 'Impossible d\'ouvrir le dossier', 'en': 'Could not open folder',
       'de': 'Ordner konnte nicht geöffnet werden', 'it': 'Impossibile aprire la cartella',
     },
+    // Task 116 П.2: очистка файлов записей.
+    'folder_clear': {
+      'ru': 'Очистить', 'es': 'Vaciar', 'fr': 'Vider', 'en': 'Clear',
+      'de': 'Leeren', 'it': 'Svuota',
+    },
+    'folder_clear_confirm_title': {
+      'ru': 'Удалить файлы записей?', 'es': '¿Eliminar archivos de grabación?', 'fr': 'Supprimer les fichiers audio ?', 'en': 'Delete recording files?',
+      'de': 'Aufnahmedateien löschen?', 'it': 'Eliminare i file delle registrazioni?',
+    },
+    'folder_clear_confirm_body': {
+      'ru': 'Будут удалены все аудиофайлы записей. Тексты и расшифровки в приложении останутся.', 'es': 'Se eliminarán todos los archivos de audio. Los textos y transcripciones permanecerán.', 'fr': 'Tous les fichiers audio seront supprimés. Les textes et transcriptions resteront.', 'en': 'All recording audio files will be deleted. Texts and transcriptions will remain.',
+      'de': 'Alle Aufnahmedateien werden gelöscht. Texte und Transkriptionen bleiben erhalten.', 'it': 'Tutti i file audio delle registrazioni verranno eliminati. Testi e trascrizioni rimarranno.',
+    },
+    'folder_cleared': {
+      'ru': 'Удалено файлов: {n}', 'es': 'Archivos eliminados: {n}', 'fr': 'Fichiers supprimés : {n}', 'en': 'Files deleted: {n}',
+      'de': 'Dateien gelöscht: {n}', 'it': 'File eliminati: {n}',
+    },
+    'folder_clear_failed': {
+      'ru': 'Не удалось очистить папку', 'es': 'No se pudo vaciar la carpeta', 'fr': 'Impossible de vider le dossier', 'en': 'Could not clear folder',
+      'de': 'Ordner konnte nicht geleert werden', 'it': 'Impossibile svuotare la cartella',
+    },
+    'folder_clear_cancel': {
+      'ru': 'Отмена', 'es': 'Cancelar', 'fr': 'Annuler', 'en': 'Cancel',
+      'de': 'Abbrechen', 'it': 'Annulla',
+    },
     'summary_prep_text': {
       'ru': 'Готовим текст…', 'en': 'Preparing text…', 'de': 'Text wird vorbereitet…',
       'fr': 'Préparation du texte…', 'es': 'Preparando el texto…', 'it': 'Preparazione del testo…',

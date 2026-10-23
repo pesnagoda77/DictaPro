@@ -102,7 +102,7 @@ class _PlayerPageState extends State<PlayerPage> {
   Future<void> _initPlayer() async {
     try {
       final resolved =
-          await AudioService.resolveFilePath(widget.recording.filePath);
+          await AudioService.materializePath(widget.recording);
       await _player.setFilePath(resolved);
       _duration = _player.duration ?? Duration.zero;
     } catch (_) {
@@ -578,7 +578,7 @@ class _PlayerPageState extends State<PlayerPage> {
 
     setState(() => _exportingFragment = true);
     final path = await AudioFragmentService.exportFragment(
-      storedPath: widget.recording.filePath,
+      rec: widget.recording,
       startSec: start,
       endSec: end,
     );

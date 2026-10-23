@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:record/record.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:just_audio/just_audio.dart';
@@ -35,6 +36,13 @@ class Recording {
   List<String>? decisions;
   List<Map<String, dynamic>>? speakerStats;
 
+  /// Task 116 П.2: content:// URI в публичной Documents/DictaPro/Записи
+  /// (MediaStore). Файл по filePath на API 29+ недоступен напрямую
+  /// (scoped storage) — чтение/проигрывание идёт через материализацию
+  /// из contentUri. null — запись ещё в app-private (миграция не прошла)
+  /// или платформа без scoped storage (≤API 28, iOS).
+  String? contentUri;
+
   Recording({
     required this.id,
     required this.filePath,
@@ -50,6 +58,7 @@ class Recording {
     this.summary,
     this.decisions,
     this.speakerStats,
+    this.contentUri,
   });
 
   Map<String, dynamic> toMap() => {
@@ -67,6 +76,7 @@ class Recording {
         'summary': summary,
         'decisions': decisions,
         'speakerStats': speakerStats?.map((s) => s.map((k, v) => MapEntry(k, v.toString()))).toList(),
+        'contentUri': contentUri,
       };
 
   factory Recording.fromMap(Map<String, dynamic> map) => Recording(
@@ -96,12 +106,27 @@ class Recording {
                 .map((item) => (item as Map).map((k, v) => MapEntry<String, dynamic>(k as String, v)))
                 .toList()
             : null,
+        contentUri: map['contentUri'] as String?,
       );
 }
 
 class AudioService {
   static final AudioService _instance = AudioService._internal();
   factory AudioService() => _instance;
+
+  /// Task 116 П.2: нативный канал публикации записей в публичную
+  /// Documents/DictaPro/Записи через MediaStore (scoped storage).
+  static const MethodChannel _recordingsChannel =
+      MethodChannel('dictapro/recordings');
+
+  /// Task 116 П.2: куда отдаём записи пользователю (публичная папка).
+  /// Тот же путь, что показываем в настройках и открываем по «Открыть».
+  static const String publicRecordingsRelativePath =
+      'Documents/DictaPro/Записи';
+
+  static String get publicRecordingsDisplayPath =>
+      '/storage/emulated/0/$publicRecordingsRelativePath';
+
   AudioService._internal();
 
   final _recorder = AudioRecorder();
@@ -185,6 +210,57 @@ class AudioService {
   /// каждой переустановке. Если в базе сохранён старый абсолютный путь, файл
   /// «не находится», хотя лежит рядом. Поэтому: если сохранённый путь не
   /// существует — берём из него только имя файла и подставляем текущую папку.
+  /// Task 116 П.2: абсолютный путь к СОДЕРЖИМОМУ записи для плеера,
+  /// конвертера и шаринга. Если запись живёт в публичной коллекции
+  /// (contentUri != null), scoped storage запрещает читать её по пути
+  /// напрямую — нативно копируем во временный файл в app-кэш.
+  /// Кэш чистится при каждом init — копии не копятся между сессиями.
+  static Future<String> materializePath(Recording rec) async {
+    final uri = rec.contentUri;
+    if (uri != null && uri.isNotEmpty) {
+      try {
+        final name = rec.filePath.split(RegExp(r'[\\/]')).last;
+        final out = await _recordingsChannel.invokeMethod<String>(
+          'materializeRecording',
+          {'uri': uri, 'name': name.isEmpty ? '${rec.id}.wav' : name},
+        );
+        if (out != null && out.isNotEmpty) return out;
+      } catch (e) {
+        debugPrint('[recordings] materialize failed: $e');
+      }
+    }
+    return resolveFilePath(rec.filePath);
+  }
+
+  /// Task 116 П.2: удалить ВСЕ файлы записей (по contentUri или пути),
+  /// БД и расшифровки НЕ трогаем. Для кнопки «Очистить» в настройках —
+  /// подтверждение спрашивает вызывающий код.
+  static Future<int> clearRecordingFiles(Box<Map> box) async {
+    var removed = 0;
+    for (final key in box.keys) {
+      final raw = box.get(key);
+      if (raw == null) continue;
+      final rec = Recording.fromMap(Map<String, dynamic>.from(raw));
+      try {
+        if (rec.contentUri != null && rec.contentUri!.isNotEmpty) {
+          await _recordingsChannel.invokeMethod<bool>(
+              'deleteRecording', {'uri': rec.contentUri});
+          removed++;
+          continue;
+        }
+        final resolved = await resolveFilePath(rec.filePath);
+        final f = File(resolved);
+        if (await f.exists()) {
+          await f.delete();
+          removed++;
+        }
+      } catch (e) {
+        debugPrint('[recordings] clear $key: $e');
+      }
+    }
+    return removed;
+  }
+
   /// Task 112: обратная совместимость — сначала ищем в новой папке, потом в старой.
   static Future<String> resolveFilePath(String stored) async {
     try {
@@ -205,10 +281,22 @@ class AudioService {
   }
 
   /// Task 112: миграция старых записей в новую папку.
-  /// Вызывается при первом init. Старые файлы удаляются после успешного копирования.
+  /// Task 116 П.2: на Android 10+ «новая папка» — публичная
+  /// Documents/DictaPro/Записи через MediaStore (publishRecording).
+  /// Файл остаётся на месте, если публикация не удалась. Вызывается при
+  /// первом init. Старые файлы удаляются после успешной публикации.
   static Future<void> migrateRecordings(Box<Map> box) async {
+    // Task 116 П.2: копии для чтения/проигрывания — временные, чистим при старте.
     try {
-      final newDir = await recordingsDir();
+      final cacheDir = await getTemporaryDirectory();
+      final mat = Directory('${cacheDir.path}/materialized');
+      if (await mat.exists()) {
+        await mat.delete(recursive: true);
+      }
+    } catch (_) {}
+
+    try {
+      final sdk = Platform.isAndroid ? await _androidSdk() : 0;
       var migrated = 0;
       for (final key in box.keys) {
         final raw = box.get(key);
@@ -218,7 +306,36 @@ class AudioService {
         if (oldPath.isEmpty) continue;
         final oldFile = File(oldPath);
         if (!await oldFile.exists()) continue;
-        // Уже в новой папке?
+
+        // Уже опубликован в публичной коллекции — путь указывает туда.
+        if (rec.contentUri != null && rec.contentUri!.isNotEmpty) continue;
+
+        if (sdk >= 29) {
+          // Task 116 П.2: публикуем в Documents/DictaPro/Записи и убираем
+          // приватную копию. Имена сохраняются.
+          try {
+            final name = oldPath.split(RegExp(r'[\\/]')).last;
+            final pub = await _recordingsChannel.invokeMapMethod<String, dynamic>(
+              'publishRecording',
+              {'srcPath': oldPath, 'displayName': name},
+            );
+            if (pub != null && pub['path'] != null) {
+              rec.filePath = pub['path'] as String;
+              rec.contentUri = pub['uri'] as String?;
+              await box.put(key, rec.toMap());
+              try {
+                if (await oldFile.exists()) await oldFile.delete();
+              } catch (_) {}
+              migrated++;
+            }
+          } catch (e) {
+            debugPrint('[migrate] publish failed for $oldPath: $e');
+          }
+          continue;
+        }
+
+        // iOS / ≤API 28: локальная папка Documents/DictaPro/Записи.
+        final newDir = await recordingsDir();
         if (oldPath.startsWith(newDir.path)) continue;
         final name = oldPath.split(RegExp(r'[\\/]')).last;
         final newFile = File('${newDir.path}/$name');
@@ -244,7 +361,7 @@ class AudioService {
         }
       }
       if (migrated > 0) {
-        debugPrint('[migrate] migrated $migrated recordings to ${newDir.path}');
+        debugPrint('[migrate] migrated $migrated recordings');
       }
     } catch (e) {
       debugPrint('[migrate] error: $e');
@@ -381,13 +498,41 @@ class AudioService {
     final size = await file.length();
     final now = DateTime.now();
 
+    // Task 116 П.2: публикуем запись в публичную Documents/DictaPro/Записи
+    // (MediaStore). Пользователю — понятный путь и файл-менеджер; записи
+    // не прячутся в Android/data/<pkg>/files. Исходный temp-файл из
+    // app-private после публикации удаляем. На iOS/≤API 28 — как раньше.
+    String finalPath = path;
+    String? contentUri;
+    try {
+      if (Platform.isAndroid && await _androidSdk() >= 29) {
+        final name = path.split(RegExp(r'[\\/]')).last;
+        final pub = await _recordingsChannel.invokeMapMethod<String, dynamic>(
+          'publishRecording',
+          {'srcPath': path, 'displayName': name},
+        );
+        if (pub != null && pub['path'] != null) {
+          finalPath = pub['path'] as String;
+          contentUri = pub['uri'] as String?;
+          try {
+            if (await file.exists()) await file.delete();
+          } catch (_) {}
+        }
+      }
+    } catch (e) {
+      // Публикация не удалась (редко) — оставляем файл в app-private,
+      // запись всё равно работает, при следующем старте миграция довезёт.
+      debugPrint('[recordings] publish failed: $e');
+    }
+
     final recording = Recording(
       id: now.millisecondsSinceEpoch.toString(),
-      filePath: path,
+      filePath: finalPath,
       createdAt: now,
       durationMs: duration.inMilliseconds,
       fileSize: size,
       title: _generateDefaultTitle(now),
+      contentUri: contentUri,
     );
 
     await _box!.put(recording.id, recording.toMap());
@@ -404,9 +549,28 @@ class AudioService {
     await _player.stop();
   }
 
+  /// Task 116 П.2: доступ к box записей для операций вне сервиса
+  /// (например, «Очистить» в настройках). Открывает если ещё не открыт.
+  static Future<Box<Map>> openRecordingsBox() async {
+    final existing = _instance._box;
+    if (existing != null && existing.isOpen) return existing;
+    final box = await Hive.openBox<Map>('recordings');
+    _instance._box = box;
+    return box;
+  }
+
   Future<void> deleteRecording(String id) async {
     final map = _box!.get(id);
     if (map != null) {
+      // Task 116 П.2: файл может жить в публичной коллекции — удаляем
+      // через MediaStore по contentUri (свой файл, разрешения не нужны).
+      final uri = map['contentUri'] as String?;
+      if (uri != null && uri.isNotEmpty) {
+        try {
+          await _recordingsChannel
+              .invokeMethod<bool>('deleteRecording', {'uri': uri});
+        } catch (_) {}
+      }
       final file = File(map['filePath'] as String);
       if (await file.exists()) await file.delete();
       await _box!.delete(id);

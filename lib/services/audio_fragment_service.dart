@@ -56,18 +56,19 @@ class AudioFragmentService {
     return null;
   }
 
-  /// Вырезает фрагмент [startSec]…[endSec] из записи [storedPath]
+  /// Вырезает фрагмент [startSec]…[endSec] из записи [rec]
   /// и сохраняет его в папку записей. Возвращает путь к файлу или null.
+  /// Task 116 П.2: запись материализуется во временный файл (scoped storage).
   static Future<String?> exportFragment({
-    required String storedPath,
+    required Recording rec,
     required double startSec,
     required double endSec,
   }) async {
     lastError = null;
-    final resolved = await AudioService.resolveFilePath(storedPath);
+    final resolved = await AudioService.materializePath(rec);
     final src = File(resolved);
     // ignore: avoid_print
-    print('[fragment] stored=$storedPath resolved=$resolved');
+    print('[fragment] stored=${rec.filePath} resolved=$resolved');
     if (!await src.exists()) {
       return _fail('файл записи не найден: $resolved');
     }

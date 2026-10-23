@@ -401,50 +401,89 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   /// Task 112: строка «Папка записей» с текущим путём.
+  /// Task 116 П.2: показываем ПУБЛИЧНЫЙ путь Documents/DictaPro/Записи
+  /// (записи больше не прячутся в app-private). Кнопки «Открыть» и
+  /// «Очистить» (файлы записей; расшифровки в БД не трогаем).
   Widget _folderTile(BuildContext context) {
     final tk = DictaTokens.of(context);
-    return FutureBuilder<String>(
-      future: AudioService.recordingsDir().then((d) => d.path),
-      builder: (context, snap) {
-        final raw = snap.data ?? '…';
-        final human = raw
-            .replaceFirst('/storage/emulated/0/', '')
-            .replaceFirst('/data/user/0/com.dictapro.app/app_flutter', 'Данные приложения');
-        return _tile(
-          context,
-          title: AppStrings.t('folder_recordings_title', context),
-          sub: human,
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextButton(
-                onPressed: () => _openRecordingsFolder(context),
-                child: Text(
-                  AppStrings.t('folder_open', context),
-                  style: TextStyle(color: tk.mint, fontSize: 12.5),
-                ),
-              ),
-              _chevron(context),
-            ],
+    final human = AudioService.publicRecordingsDisplayPath
+        .replaceFirst('/storage/emulated/0/', '');
+    return _tile(
+      context,
+      title: AppStrings.t('folder_recordings_title', context),
+      sub: human,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextButton(
+            onPressed: () => _openRecordingsFolder(context),
+            child: Text(
+              AppStrings.t('folder_open', context),
+              style: TextStyle(color: tk.mint, fontSize: 12.5),
+            ),
           ),
-          onTap: () => _openRecordingsFolder(context),
-        );
-      },
+          TextButton(
+            onPressed: () => _confirmClearRecordings(context),
+            child: Text(
+              AppStrings.t('folder_clear', context),
+              style: TextStyle(color: tk.red, fontSize: 12.5),
+            ),
+          ),
+          _chevron(context),
+        ],
+      ),
+      onTap: () => _openRecordingsFolder(context),
     );
   }
 
+  /// Task 116 П.2: удалить ВСЕ файлы записей (после подтверждения).
+  /// Записи/расшифровки в базе остаются — удаляются только аудиофайлы.
+  Future<void> _confirmClearRecordings(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AppStrings.t('folder_clear_confirm_title', ctx)),
+        content: Text(AppStrings.t('folder_clear_confirm_body', ctx)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(AppStrings.t('folder_clear_cancel', ctx)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(AppStrings.t('folder_clear', ctx)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      final box = await AudioService.openRecordingsBox();
+      final n = await AudioService.clearRecordingFiles(box);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.tf('folder_cleared', context, {'n': '$n'}))),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.t('folder_clear_failed', context))),
+      );
+    }
+  }
+
   /// Task 112: открыть папку записей в файловом менеджере.
+  /// Task 116 П.2: публичная Documents/DictaPro/Записи.
   Future<void> _openRecordingsFolder(BuildContext context) async {
     try {
-      final dir = await AudioService.recordingsDir();
       // 21.10: сначала нативный intent (лучше работает на Vivo/MIUI).
       try {
         const platform = MethodChannel('dictapro/convert');
         final ok = await platform.invokeMethod<bool>(
-            'openFolder', {'path': dir.path});
+            'openFolder', {'path': AudioService.publicRecordingsDisplayPath});
         if (ok == true) return;
       } catch (_) {}
-      final uri = Uri.directory(dir.path);
+      final uri = Uri.directory(AudioService.publicRecordingsDisplayPath);
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri);
       } else {
