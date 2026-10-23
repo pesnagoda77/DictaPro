@@ -111,6 +111,18 @@ class TranscriptionHoursService {
   }
 
   /// Хватит ли баланса на файл длиной [audioMs]?
+  /// Task 116 (Б, Славан 23.10): жёсткий сброс в бесплатный тариф при
+  /// отмене/возврате подписки. total=0, used=0 → остаток цикла сгорает
+  /// мгновенно, дальше действует бесплатные 30 мин/день (UsageLimitService).
+  /// Купленные пакеты (pack_tr) НЕ трогаем — они бессрочный товар.
+  Future<void> resetToFree() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setDouble(_kIncludedTotal, 0);
+    await p.setDouble(_kIncludedUsed, 0);
+    PurchaseService.instance.planRevision.value++;
+    debugPrint('[transcr-hours] сброс в бесплатный: total=0, used=0');
+  }
+
   /// Task 116 П.5: санитар баланса расшифровки. used не может быть
   /// отрицательным, total не превышает накопленную базу + пакеты.
   /// Возвращает отчёт или '' (всё чисто).

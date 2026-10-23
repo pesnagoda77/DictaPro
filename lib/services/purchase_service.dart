@@ -677,6 +677,19 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
   /// Task 116 П.3/П.8: снять истёкшую подписку — убрать из активного
   /// набора и из rebuild-буфера restore. Эффективный тариф пересчитается;
   /// остаток включённых часов НЕ продлевается, купленные пакеты целы.
+  /// Task 116 (Б, Славан 23.10): при отмене/истечении/возврате подписки —
+  /// немедленный возврат в бесплатный тариф: включённые часы расшифровки
+  /// сгорают (борьба со схемой «купил → отменил → вернул деньги → пользуюсь»).
+  /// Купленные за деньги пакеты остаются. ИИ-бонус месяца сгорает сам:
+  /// база = тариф = none → включённая часть = 0.
+  Future<void> _hardResetToFree() async {
+    try {
+      await TranscriptionHoursService.instance.resetToFree();
+    } catch (e) {
+      debugPrint('[purchase] resetToFree: $e');
+    }
+  }
+
   Future<void> _deactivateExpiredSubscription(String productId) async {
     final p = await SharedPreferences.getInstance();
     final set = (p.getStringList(_kActiveSubs) ?? []).toSet()
@@ -690,7 +703,8 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       await p.remove(_kPlayExpiry);
     }
     await _applyEffectiveTier();
-    debugPrint('[purchase] подписка $productId истекла — тариф снят');
+    await _hardResetToFree();
+    debugPrint('[purchase] подписка $productId истекла — тариф снят, часы сброшены (Б)');
   }
 
   /// Task 079: зачислить пакет ровно один раз на один платёж.
@@ -816,6 +830,8 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
     final set = (p.getStringList(_kActiveSubs) ?? []).toSet()..remove(subId);
     await p.setStringList(_kActiveSubs, set.toList());
     await _applyEffectiveTier();
+    // Task 116 (Б): возврат средств/отзыв — тот же жёсткий сброс часов.
+    await _hardResetToFree();
   }
 
   /// Task 096: текущий срок действия кода (null — нет кода или бессрочно).
