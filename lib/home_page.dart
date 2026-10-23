@@ -2732,13 +2732,14 @@ class _LiveMarqueeState extends State<_LiveMarquee> {
     final tier = PurchaseService.instance.tier.value;
     final p = await SharedPreferences.getInstance();
 
-    final parts = <String>[];
-    parts.add(AppStrings.tGlobal('splash_slogan').replaceAll('.', ''));
-    if (tier == SubscriptionTier.none) {
-      parts.add(AppStrings.freeLimitBanner(
-          this.context ?? this.context,
-          limit: UsageLimitService.dailyMinutesLimit));
-    } else {
+    // Task 116 (Славан, точная фраза 24.10):
+    // «Без интернета бесплатно расшифровка 30 минут в день. Тариф "Дневник"
+    // до 21.11.2026, остаток расшифровки — 22,3 ч, остаток ИИ-часов 5,2 ч»
+    // Без тарифа: «Без интернета бесплатно расшифровка 30 минут в день».
+    String dec(num v) => v.toStringAsFixed(1).replaceAll('.', ',');
+    final buf = StringBuffer('Без интернета бесплатно расшифровка '
+        '${UsageLimitService.dailyMinutesLimit} минут в день');
+    if (tier != SubscriptionTier.none) {
       // Дата окончания: Play-подписка или код.
       final expMs = p.getInt('play_subscription_expiry_v1') ??
           p.getInt('code_activated_expiry_v1');
@@ -2750,24 +2751,24 @@ class _LiveMarqueeState extends State<_LiveMarquee> {
       };
       if (expMs != null) {
         final d = DateTime.fromMillisecondsSinceEpoch(expMs);
-        parts.add('Тариф «$tierName» до ${d.day.toString().padLeft(2, '0')}.'
+        buf.write('. Тариф «$tierName» до ${d.day.toString().padLeft(2, '0')}.'
             '${d.month.toString().padLeft(2, '0')}.${d.year}');
       } else {
-        parts.add('Тариф «$tierName»');
+        buf.write('. Тариф «$tierName»');
       }
-      // Остаток часов расшифровки.
+      // Остаток часов расшифровки (точное число с десятыми).
       try {
         final left = await TranscriptionHoursService.instance.balanceHours();
-        parts.add('остаток расшифровки ${left.toStringAsFixed(1)} ч');
+        if (left.isFinite) buf.write(', остаток расшифровки — ${dec(left)} ч');
       } catch (_) {}
     }
     // ИИ-часы — всегда (и без тарифа: пакеты/бонусы).
     try {
       final ai = await AiHoursService.instance.balanceHours();
-      parts.add('ИИ-часы ${ai.toStringAsFixed(1)} ч');
+      buf.write(', остаток ИИ-часов ${dec(ai)} ч');
     } catch (_) {}
 
-    final text = parts.join(' · ');
+    final text = buf.toString();
     if (!mounted) return;
     setState(() {
       _seenRevision = rev;
