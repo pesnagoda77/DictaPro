@@ -547,6 +547,16 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       // Task 087: сохраняем реальный purchaseToken для сверки.
       await _recordRealToken(purchase);
 
+      // Task 116 П.3/П.8: Play возвращает покупку ОТМЕНЁННОЙ подписки
+      // ещё на grace-участке, и restorePurchases может отдать её повторно
+      // после истечения периода. Если expiryTimeMillis уже в прошлом —
+      // подписка не действует: снимаем тариф, НЕ начисляем бонусы и НЕ
+      // кладём в rebuild-буфер. Пакеты (бессрочные) не трогаем.
+      if (await _isSubscriptionExpired(purchase)) {
+        await _deactivateExpiredSubscription(productId);
+        return;
+      }
+
       // 20.10: бонусные ИИ-часы тарифа (Дневник 10 / Ассистент 20 / Безлимит 40).
       // Раньше были только текстом в карточке — покупатель не получал ничего.
       // Начисляем один раз на покупку (по purchaseID), в том числе при restore.
@@ -609,6 +619,45 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       return;
     }
     debugPrint('[purchase] неизвестный продукт $productId — приём отключён');
+  }
+
+  /// Task 116 П.3/П.8: true — у подписки expiryTimeMillis в прошлом
+  /// (отменена/истекла/отозвана в Play). Тестовая подписка продлевается
+  /// каждые ~5 мин; после отмены expiry сжимается до минут и быстро
+  /// оказывается в прошлом. Нет данных (iOS/пустой originalJson) —
+  /// не решаем, считаем живой (решит restore/серверная сверка).
+  Future<bool> _isSubscriptionExpired(PurchaseDetails purchase) {
+    try {
+      final raw = purchase is GooglePlayPurchaseDetails
+          ? purchase.billingClientPurchase.originalJson
+          : null;
+      if (raw == null || raw.isEmpty) return false;
+      final j = jsonDecode(raw) as Map<String, dynamic>;
+      final exp = int.tryParse('${j['expiryTimeMillis'] ?? ''}');
+      if (exp == null || exp <= 0) return false;
+      return exp < DateTime.now().millisecondsSinceEpoch;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Task 116 П.3/П.8: снять истёкшую подписку — убрать из активного
+  /// набора и из rebuild-буфера restore. Эффективный тариф пересчитается;
+  /// остаток включённых часов НЕ продлевается, купленные пакеты целы.
+  Future<void> _deactivateExpiredSubscription(String productId) async {
+    final p = await SharedPreferences.getInstance();
+    final set = (p.getStringList(_kActiveSubs) ?? []).toSet()
+      ..remove(productId);
+    await p.setStringList(_kActiveSubs, set.toList());
+    // Не попасть в пересобранный restore-набор.
+    _rebuildBuf.remove(productId);
+    // Просроченный expiry Play не кэшируем — срок доступа кончился.
+    final exp = p.getInt(_kPlayExpiry);
+    if (exp != null && exp < DateTime.now().millisecondsSinceEpoch) {
+      await p.remove(_kPlayExpiry);
+    }
+    await _applyEffectiveTier();
+    debugPrint('[purchase] подписка $productId истекла — тариф снят');
   }
 
   /// Task 079: зачислить пакет ровно один раз на один платёж.
