@@ -10,6 +10,46 @@ import '../app_strings.dart';
 /// Task 041: единый тег для logcat: adb logcat | grep -i keepalive
 void _keepLog(String msg) => debugPrint('[keepalive] $msg');
 
+/// Task 116 П.7: единый TaskHandler для foreground-служб записи и
+/// расшифровки. API 8.x: callback (top-level) передаётся в startService,
+/// внутри — setTaskHandler. Критично onNotificationPressed: тап по
+/// уведомлению поднимает существующую activity (launchApp + singleTask
+/// → onNewIntent), а НЕ пересоздаёт процесс — убирает «вылет с рывком»,
+/// при котором терялся Dart-статус расшифровки.
+@pragma('vm:entry-point')
+void dictaTaskCallback() {
+  FlutterForegroundTask.setTaskHandler(DictaTaskHandler());
+}
+
+class DictaTaskHandler extends TaskHandler {
+  @override
+  void onStart(DateTime timestamp) {}
+
+  @override
+  void onRepeatEvent(DateTime timestamp) {}
+
+  @override
+  void onDestroy(DateTime timestamp) {}
+
+  @override
+  void onReceiveData(Object data) {}
+
+  @override
+  void onNotificationPressed() {
+    try {
+      FlutterForegroundTask.launchApp('/');
+    } catch (e) {
+      _keepLog('onNotificationPressed ОШИБКА: $e');
+    }
+  }
+
+  @override
+  void onNotificationDismissed() {}
+
+  @override
+  void onNotificationButtonPressed(String id) {}
+}
+
 /// Задача 036. Длинная операция (расшифровка файла) должна выживать при
 /// выключенном экране. Раньше foreground-служба поднималась только на запись,
 /// поэтому система убивала процесс во время расшифровки — Славан потерял
@@ -50,6 +90,7 @@ class TranscribeKeepAlive {
       await FlutterForegroundTask.startService(
         notificationTitle: _title,
         notificationText: text,
+        callback: dictaTaskCallback,
       );
       // Task 041: раньше ошибки проглатывались молча — «уведомления не было»
       // диагностировать было нечем. Проверяем, что служба реально поднялась.

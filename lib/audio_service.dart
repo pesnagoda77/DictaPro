@@ -11,6 +11,7 @@ import 'package:hive/hive.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 
 import 'services/wav_header_fixer.dart';
+import 'services/keep_alive.dart';
 import 'settings_page.dart';
 import 'dart:math' as math;
 import 'app_strings.dart';
@@ -466,6 +467,9 @@ class AudioService {
       await FlutterForegroundTask.startService(
         notificationTitle: AppStrings.tGlobal('notif_recording_title'),
         notificationText: AppStrings.tGlobal('notif_recording_text'),
+        // Task 116 П.7: тап по уведомлению записи возвращает в приложение
+        // без пересоздания процесса (singleTask + launchApp).
+        callback: dictaTaskCallback,
       );
     } catch (_) {
       // не критично: запись продолжается, пока приложение активно

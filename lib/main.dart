@@ -27,6 +27,9 @@ void main() async {
     iosNotificationOptions: const IOSNotificationOptions(),
     foregroundTaskOptions: ForegroundTaskOptions(
       eventAction: ForegroundTaskEventAction.nothing(),
+      // Task 116 П.7: во время расшифровки экран может погаснуть —
+      // частичный wake-lock не даём системе уронить сервис в doze.
+      allowWakeLock: true,
     ),
   );
   await Hive.initFlutter();
