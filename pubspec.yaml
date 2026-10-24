@@ -1,7 +1,7 @@
 ﻿name: dictapro
 description: DictaPro - voice recorder with AI transcription
 publish_to: 'none'
-version: 1.5.3+121
+version: 1.5.3+122
 environment:
   sdk: '>=3.5.0 <4.0.0'
 
@@ -16,6 +16,8 @@ dependencies:
   hive: 2.2.3
   hive_flutter: 1.1.0
   device_info_plus: ^9.1.2
+  # Славан: версия сборки в «О приложении».
+  package_info_plus: ^8.0.2
   url_launcher: 6.3.1
   path_provider: 2.1.5
   # Task 078: sha256 для манифеста целостности моделей.

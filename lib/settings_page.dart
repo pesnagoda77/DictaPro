@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
@@ -483,6 +485,14 @@ class _SettingsPageState extends State<SettingsPage> {
             'openFolder', {'path': AudioService.publicRecordingsDisplayPath});
         if (ok == true) return;
       } catch (_) {}
+      // iOS: «Файлы» открываются, но на корне — подсказываем путь.
+      if (Platform.isIOS) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppStrings.t('folder_open_hint_ios', context))),
+        );
+        return;
+      }
       final uri = Uri.directory(AudioService.publicRecordingsDisplayPath);
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri);

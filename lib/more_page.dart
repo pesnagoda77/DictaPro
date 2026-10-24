@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'app_strings.dart';
 import 'theme/app_theme.dart';
@@ -233,6 +234,30 @@ class AboutPage extends StatelessWidget {
             const SizedBox(height: 6),
             DictaBrand(subtitle: AppStrings.splashSlogan(context)),
             const SizedBox(height: 16),
+            // Task 116 (Славан): версия была пустой — показываем сборку.
+            DictaCard(
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline_rounded, size: 18, color: tk.ink3),
+                  const SizedBox(width: 8),
+                  Text(AppStrings.t('about_version', context),
+                      style: TextStyle(fontSize: 12.5, color: tk.ink2)),
+                  const SizedBox(width: 6),
+                  FutureBuilder<PackageInfo>(
+                    future: PackageInfo.fromPlatform(),
+                    builder: (ctx, snap) {
+                      final info = snap.data;
+                      final text = info == null
+                          ? '…'
+                          : '${info.version} (${info.buildNumber})';
+                      return Text(text,
+                          style: tk.mono(12.5, FontWeight.w600, tk.ink));
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
             DictaCard(
               child: Text(
                 '${AppStrings.t('about_p1', context)}\n\n${AppStrings.t('about_p2', context)}',

@@ -250,6 +250,18 @@ class AppStrings {
       'es': 'No se pudo importar el archivo',
       'it': 'Impossibile importare il file',
     },
+    'about_version': {
+      'ru': 'Версия', 'en': 'Version', 'de': 'Version',
+      'fr': 'Version', 'es': 'Versión', 'it': 'Versione',
+    },
+    'folder_open_hint_ios': {
+      'ru': 'Откройте «Файлы» → На iPhone → DictaPro → Записи',
+      'en': 'Open Files → On My iPhone → DictaPro → Recordings',
+      'de': 'Öffne „Dateien“ → Auf meinem iPhone → DictaPro → Aufnahmen',
+      'fr': 'Ouvrez Fichiers → Sur mon iPhone → DictaPro → Enregistrements',
+      'es': 'Abre Archivos → En mi iPhone → DictaPro → Grabaciones',
+      'it': 'Apri File → Sul mio iPhone → DictaPro → Registrazioni',
+    },
     'hs_rec_t': {
       'ru': 'Запись', 'en': 'Record', 'de': 'Aufnahme',
       'fr': 'Enregistrement', 'es': 'Grabación', 'it': 'Registrazione',

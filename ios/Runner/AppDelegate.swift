@@ -93,6 +93,40 @@ import AVFoundation
               }
             }
           }
+        case "openFolder":
+          // iOS не умеет открывать конкретную папку по пути. Открываем
+          // приложение «Файлы» (там пользователь заходит в «На iPhone →
+          // DictaPro → Записи») и отдаём true — подсказку покажет Dart.
+          if let url = URL(string: "shareddocuments://") {
+            DispatchQueue.main.async {
+              UIApplication.shared.open(url, options: [:], completionHandler: nil)
+            }
+            result(true)
+          } else {
+            result(false)
+          }
+        case "extractFragmentWav":
+          // Славан: «не удалось вырезать фрагмент» на iPhone — обработчика
+          // не было вовсе (он был только в Android MainActivity).
+          let args = call.arguments as? [String: Any]
+          guard let path = args?["path"] as? String else {
+            result(FlutterError(code: "INVALID_ARGUMENTS", message: "path is null", details: nil))
+            return
+          }
+          let fromMs = (args?["fromMs"] as? Int) ?? 0
+          let toMs = (args?["toMs"] as? Int) ?? 0
+          DispatchQueue.global(qos: .userInitiated).async {
+            do {
+              let out = try FragmentExtractor.extract(path: path, fromMs: fromMs, toMs: toMs)
+              DispatchQueue.main.async { result(out) }
+            } catch {
+              DispatchQueue.main.async {
+                result(FlutterError(code: "EXTRACT_FAILED",
+                                    message: error.localizedDescription,
+                                    details: nil))
+              }
+            }
+          }
         default:
           result(FlutterMethodNotImplemented)
         }
@@ -576,5 +610,84 @@ enum Wav16kConverter {
     append32(dataBytes)
     out.seek(toFileOffset: 0)
     out.write(header)
+  }
+}
+
+
+/// Вырезание фрагмента на iOS: AVAssetReader декодирует диапазон в PCM,
+/// пишем обычный WAV (16 кГц моно, 16 бит) — гарантированно играется везде.
+enum FragmentExtractor {
+  static func extract(path: String, fromMs: Int, toMs: Int) throws -> String {
+    let url = URL(fileURLWithPath: path)
+    let asset = AVURLAsset(url: url)
+    guard let track = asset.tracks(withMediaType: .audio).first else {
+      throw NSError(domain: "dictapro", code: 31,
+                    userInfo: [NSLocalizedDescriptionKey: "в файле нет аудиодорожки"])
+    }
+
+    let reader = try AVAssetReader(asset: asset)
+    let from = max(0, fromMs)
+    var to = max(from + 300, toMs)
+    let durMs = Int(CMTimeGetSeconds(asset.duration) * 1000)
+    if durMs > 0 { to = min(to, durMs) }
+    reader.timeRange = CMTimeRange(
+      start: CMTime(value: CMTimeValue(from), timescale: 1000),
+      duration: CMTime(value: CMTimeValue(max(0, to - from)), timescale: 1000))
+
+    let settings: [String: Any] = [
+      AVFormatIDKey: kAudioFormatLinearPCM,
+      AVSampleRateKey: 16000.0,
+      AVNumberOfChannelsKey: 1,
+      AVLinearPCMBitDepthKey: 16,
+      AVLinearPCMIsFloatKey: false,
+      AVLinearPCMIsBigEndianKey: false,
+      AVLinearPCMIsNonInterleaved: false,
+    ]
+    let output = AVAssetReaderTrackOutput(track: track, outputSettings: settings)
+    output.alwaysCopiesSampleData = false
+    guard reader.canAdd(output) else {
+      throw NSError(domain: "dictapro", code: 32,
+                    userInfo: [NSLocalizedDescriptionKey: "не удалось настроить чтение"])
+    }
+    reader.add(output)
+    guard reader.startReading() else {
+      throw NSError(domain: "dictapro", code: 33,
+                    userInfo: [NSLocalizedDescriptionKey: reader.error?.localizedDescription ?? "reader не стартовал"])
+    }
+
+    var pcm = Data()
+    while let sample = output.copyNextSampleBuffer() {
+      defer { CMSampleBufferInvalidate(sample) }
+      guard let block = CMSampleBufferGetDataBuffer(sample) else { continue }
+      var length = 0
+      var pointer: UnsafeMutablePointer<Int8>?
+      let status = CMBlockBufferGetDataPointer(block, atOffset: 0, lengthAtOffsetOut: nil,
+                                              totalLengthOut: &length, dataPointerOut: &pointer)
+      if status == kCMBlockBufferNoErr, let p = pointer, length > 0 {
+        pcm.append(UnsafeBufferPointer(start: UnsafeRawPointer(p).assumingMemoryBound(to: UInt8.self),
+                                       count: length))
+      }
+    }
+    if reader.status == .failed {
+      throw NSError(domain: "dictapro", code: 34,
+                    userInfo: [NSLocalizedDescriptionKey: reader.error?.localizedDescription ?? "чтение прервано"])
+    }
+
+    // WAV-заголовок (16 кГц, моно, 16 бит).
+    var out = Data()
+    func le32(_ v: UInt32) { var x = v.littleEndian; withUnsafeBytes(of: &x) { out.append(contentsOf: $0) } }
+    func le16(_ v: UInt16) { var x = v.littleEndian; withUnsafeBytes(of: &x) { out.append(contentsOf: $0) } }
+    let rate: UInt32 = 16000
+    let dataBytes = UInt32(pcm.count)
+    out.append(contentsOf: Array("RIFF".utf8)); le32(36 &+ dataBytes)
+    out.append(contentsOf: Array("WAVE".utf8))
+    out.append(contentsOf: Array("fmt ".utf8)); le32(16)
+    le16(1); le16(1); le32(rate); le32(rate &* 2); le16(2); le16(16)
+    out.append(contentsOf: Array("data".utf8)); le32(dataBytes)
+    out.append(pcm)
+
+    let tmp = NSTemporaryDirectory() + "fragment_\(Int(Date().timeIntervalSince1970 * 1000)).wav"
+    try out.write(to: URL(fileURLWithPath: tmp))
+    return tmp
   }
 }
