@@ -80,7 +80,10 @@ class AudioFragmentService {
 
       switch (kind) {
         case MediaKind.wav:
-          return await _exportWav(raf, head, startSec, endSec);
+          // Task 116 (Славан): раньше длина бралась из первых 64 КБ →
+          // «пустой диапазон» на любой записи длиннее ~2 секунд.
+          return await _exportWav(raf, head, startSec, endSec,
+              fileLength: await src.length());
         case MediaKind.mp3:
           return await _exportMp3(raf, head, startSec, endSec, src);
         // Контейнерные форматы: только перекодирование — побитая резка
@@ -106,8 +109,8 @@ class AudioFragmentService {
   // ───────────────────────── WAV ─────────────────────────
 
   static Future<String?> _exportWav(RandomAccessFile raf, Uint8List head,
-      double startSec, double endSec) async {
-    final info = parseWav(head);
+      double startSec, double endSec, {int? fileLength}) async {
+    final info = parseWav(head, fileLength: fileLength);
     if (info == null) return _fail('WAV: заголовок не разобран');
 
     final pad = paddingMs / 1000.0;
@@ -312,7 +315,7 @@ class AudioFragmentService {
   }
 
   /// Разбирает RIFF/WAVE: находит fmt и data.
-  static WavInfo? parseWav(Uint8List bytes) {
+  static WavInfo? parseWav(Uint8List bytes, {int? fileLength}) {
     if (bytes.length < 44) return null;
     if (String.fromCharCodes(bytes.sublist(0, 4)) != 'RIFF') return null;
     if (String.fromCharCodes(bytes.sublist(8, 12)) != 'WAVE') return null;
@@ -349,7 +352,12 @@ class AudioFragmentService {
     if (dataOffset < 0 || sampleRate <= 0 || channels <= 0 || bits <= 0) {
       return null;
     }
-    if (dataOffset + dataLength > bytes.length) {
+    // Заголовок читается первыми 64 КБ, реальная длина файла — снаружи.
+    // Иначе dataLength упирается в этот огрызок и длительность врёт.
+    if (fileLength != null && fileLength > dataOffset) {
+      final real = fileLength - dataOffset;
+      if (dataLength <= 0 || dataLength > real) dataLength = real;
+    } else if (dataOffset + dataLength > bytes.length) {
       dataLength = bytes.length - dataOffset;
     }
     return WavInfo(
