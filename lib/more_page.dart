@@ -5,6 +5,7 @@ import 'theme/app_theme.dart';
 import 'widgets/dicta_ui.dart';
 import 'settings_page.dart';
 import 'subscription_page.dart';
+import 'how_to_use_page.dart';
 
 /// Задача 068: вкладка «Ещё» — шкаф приложения.
 /// Здесь живут Настройки и Подписка (в шапке главной их больше нет),
@@ -42,7 +43,7 @@ class MorePage extends StatelessWidget {
                 AppStrings.t('help_title', context),
                 AppStrings.t('help_row_sub', context),
                 () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const HelpPage()))),
+                    MaterialPageRoute(builder: (_) => const HowToUsePage()))),
             _row(context, Icons.info_outline_rounded,
                 AppStrings.t('about_title', context),
                 AppStrings.t('about_row_sub', context),

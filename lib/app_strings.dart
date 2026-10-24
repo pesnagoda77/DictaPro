@@ -226,6 +226,230 @@ class AppStrings {
     },
     // ---------- Task 113: баннер бесплатного лимита на главном экране ----------
     // {n} — фактический дневной лимит минут (UsageLimitService.dailyMinutesLimit).
+    'help_slogan_1': {
+      'ru': 'Без интернета. Без регистрации. Бесплатно.',
+      'en': 'No internet. No sign-up. Free.',
+      'de': 'Ohne Internet. Ohne Registrierung. Kostenlos.',
+      'fr': 'Sans internet. Sans inscription. Gratuit.',
+      'es': 'Sin internet. Sin registro. Gratis.',
+      'it': 'Senza internet. Senza registrazione. Gratis.',
+    },
+    'help_slogan_2': {
+      'ru': '20+ функций. Расшифровка 10+ языков.',
+      'en': '20+ features. Transcription in 10+ languages.',
+      'de': '20+ Funktionen. Transkription in 10+ Sprachen.',
+      'fr': 'Plus de 20 fonctions. Transcription en plus de 10 langues.',
+      'es': 'Más de 20 funciones. Transcripción en más de 10 idiomas.',
+      'it': 'Oltre 20 funzioni. Trascrizione in oltre 10 lingue.',
+    },
+    'hs_rec_t': {
+      'ru': 'Запись', 'en': 'Record', 'de': 'Aufnahme',
+      'fr': 'Enregistrement', 'es': 'Grabación', 'it': 'Registrazione',
+    },
+    'hs_rec_1': {
+      'ru': 'Круглая кнопка — начать, ещё раз — остановить.', 'en': 'Tap the round button to start, tap again to stop.', 'de': 'Runde Taste zum Starten, nochmals tippen zum Stoppen.',
+      'fr': 'Touchez le bouton rond pour démarrer, retouchez pour arrêter.', 'es': 'Toca el botón redondo para grabar, tócalo de nuevo para parar.', 'it': 'Tocca il pulsante tondo per iniziare, tocca di nuovo per fermare.',
+    },
+    'hs_rec_2': {
+      'ru': 'Можно свернуть: запись идёт в фоне.', 'en': 'Minimise the app: recording continues in the background.', 'de': 'App in den Hintergrund: die Aufnahme läuft weiter.',
+      'fr': 'Réduisez l\'appli : l\'enregistrement continue en arrière-plan.', 'es': 'Puedes minimizar: la grabación sigue en segundo plano.', 'it': 'Riduci l\'app: la registrazione continua in background.',
+    },
+    'hs_rec_3': {
+      'ru': 'Таймер сна остановит запись сам через выбранное время.', 'en': 'The sleep timer stops recording automatically after the chosen time.', 'de': 'Der Schlaf-Timer stoppt die Aufnahme automatisch nach der gewählten Zeit.',
+      'fr': 'La minuterie sommeil arrête l\'enregistrement après le délai choisi.', 'es': 'El temporizador de sueño detiene la grabación tras el tiempo elegido.', 'it': 'Il timer di spegnimento ferma la registrazione dopo il tempo scelto.',
+    },
+    'hs_rec_4': {
+      'ru': 'Записи хранятся в «Документы/DictaPro/Записи».', 'en': 'Recordings are stored in Documents/DictaPro/Recordings.', 'de': 'Aufnahmen liegen in „Dokumente/DictaPro/Aufnahmen“.',
+      'fr': 'Les enregistrements sont dans Documents/DictaPro/Enregistrements.', 'es': 'Las grabaciones se guardan en Documentos/DictaPro/Grabaciones.', 'it': 'Le registrazioni sono in Documenti/DictaPro/Registrazioni.',
+    },
+    'hs_imp_t': {
+      'ru': 'Импорт файлов', 'en': 'Import files', 'de': 'Dateien importieren',
+      'fr': 'Importer des fichiers', 'es': 'Importar archivos', 'it': 'Importa file',
+    },
+    'hs_imp_1': {
+      'ru': 'Кнопка «Импорт»: mp3, m4a, wav, ogg, flac — с диктофона, из мессенджера или почты.', 'en': '“Import”: mp3, m4a, wav, ogg, flac — from a voice recorder, messenger or email.', 'de': '„Importieren“: mp3, m4a, wav, ogg, flac — vom Diktiergerät, Messenger oder E-Mail.',
+      'fr': '« Importer » : mp3, m4a, wav, ogg, flac — depuis un dictaphone, une messagerie ou un e-mail.', 'es': '«Importar»: mp3, m4a, wav, ogg, flac — de una grabadora, mensajería o correo.', 'it': '«Importa»: mp3, m4a, wav, ogg, flac — da un registratore, messaggeria o e-mail.',
+    },
+    'hs_imp_2': {
+      'ru': 'Формат приведётся сам, битые wav починятся.', 'en': 'The format is converted automatically; broken WAV files are repaired.', 'de': 'Das Format wird automatisch konvertiert; kaputte WAVs werden repariert.',
+      'fr': 'Le format est converti automatiquement ; les WAV cassés sont réparés.', 'es': 'El formato se convierte solo; los WAV rotos se reparan.', 'it': 'Il formato viene convertito automaticamente; i WAV rotti vengono riparati.',
+    },
+    'hs_tr_t': {
+      'ru': 'Расшифровка', 'en': 'Transcription', 'de': 'Transkription',
+      'fr': 'Transcription', 'es': 'Transcripción', 'it': 'Trascrizione',
+    },
+    'hs_tr_1': {
+      'ru': 'Откройте запись → «Расшифровать» → язык речи.', 'en': 'Open a recording → “Transcribe” → speech language.', 'de': 'Aufnahme öffnen → „Transkribieren“ → Sprachwahl.',
+      'fr': 'Ouvrez un enregistrement → « Transcrire » → langue.', 'es': 'Abre una grabación → «Transcribir» → idioma.', 'it': 'Apri una registrazione → «Trascrivi» → lingua.',
+    },
+    'hs_tr_2': {
+      'ru': 'Считается в телефоне, интернет не нужен.', 'en': 'It runs on the phone — no internet needed.', 'de': 'Läuft auf dem Telefon — kein Internet nötig.',
+      'fr': 'Cela se calcule sur le téléphone — sans internet.', 'es': 'Se procesa en el teléfono: sin internet.', 'it': 'Avviene sul telefono: senza internet.',
+    },
+    'hs_tr_3': {
+      'ru': 'Фоновая расшифровка пришлёт уведомление «Готово».', 'en': 'Background transcription sends a “Done” notification.', 'de': 'Die Hintergrund-Transkription meldet „Fertig“.',
+      'fr': 'La transcription en arrière-plan envoie une notification « Terminé ».', 'es': 'La transcripción en segundo plano avisa con «Listo».', 'it': 'La trascrizione in background invia una notifica «Fatto».',
+    },
+    'hs_tr_4': {
+      'ru': 'Обрыв не страшен: «Продолжить с места обрыва».', 'en': 'Interrupted? Just tap “Resume from where it stopped”.', 'de': 'Abbruch? Einfach „An der Stelle fortsetzen“.',
+      'fr': 'Interrompu ? « Reprendre là où c\'est arrêté ».', 'es': '¿Se cortó? «Continuar desde donde quedó».', 'it': 'Interrotta? «Riprendi da dove si è fermata».',
+    },
+    'hs_tr_5': {
+      'ru': 'Термины (имена, специальные слова) — в карточке текста,', 'en': 'Custom terms (names, jargon) live in the text card,', 'de': 'Eigene Begriffe (Namen, Fachwörter) in der Textkarte,',
+      'fr': 'Les termes (noms, jargon) sont dans la fiche texte,', 'es': 'Los términos (nombres, tecnicismos) en la ficha de texto,', 'it': 'I termini (nomi, gergo) nella scheda di testo,',
+    },
+    'hs_tr_6': {
+      'ru': 'затем «Заново».', 'en': 'then tap “Transcribe again”.', 'de': 'dann „Erneut transkribieren“.',
+      'fr': 'puis « Retranscrire ».', 'es': 'luego «Volver a transcribir».', 'it': 'poi «Ritrascrivi».',
+    },
+    'hs_txt_t': {
+      'ru': 'Текст и диалог', 'en': 'Text and dialogue', 'de': 'Text und Dialog',
+      'fr': 'Texte et dialogue', 'es': 'Texto y diálogo', 'it': 'Testo e dialogo',
+    },
+    'hs_txt_1': {
+      'ru': 'Правка, поиск, копирование, поделиться.', 'en': 'Edit, search, copy, share.', 'de': 'Bearbeiten, suchen, kopieren, teilen.',
+      'fr': 'Modifier, rechercher, copier, partager.', 'es': 'Editar, buscar, copiar, compartir.', 'it': 'Modifica, ricerca, copia, condivisione.',
+    },
+    'hs_txt_2': {
+      'ru': 'Диалог: фразы «Фраза 1, 2…» — исправить, разделить,', 'en': 'Dialogue mode: phrases — fix, split,', 'de': 'Dialog: Phrasen — korrigieren, teilen,',
+      'fr': 'Mode dialogue : phrases — corriger, diviser,', 'es': 'Diálogo: frases — corregir, dividir,', 'it': 'Dialogo: frasi — correggere, dividere,',
+    },
+    'hs_txt_3': {
+      'ru': 'слить, пометить говорящего.', 'en': 'merge, mark the speaker.', 'de': 'zusammenführen, Sprecher markieren.',
+      'fr': 'fusionner, marquer le locuteur.', 'es': 'fusionar, marcar al hablante.', 'it': 'unire, contrassegnare il parlante.',
+    },
+    'hs_sum_t': {
+      'ru': 'Итоги', 'en': 'Summaries', 'de': 'Zusammenfassungen',
+      'fr': 'Résumés', 'es': 'Resúmenes', 'it': 'Riepiloghi',
+    },
+    'hs_sum_1': {
+      'ru': 'Локальные итоги: быстро, без сети, бесплатно.', 'en': 'On-device summaries: fast, offline, free.', 'de': 'Lokale Zusammenfassungen: schnell, offline, kostenlos.',
+      'fr': 'Résumés locaux : rapides, hors ligne, gratuits.', 'es': 'Resúmenes locales: rápidos, sin red, gratis.', 'it': 'Riepiloghi locali: veloci, offline, gratuiti.',
+    },
+    'hs_sum_2': {
+      'ru': 'ИИ-итоги: точнее, расходуют ИИ-часы, отправка на внешний сервер.', 'en': 'AI summaries: better, use AI hours, sent to an external server.', 'de': 'KI-Zusammenfassungen: besser, verbrauchen KI-Stunden, Übertragung an einen externen Server.',
+      'fr': 'Résumés IA : meilleurs, consomment des heures IA, envoi vers un serveur externe.', 'es': 'Resúmenes IA: mejores, gastan horas IA, se envían a un servidor externo.', 'it': 'Riepiloghi IA: migliori, consumano ore IA, invio a un server esterno.',
+    },
+    'hs_sum_3': {
+      'ru': 'Повторное открытие итога бесплатно (кэш).', 'en': 'Reopening a ready summary is free (cache).', 'de': 'Erneutes Öffnen ist kostenlos (Cache).',
+      'fr': 'Réouvrir un résumé est gratuit (cache).', 'es': 'Reabrir un resumen es gratis (caché).', 'it': 'Riaprire un riepilogo è gratis (cache).',
+    },
+    'hs_sum_4': {
+      'ru': 'Тип текста определится сам: совещание, лекция,', 'en': 'The text type is detected automatically: meeting, lecture,', 'de': 'Der Texttyp wird erkannt: Meeting, Vorlesung,',
+      'fr': 'Le type de texte est détecté : réunion, cours,', 'es': 'El tipo de texto se detecta solo: reunión, clase,', 'it': 'Il tipo di testo è rilevato: riunione, lezione,',
+    },
+    'hs_sum_5': {
+      'ru': 'интервью, заметки, сказка. Решения — в карточке записи.', 'en': 'interview, notes, story. Decisions — on the recording card.', 'de': 'Interview, Notizen, Geschichte. Entscheidungen auf der Aufnahmekarte.',
+      'fr': 'interview, notes, histoire. Décisions sur la fiche.', 'es': 'entrevista, notas, cuento. Decisiones en la ficha.', 'it': 'intervista, note, racconto. Decisioni nella scheda.',
+    },
+    'hs_pl_t': {
+      'ru': 'Плеер и фрагменты', 'en': 'Player and clips', 'de': 'Player und Ausschnitte',
+      'fr': 'Lecteur et extraits', 'es': 'Reproductor y fragmentos', 'it': 'Player e spezzoni',
+    },
+    'hs_pl_1': {
+      'ru': 'Плеер с таймкодами и подсветкой фразы.', 'en': 'Player with timecodes and phrase highlighting.', 'de': 'Player mit Zeitmarken und hervorgehobener Phrase.',
+      'fr': 'Lecteur avec timecodes et phrase surlignée.', 'es': 'Reproductor con marcas de tiempo y frase resaltada.', 'it': 'Player con timecode e frase evidenziata.',
+    },
+    'hs_pl_2': {
+      'ru': 'Ножницы: отметить строки → «Вырезать и отправить» —', 'en': 'Scissors: mark lines → “Cut & send” —', 'de': 'Schere: Zeilen markieren → „Ausschneiden und senden“ —',
+      'fr': 'Ciseaux : marquez des lignes → « Couper et envoyer » —', 'es': 'Tijeras: marca líneas → «Cortar y enviar» —', 'it': 'Forbici: seleziona righe → «Taglia e invia» —',
+    },
+    'hs_pl_3': {
+      'ru': 'аудиофайл только из выбранных фраз, сразу в мессенджер.', 'en': 'an audio file with only the selected phrases, straight to a messenger.', 'de': 'eine Audiodatei nur aus den gewählten Phrasen, direkt in den Messenger.',
+      'fr': 'un fichier audio avec seulement les phrases choisies, direct vers la messagerie.', 'es': 'un audio solo con las frases elegidas, directo a la mensajería.', 'it': 'un audio solo con le frasi scelte, diretto in messaggeria.',
+    },
+    'hs_exp_t': {
+      'ru': 'Экспорт', 'en': 'Export', 'de': 'Export',
+      'fr': 'Exportation', 'es': 'Exportar', 'it': 'Esporta',
+    },
+    'hs_exp_1': {
+      'ru': 'TXT с таймкодами, HTML, PDF или просто текст.', 'en': 'TXT with timecodes, HTML, PDF or plain text.', 'de': 'TXT mit Zeitmarken, HTML, PDF oder einfacher Text.',
+      'fr': 'TXT avec timecodes, HTML, PDF ou texte simple.', 'es': 'TXT con marcas de tiempo, HTML, PDF o texto simple.', 'it': 'TXT con timecode, HTML, PDF o semplice testo.',
+    },
+    'hs_exp_2': {
+      'ru': 'Файлы — в «Документы/DictaPro», можно сразу отправить.', 'en': 'Files go to Documents/DictaPro, ready to send.', 'de': 'Dateien liegen in „Dokumente/DictaPro“, sofort versendbar.',
+      'fr': 'Les fichiers vont dans Documents/DictaPro, prêts à envoyer.', 'es': 'Los archivos van a Documentos/DictaPro, listos para enviar.', 'it': 'I file vanno in Documenti/DictaPro, pronti da inviare.',
+    },
+    'hs_tar_t': {
+      'ru': 'Тарифы и часы', 'en': 'Plans and hours', 'de': 'Tarife und Stunden',
+      'fr': 'Forfaits et heures', 'es': 'Planes y horas', 'it': 'Piani e ore',
+    },
+    'hs_tar_1': {
+      'ru': 'Бесплатно: 30 минут расшифровки в день.', 'en': 'Free: 30 minutes of transcription per day.', 'de': 'Kostenlos: 30 Minuten Transkription pro Tag.',
+      'fr': 'Gratuit : 30 minutes de transcription par jour.', 'es': 'Gratis: 30 minutos de transcripción al día.', 'it': 'Gratis: 30 minuti di trascrizione al giorno.',
+    },
+    'hs_tar_2': {
+      'ru': 'Дневник: 24 ч/мес + 10 ИИ-часов.', 'en': 'Diary: 24 h/month + 10 AI hours.', 'de': 'Tagebuch: 24 Std./Monat + 10 KI-Stunden.',
+      'fr': 'Journal : 24 h/mois + 10 heures IA.', 'es': 'Diario: 24 h/mes + 10 horas IA.', 'it': 'Diario: 24 h/mese + 10 ore IA.',
+    },
+    'hs_tar_3': {
+      'ru': 'Ассистент: 120 ч/мес + 20 ИИ-часов.', 'en': 'Assistant: 120 h/month + 20 AI hours.', 'de': 'Assistent: 120 Std./Monat + 20 KI-Stunden.',
+      'fr': 'Assistant : 120 h/mois + 20 heures IA.', 'es': 'Asistente: 120 h/mes + 20 horas IA.', 'it': 'Assistente: 120 h/mese + 20 ore IA.',
+    },
+    'hs_tar_4': {
+      'ru': 'Безлимит: без ограничений + 40 ИИ-часов.', 'en': 'Unlimited: no limits + 40 AI hours.', 'de': 'Unbegrenzt: ohne Limits + 40 KI-Stunden.',
+      'fr': 'Illimité : sans limites + 40 heures IA.', 'es': 'Ilimitado: sin límites + 40 horas IA.', 'it': 'Illimitato: senza limiti + 40 ore IA.',
+    },
+    'hs_tar_5': {
+      'ru': 'Месяц считается от дня активации, не с 1-го числа.', 'en': 'The month starts on your activation day, not on the 1st.', 'de': 'Der Monat zählt ab Aktivierungstag, nicht ab dem 1.',
+      'fr': 'Le mois démarre le jour de l\'activation, pas le 1er.', 'es': 'El mes cuenta desde el día de activación, no desde el día 1.', 'it': 'Il mese parte dal giorno di attivazione, non dall\'1.',
+    },
+    'hs_tar_6': {
+      'ru': 'Купленные пакеты часов не сгорают.', 'en': 'Purchased hour packs never expire.', 'de': 'Gekaufte Stundenpakete verfallen nie.',
+      'fr': 'Les paquets d\'heures achetés ne périment pas.', 'es': 'Los paquetes de horas comprados no caducan.', 'it': 'I pacchetti ore acquistati non scadono.',
+    },
+    'hs_tar_7': {
+      'ru': 'Код активации: экран подписки → «Ввести код».', 'en': 'Activation code: subscription screen → “Enter code”.', 'de': 'Aktivierungscode: Abo-Bildschirm → „Code eingeben“.',
+      'fr': 'Code d\'activation : écran abonnement → « Saisir le code ».', 'es': 'Código de activación: pantalla de suscripción → «Introducir código».', 'it': 'Codice di attivazione: schermo abbonamento → «Inserisci codice».',
+    },
+    'hs_tar_8': {
+      'ru': 'Отмена подписки в Play — мгновенный возврат к бесплатным 30 минутам.', 'en': 'Cancelling the plan in Play returns you to 30 free minutes a day.', 'de': 'Kündigung im Play Store: zurück zu 30 kostenlosen Minuten pro Tag.',
+      'fr': 'Annulation dans Play : retour à 30 minutes gratuites par jour.', 'es': 'Cancelar en Play: vuelta a 30 minutos gratis al día.', 'it': 'Cancellando in Play: ritorno a 30 minuti gratuiti al giorno.',
+    },
+    'hs_set_t': {
+      'ru': 'Настройки', 'en': 'Settings', 'de': 'Einstellungen',
+      'fr': 'Réglages', 'es': 'Ajustes', 'it': 'Impostazioni',
+    },
+    'hs_set_1': {
+      'ru': 'Язык интерфейса (6 языков) и язык расшифровки.', 'en': 'Interface language (6 languages) and speech language.', 'de': 'App-Sprache (6 Sprachen) und Sprache der Transkription.',
+      'fr': 'Langue de l\'appli (6 langues) et langue de transcription.', 'es': 'Idioma de la app (6 idiomas) e idioma de transcripción.', 'it': 'Lingua dell\'app (6 lingue) e lingua di trascrizione.',
+    },
+    'hs_set_2': {
+      'ru': 'Качество записи: битрейт, каналы.', 'en': 'Recording quality: bitrate, channels.', 'de': 'Aufnahmequalität: Bitrate, Kanäle.',
+      'fr': 'Qualité d\'enregistrement : débit, canaux.', 'es': 'Calidad de grabación: bitrate, canales.', 'it': 'Qualità di registrazione: bitrate, canali.',
+    },
+    'hs_set_3': {
+      'ru': 'Папка записей: открыть / очистить.', 'en': 'Recordings folder: open / clear.', 'de': 'Aufnahmeordner: öffnen / leeren.',
+      'fr': 'Dossier des enregistrements : ouvrir / vider.', 'es': 'Carpeta de grabaciones: abrir / vaciar.', 'it': 'Cartella registrazioni: apri / svuota.',
+    },
+    'hs_set_4': {
+      'ru': '«Работа без ограничений» — чтобы система не убивала', 'en': '“Unrestricted” battery setting so the system doesn\'t kill', 'de': '„Unbeschränkt“ bei Batterie, damit das System die Hintergrund-',
+      'fr': '« Sans restriction » de batterie pour que le système ne tue pas', 'es': '«Sin restricciones» de batería para que el sistema no mate', 'it': '«Senza restrizioni» batteria perché il sistema non uccida',
+    },
+    'hs_set_5': {
+      'ru': 'фоновую расшифровку (важно на Xiaomi).', 'en': 'background transcription (important on Xiaomi).', 'de': 'Transkription nicht abwürgt (wichtig bei Xiaomi).',
+      'fr': 'la transcription en arrière-plan (important sur Xiaomi).', 'es': 'la transcripción en segundo plano (importante en Xiaomi).', 'it': 'la trascrizione in background (importante su Xiaomi).',
+    },
+    'hs_faq_t': {
+      'ru': 'Частые вопросы', 'en': 'FAQ', 'de': 'Häufige Fragen',
+      'fr': 'Questions fréquentes', 'es': 'Preguntas frecuentes', 'it': 'Domande frequenti',
+    },
+    'hs_faq_1': {
+      'ru': 'Медленно? Длинный файл считается долго — это нормально.', 'en': 'Slow? Long files take a while — that is normal.', 'de': 'Langsam? Lange Dateien dauern — das ist normal.',
+      'fr': 'Lent ? Les longs fichiers prennent du temps — c\'est normal.', 'es': '¿Lento? Los archivos largos tardan: es normal.', 'it': 'Lento? I file lunghi richiedono tempo: è normale.',
+    },
+    'hs_faq_2': {
+      'ru': 'Ошибки в именах? «Термины» → «Заново».', 'en': 'Names misheard? Add “Terms” → “Transcribe again”.', 'de': 'Namen falsch? „Begriffe“ → „Erneut transkribieren“.',
+      'fr': 'Noms mal reconnus ? « Termes » → « Retranscrire ».', 'es': '¿Nombres mal? «Términos» → «Volver a transcribir».', 'it': 'Nomi sbagliati? «Termini» → «Ritrascrivi».',
+    },
+    'hs_faq_3': {
+      'ru': 'Часы кончились? Завтра вернутся 30 минут или купите пакет.', 'en': 'Out of hours? 30 free minutes return tomorrow, or buy a pack.', 'de': 'Stunden aufgebraucht? Morgen 30 Gratis-Minuten oder Paket kaufen.',
+      'fr': 'Plus d\'heures ? 30 minutes gratuites demain, ou achetez un paquet.', 'es': '¿Sin horas? Mañana vuelven 30 minutos gratis o compra un paquete.', 'it': 'Ore finite? Domani tornano 30 minuti gratis o compra un pacchetto.',
+    },
+    'hs_faq_4': {
+      'ru': 'Удалил приложение? Записи остались в «Документы/DictaPro».', 'en': 'Uninstalled? Files remain in Documents/DictaPro.', 'de': 'Deinstalliert? Dateien bleiben in „Dokumente/DictaPro“.',
+      'fr': 'Désinstallé ? Les fichiers restent dans Documents/DictaPro.', 'es': '¿Desinstalada? Los archivos siguen en Documentos/DictaPro.', 'it': 'Disinstallata? I file restano in Documenti/DictaPro.',
+    },
     // Task 116 (Славан 24.10): бегущая строка — локализация.
     'marquee_free': {
       'ru': 'Без интернета бесплатно расшифровка {n} минут в день, остаток {left} минут',

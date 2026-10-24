@@ -1,6 +1,5 @@
 // Task 116 (Славан 24.10): «Как пользоваться» — плитки-аккордеоны.
-// Шапка = 2 строки слогана. Дальше раскрывающиеся плитки по разделам
-// инструкции; внутри — краткий текст для пользователя.
+// Все тексты — через AppStrings (6 языков). Шапка-слоган выделена.
 import 'package:flutter/material.dart';
 
 import 'app_strings.dart';
@@ -8,81 +7,42 @@ import 'theme/app_theme.dart';
 import 'widgets/dicta_ui.dart';
 
 class _Section {
-  final String title;
+  final String titleKey;
   final IconData icon;
-  final List<String> lines;
-  const _Section(this.title, this.icon, this.lines);
+  final List<String> lineKeys;
+  const _Section(this.titleKey, this.icon, this.lineKeys);
 }
 
 class HowToUsePage extends StatelessWidget {
   const HowToUsePage({super.key});
 
   static const List<_Section> _sections = [
-    _Section('Запись', Icons.mic_rounded, [
-      'Круглая кнопка — начать, ещё раз — остановить.',
-      'Можно свернуть: запись идёт в фоне.',
-      'Таймер сна остановит запись сам через выбранное время.',
-      'Записи хранятся в «Документы/DictaPro/Записи».',
+    _Section('hs_rec_t', Icons.mic_rounded,
+        ['hs_rec_1', 'hs_rec_2', 'hs_rec_3', 'hs_rec_4']),
+    _Section('hs_imp_t', Icons.upload_file_rounded, ['hs_imp_1', 'hs_imp_2']),
+    _Section('hs_tr_t', Icons.graphic_eq_rounded,
+        ['hs_tr_1', 'hs_tr_2', 'hs_tr_3', 'hs_tr_4', 'hs_tr_5', 'hs_tr_6']),
+    _Section('hs_txt_t', Icons.edit_note_rounded,
+        ['hs_txt_1', 'hs_txt_2', 'hs_txt_3']),
+    _Section('hs_sum_t', Icons.auto_awesome_rounded,
+        ['hs_sum_1', 'hs_sum_2', 'hs_sum_3', 'hs_sum_4', 'hs_sum_5']),
+    _Section('hs_pl_t', Icons.content_cut_rounded,
+        ['hs_pl_1', 'hs_pl_2', 'hs_pl_3']),
+    _Section('hs_exp_t', Icons.ios_share_rounded, ['hs_exp_1', 'hs_exp_2']),
+    _Section('hs_tar_t', Icons.workspace_premium_rounded, [
+      'hs_tar_1',
+      'hs_tar_2',
+      'hs_tar_3',
+      'hs_tar_4',
+      'hs_tar_5',
+      'hs_tar_6',
+      'hs_tar_7',
+      'hs_tar_8',
     ]),
-    _Section('Импорт файлов', Icons.upload_file_rounded, [
-      'Кнопка «Импорт»: mp3, m4a, wav, ogg, flac — с диктофона,',
-      'из мессенджера или почты.',
-      'Формат приведётся сам, битые wav починятся.',
-    ]),
-    _Section('Расшифровка', Icons.graphic_eq_rounded, [
-      'Откройте запись → «Расшифровать» → язык речи.',
-      'Считается в телефоне, интернет не нужен.',
-      'Фоновая расшифровка пришлёт уведомление «Готово».',
-      'Обрыв не страшен: «Продолжить с места обрыва».',
-      'Термины (имена, специальные слова) — в карточке текста,',
-      'затем «Заново».',
-    ]),
-    _Section('Текст и диалог', Icons.edit_note_rounded, [
-      'Правка, поиск, копирование, поделиться.',
-      'Диалог: фразы «Фраза 1, 2…» — исправить, разделить,',
-      'слить, пометить говорящего.',
-    ]),
-    _Section('Итоги', Icons.auto_awesome_rounded, [
-      'Локальные итоги: быстро, без сети, бесплатно.',
-      'ИИ-итоги: точнее, расходуют ИИ-часы.',
-      'Повторное открытие итога бесплатно (кэш).',
-      'Тип текста определится сам: совещание, лекция,',
-      'интервью, заметки, сказка. Решения — в карточке записи.',
-    ]),
-    _Section('Плеер и фрагменты', Icons.content_cut_rounded, [
-      'Плеер с таймкодами и подсветкой фразы.',
-      'Ножницы: отметить строки → «Вырезать и отправить» —',
-      'аудиофайл только из выбранных фраз, сразу в мессенджер.',
-    ]),
-    _Section('Экспорт', Icons.ios_share_rounded, [
-      'TXT с таймкодами, HTML, PDF («Фраза N») или просто текст.',
-      'Файлы — в «Документы/DictaPro», можно сразу отправить.',
-    ]),
-    _Section('Тарифы и часы', Icons.workspace_premium_rounded, [
-      'Бесплатно: 30 минут расшифровки в день.',
-      'Дневник: 24 ч/мес + 10 ИИ-часов.',
-      'Ассистент: 120 ч/мес + 20 ИИ-часов.',
-      'Безлимит: без ограничений + 40 ИИ-часов.',
-      'Месяц считается от дня активации, не с 1-го числа.',
-      'Купленные пакеты часов не сгорают.',
-      'Код активации: экран подписки → «Ввести код».',
-      'Отмена подписки в Play — мгновенный возврат к бесплатным',
-      '30 минутам; купленные пакеты остаются.',
-    ]),
-    _Section('Настройки', Icons.tune_rounded, [
-      'Язык интерфейса (6 языков) и язык расшифровки.',
-      'Качество записи: битрейт, каналы.',
-      'Папка записей: открыть / очистить.',
-      '«Работа без ограничений» — чтобы система не убивала',
-      'фоновую расшифровку (важно на Xiaomi).',
-      'Диагностика: скорость расшифровки по фазам.',
-    ]),
-    _Section('Частые вопросы', Icons.help_outline_rounded, [
-      'Медленно? Длинный файл считается долго — это нормально.',
-      'Ошибки в именах? «Термины» → «Заново».',
-      'Часы кончились? Завтра вернутся 30 минут или купите пакет.',
-      'Удалил приложение? Записи остались в «Документы/DictaPro».',
-    ]),
+    _Section('hs_set_t', Icons.tune_rounded,
+        ['hs_set_1', 'hs_set_2', 'hs_set_3', 'hs_set_4', 'hs_set_5']),
+    _Section('hs_faq_t', Icons.help_outline_rounded,
+        ['hs_faq_1', 'hs_faq_2', 'hs_faq_3', 'hs_faq_4']),
   ];
 
   @override
@@ -104,16 +64,35 @@ class HowToUsePage extends StatelessWidget {
                     style: Theme.of(context).textTheme.headlineMedium),
               ),
             ]),
-            const SizedBox(height: 8),
-            // Task 116 (Славан): шапка — две строки вместо старого пункта.
-            Text(
-              'Без интернета. Без регистрации. Бесплатно.',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '20+ функций. Расшифровка 10+ языков.',
-              style: TextStyle(fontSize: 12.5, color: tk.ink2),
+            const SizedBox(height: 12),
+            // Task 116 (Славан): шапка — одним шрифтом, выделена рамкой.
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: tk.surface2,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: tk.mint.withValues(alpha: 0.5)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    AppStrings.t('help_slogan_1', context),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700, color: tk.mint),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    AppStrings.t('help_slogan_2', context),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontSize: 13.5, color: tk.ink),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             for (final s in _sections) _SectionTile(section: s),
@@ -153,14 +132,14 @@ class _SectionTileState extends State<_SectionTile> {
                     Icon(widget.section.icon, size: 20, color: tk.mint),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Text(widget.section.title,
+                      child: Text(AppStrings.t(widget.section.titleKey, context),
                           style: Theme.of(context).textTheme.titleMedium),
                     ),
                     AnimatedRotation(
                       turns: _open ? 0.5 : 0,
                       duration: const Duration(milliseconds: 180),
-                      child:
-                          Icon(Icons.expand_more_rounded, size: 22, color: tk.ink3),
+                      child: Icon(Icons.expand_more_rounded,
+                          size: 22, color: tk.ink3),
                     ),
                   ],
                 ),
@@ -176,10 +155,10 @@ class _SectionTileState extends State<_SectionTile> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final line in widget.section.lines)
+                    for (final lineKey in widget.section.lineKeys)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 1.5),
-                        child: Text(line,
+                        child: Text(AppStrings.t(lineKey, context),
                             style: TextStyle(
                                 fontSize: 12.5, color: tk.ink2, height: 1.45)),
                       ),
