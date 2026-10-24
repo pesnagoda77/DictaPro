@@ -2732,42 +2732,53 @@ class _LiveMarqueeState extends State<_LiveMarquee> {
     final tier = PurchaseService.instance.tier.value;
     final p = await SharedPreferences.getInstance();
 
-    // Task 116 (Славан, точная фраза 24.10):
-    // «Без интернета бесплатно расшифровка 30 минут в день. Тариф "Дневник"
-    // до 21.11.2026, остаток расшифровки — 22,3 ч, остаток ИИ-часов 5,2 ч»
-    // Без тарифа: «Без интернета бесплатно расшифровка 30 минут в день».
+    // Task 116 (Славан, 24.10 09:16 — две формулы):
+    // 1) нет тарифа: «Без интернета бесплатно расшифровка 30 минут в день,
+    //    остаток N минут» — N меняется после каждой расшифровки.
+    // 2) есть тариф: «Тариф «Дневник» до 21.11.2026, остаток часов
+    //    расшифровки 10.2 ч, остаток ИИ-часов 5.1 ч».
     String dec(num v) => v.toStringAsFixed(1).replaceAll('.', ',');
-    final buf = StringBuffer('Без интернета бесплатно расшифровка '
-        '${UsageLimitService.dailyMinutesLimit} минут в день');
-    if (tier != SubscriptionTier.none) {
-      // Дата окончания: Play-подписка или код.
-      final expMs = p.getInt('play_subscription_expiry_v1') ??
-          p.getInt('code_activated_expiry_v1');
-      final tierName = switch (tier) {
-        SubscriptionTier.diary => 'Дневник',
-        SubscriptionTier.assistant => 'Ассистент',
-        SubscriptionTier.unlimited => 'Безлимит',
-        SubscriptionTier.none => '',
-      };
-      if (expMs != null) {
-        final d = DateTime.fromMillisecondsSinceEpoch(expMs);
-        buf.write('. Тариф «$tierName» до ${d.day.toString().padLeft(2, '0')}.'
-            '${d.month.toString().padLeft(2, '0')}.${d.year}');
-      } else {
-        buf.write('. Тариф «$tierName»');
-      }
-      // Остаток часов расшифровки (точное число с десятыми).
+    if (tier == SubscriptionTier.none) {
+      var freeLeftMin = UsageLimitService.dailyMinutesLimit;
       try {
-        final left = await TranscriptionHoursService.instance.balanceHours();
-        if (left.isFinite) buf.write(', остаток расшифровки — ${dec(left)} ч');
+        final usedMin = await UsageLimitService.instance.usedMinutesToday();
+        freeLeftMin = (UsageLimitService.dailyMinutesLimit - usedMin)
+            .clamp(0, UsageLimitService.dailyMinutesLimit);
       } catch (_) {}
+      final text = 'Без интернета бесплатно расшифровка '
+          '${UsageLimitService.dailyMinutesLimit} минут в день, '
+          'остаток $freeLeftMin минут';
+      if (!mounted) return;
+      setState(() {
+        _seenRevision = rev;
+        _text = text;
+      });
+      return;
     }
-    // ИИ-часы — всегда (и без тарифа: пакеты/бонусы).
+    final buf = StringBuffer();
+    final expMs = p.getInt('play_subscription_expiry_v1') ??
+        p.getInt('code_activated_expiry_v1');
+    final tierName = switch (tier) {
+      SubscriptionTier.diary => 'Дневник',
+      SubscriptionTier.assistant => 'Ассистент',
+      SubscriptionTier.unlimited => 'Безлимит',
+      SubscriptionTier.none => '',
+    };
+    if (expMs != null) {
+      final d = DateTime.fromMillisecondsSinceEpoch(expMs);
+      buf.write('Тариф «$tierName» до ${d.day.toString().padLeft(2, '0')}.'
+          '${d.month.toString().padLeft(2, '0')}.${d.year}');
+    } else {
+      buf.write('Тариф «$tierName»');
+    }
+    try {
+      final left = await TranscriptionHoursService.instance.balanceHours();
+      if (left.isFinite) buf.write(', остаток часов расшифровки ${dec(left)} ч');
+    } catch (_) {}
     try {
       final ai = await AiHoursService.instance.balanceHours();
       buf.write(', остаток ИИ-часов ${dec(ai)} ч');
     } catch (_) {}
-
     final text = buf.toString();
     if (!mounted) return;
     setState(() {
