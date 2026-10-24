@@ -478,6 +478,14 @@ class _SettingsPageState extends State<SettingsPage> {
   /// Task 112: открыть папку записей в файловом менеджере.
   /// Task 116 П.2: публичная Documents/DictaPro/Записи.
   Future<void> _openRecordingsFolder(BuildContext context) async {
+    // Task 116 (Славан): на iOS сначала свой экран — нативный вызов
+    // отвечал «успех», и до экрана со списком файлов дело не доходило.
+    if (Platform.isIOS) {
+      if (!context.mounted) return;
+      Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => const RecordingsFolderPage()));
+      return;
+    }
     try {
       // 21.10: сначала нативный intent (лучше работает на Vivo/MIUI).
       try {
@@ -486,14 +494,6 @@ class _SettingsPageState extends State<SettingsPage> {
             'openFolder', {'path': AudioService.publicRecordingsDisplayPath});
         if (ok == true) return;
       } catch (_) {}
-      // iOS: системные «Файлы» открываются не в нашей папке — показываем
-      // собственный экран со списком файлов папки.
-      if (Platform.isIOS) {
-        if (!context.mounted) return;
-        Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => const RecordingsFolderPage()));
-        return;
-      }
       final uri = Uri.directory(AudioService.publicRecordingsDisplayPath);
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri);
