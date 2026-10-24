@@ -30,6 +30,7 @@ import 'services/local_notify.dart';
 import 'dialogue_editor.dart';
 import 'tag_service.dart';
 import 'app_strings.dart';
+import 'main_shell.dart';
 import 'widgets/dicta_ui.dart';
 import 'export_service.dart';
 import 'how_to_use_page.dart';
@@ -1706,6 +1707,11 @@ class _HomePageState extends State<HomePage>
       );
       await AudioService().updateRecording(recording);
       _loadRecordings();
+      // Task 116 (Славан): открыли файл снаружи — сразу показываем главную
+      // со списком записей, чтобы человек видел, куда файл попал.
+      try {
+        MainShell.requestedTab.value = 0;
+      } catch (_) {}
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(AppStrings.tf('imported', context, {'n': '1'}))),

@@ -12,12 +12,35 @@ class MainShell extends StatefulWidget {
 
   final int initialTab;
 
+  /// Task 116 (Славан): любой экран может попросить «покажи главную».
+  /// Нужно после открытия аудиофайла из проводника.
+  static final ValueNotifier<int?> requestedTab = ValueNotifier<int?>(null);
+
   @override
   State<MainShell> createState() => _MainShellState();
 }
 
 class _MainShellState extends State<MainShell> {
   late int _tab = widget.initialTab;
+
+  @override
+  void initState() {
+    super.initState();
+    MainShell.requestedTab.addListener(_onRequestedTab);
+  }
+
+  void _onRequestedTab() {
+    final v = MainShell.requestedTab.value;
+    if (v == null || !mounted) return;
+    MainShell.requestedTab.value = null;
+    setState(() => _tab = v.clamp(0, 3));
+  }
+
+  @override
+  void dispose() {
+    MainShell.requestedTab.removeListener(_onRequestedTab);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
