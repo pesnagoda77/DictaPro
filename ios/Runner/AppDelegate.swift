@@ -94,27 +94,9 @@ import AVFoundation
             }
           }
         case "openFolder":
-          // Славан: shareddocuments:// открывал «Загрузки» — показываем
-          // именно нашу папку через системный браузер документов.
-          DispatchQueue.main.async {
-            if #available(iOS 13.0, *), let root = self.window?.rootViewController {
-              let docs = FileManager.default.urls(
-                for: .documentDirectory, in: .userDomainMask)[0]
-              let browser = UIDocumentBrowserViewController(
-                forOpeningFilesWithContentTypes: ["public.audio"])
-              browser.directoryURL = docs
-              browser.allowsDocumentCreation = false
-              browser.allowsPickingMultipleItems = false
-              browser.delegate = self
-              root.present(browser, animated: true)
-              result(true)
-            } else if let url = URL(string: "shareddocuments://") {
-              UIApplication.shared.open(url, options: [:], completionHandler: nil)
-              result(true)
-            } else {
-              result(false)
-            }
-          }
+          // На iOS «папку» показывает свой экран со списком файлов
+          // (Dart: RecordingsFolderPage). Здесь — просто успех.
+          result(true)
         case "extractFragmentWav":
           // Славан: «не удалось вырезать фрагмент» на iPhone — обработчика
           // не было вовсе (он был только в Android MainActivity).
@@ -699,22 +681,5 @@ enum FragmentExtractor {
     let tmp = NSTemporaryDirectory() + "fragment_\(Int(Date().timeIntervalSince1970 * 1000)).wav"
     try out.write(to: URL(fileURLWithPath: tmp))
     return tmp
-  }
-}
-
-extension AppDelegate: UIDocumentBrowserViewControllerDelegate {
-  func documentBrowser(_ controller: UIDocumentBrowserViewController,
-                       didPickDocumentsAt documentURLs: [URL]) {
-    controller.dismiss(animated: true)
-  }
-
-  func documentBrowser(_ controller: UIDocumentBrowserViewController,
-                       didRequestDocumentCreationWithHandler importHandler:
-                       @escaping (URL?, UIDocumentBrowserViewController.ImportMode) -> Void) {
-    importHandler(nil, .none)
-  }
-
-  func documentBrowserWasCancelled(_ controller: UIDocumentBrowserViewController) {
-    controller.dismiss(animated: true)
   }
 }

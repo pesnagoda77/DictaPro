@@ -250,6 +250,14 @@ class AppStrings {
       'es': 'No se pudo importar el archivo',
       'it': 'Impossibile importare il file',
     },
+    'folder_empty': {
+      'ru': 'В папке пока нет файлов. Запишите что-нибудь — файл появится здесь.',
+      'en': 'No files yet. Record something — the file will appear here.',
+      'de': 'Noch keine Dateien. Nimm etwas auf — die Datei erscheint hier.',
+      'fr': 'Aucun fichier. Enregistrez quelque chose — le fichier apparaîtra ici.',
+      'es': 'Aún no hay archivos. Graba algo y el archivo aparecerá aquí.',
+      'it': 'Ancora nessun file. Registra qualcosa — il file apparirà qui.',
+    },
     'about_version': {
       'ru': 'Версия', 'en': 'Version', 'de': 'Version',
       'fr': 'Version', 'es': 'Versión', 'it': 'Versione',

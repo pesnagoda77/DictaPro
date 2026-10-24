@@ -11,6 +11,7 @@ import 'subscription_page.dart';
 import 'theme/app_theme.dart';
 import 'locale_controller.dart';
 import 'app_strings.dart';
+import 'recordings_folder_page.dart';
 
 class RecorderSettings {
   static const String boxName = 'settings';
@@ -485,12 +486,12 @@ class _SettingsPageState extends State<SettingsPage> {
             'openFolder', {'path': AudioService.publicRecordingsDisplayPath});
         if (ok == true) return;
       } catch (_) {}
-      // iOS: «Файлы» открываются, но на корне — подсказываем путь.
+      // iOS: системные «Файлы» открываются не в нашей папке — показываем
+      // собственный экран со списком файлов папки.
       if (Platform.isIOS) {
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppStrings.t('folder_open_hint_ios', context))),
-        );
+        Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const RecordingsFolderPage()));
         return;
       }
       final uri = Uri.directory(AudioService.publicRecordingsDisplayPath);
