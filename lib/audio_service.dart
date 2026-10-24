@@ -380,6 +380,14 @@ class AudioService {
 
     // Task 112: миграция старых записей в новую папку.
     await migrateRecordings(_box!);
+
+    // Task 116 (Славан): папка Документы/DictaPro/Записи должна быть видна
+    // сразу после установки — создаём с файлом-подсказкой до первой записи.
+    try {
+      if (Platform.isAndroid) {
+        await _recordingsChannel.invokeMethod('ensureRecordingsFolder');
+      }
+    } catch (_) {}
   }
 
   Future<String> startRecording() async {

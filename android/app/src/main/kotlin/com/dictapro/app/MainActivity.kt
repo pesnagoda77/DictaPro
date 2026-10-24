@@ -44,6 +44,19 @@ class MainActivity : FlutterActivity() {
         // ≤28 — прямой путь + медиасканер.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, RECORDINGS_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
+                "ensureRecordingsFolder" -> {
+                    // Славан 24.10: папка должна существовать и быть видна
+                    // сразу после установки, а не после первой записи.
+                    Thread {
+                        try {
+                            val ok = ensureRecordingsFolderNative()
+                            runOnUiThread { result.success(ok) }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "ensureRecordingsFolder FAILED", e)
+                            runOnUiThread { result.success(false) }
+                        }
+                    }.start()
+                }
                 "publishRecording" -> {
                     val srcPath = call.argument<String>("srcPath") ?: ""
                     val displayName = call.argument<String>("displayName") ?: ""
@@ -300,6 +313,51 @@ class MainActivity : FlutterActivity() {
     // Возвращает map("path" — абсолютный путь для показа в UI,
     // "uri" — content:// для чтения/удаления через MediaStore;
     // на ≤API 28 uri отсутствует, читаем напрямую по path).
+    /// Task 116 (Славан): создать Documents/DictaPro/Записи сразу.
+    /// MediaStore не умеет «пустую папку» — кладём крошечный файл-подсказку,
+    /// только если в папке ещё ничего нет (без дублей при перезапусках).
+    private fun ensureRecordingsFolderNative(): Boolean {
+        return if (Build.VERSION.SDK_INT >= 29) {
+            val collection = android.provider.MediaStore.Files.getContentUri(
+                android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            val relArg = RECORDINGS_RELATIVE_PATH + "/"
+            val hasFiles = contentResolver.query(
+                collection,
+                arrayOf(android.provider.MediaStore.Files.FileColumns._ID),
+                android.provider.MediaStore.Files.FileColumns.RELATIVE_PATH + "=?",
+                arrayOf(relArg),
+                null
+            )?.use { it.count > 0 } ?: false
+            if (hasFiles) return true
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Files.FileColumns.DISPLAY_NAME,
+                    "Здесь появляются записи DictaPro.txt")
+                put(android.provider.MediaStore.Files.FileColumns.MIME_TYPE, "text/plain")
+                put(android.provider.MediaStore.Files.FileColumns.RELATIVE_PATH,
+                    RECORDINGS_RELATIVE_PATH)
+            }
+            val uri = contentResolver.insert(collection, values) ?: return false
+            contentResolver.openOutputStream(uri, "w")?.use { os ->
+                os.write("Аудиозаписи приложения DictaPro сохраняются в эту папку."
+                    .toByteArray())
+            }
+            true
+        } else {
+            val dir = java.io.File(
+                android.os.Environment.getExternalStoragePublicDirectory(
+                    android.os.Environment.DIRECTORY_DOCUMENTS),
+                "DictaPro/Записи")
+            if (!dir.exists()) dir.mkdirs()
+            val marker = java.io.File(dir, "Здесь появляются записи DictaPro.txt")
+            if (!marker.exists()) {
+                marker.writeText("Аудиозаписи приложения DictaPro сохраняются в эту папку.")
+                android.media.MediaScannerConnection.scanFile(
+                    this, arrayOf(marker.absolutePath), arrayOf("text/plain"), null)
+            }
+            dir.exists()
+        }
+    }
+
     private fun publishRecordingToDocuments(srcPath: String, displayName: String): Map<String, String>? {
         val src = File(srcPath)
         if (!src.exists() || !src.canRead()) throw Exception("src missing: $srcPath")
