@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 
 import 'app_strings.dart';
 import 'audio_service.dart';
+import 'player_page.dart';
 import 'theme/app_theme.dart';
 import 'widgets/dicta_ui.dart';
 
@@ -51,6 +52,40 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
     return '$bytes Б';
   }
 
+  /// Славан: тап по файлу — открыть как запись (плеер).
+  /// Если файла ещё нет в базе — добавляем (это и есть импорт) и открываем.
+  Future<void> _openInApp(File f) async {
+    final box = await AudioService.openRecordingsBox();
+    Recording? found;
+    for (final key in box.keys) {
+      final raw = box.get(key);
+      if (raw == null) continue;
+      try {
+        final rec = Recording.fromMap(Map<String, dynamic>.from(raw));
+        if (rec.filePath == f.path) {
+          found = rec;
+          break;
+        }
+      } catch (_) {}
+    }
+    if (found == null) {
+      final st = f.statSync();
+      found = Recording(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        filePath: f.path,
+        createdAt: st.modified,
+        durationMs: 0,
+        fileSize: st.size,
+        title: f.uri.pathSegments.last,
+      );
+      await AudioService().updateRecording(found);
+      await _load();
+    }
+    if (!mounted) return;
+    Navigator.push(context,
+        MaterialPageRoute(builder: (_) => PlayerPage(recording: found!)));
+  }
+
   String _date(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year} '
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
@@ -93,33 +128,39 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: DictaCard(
-                    child: Row(
-                      children: [
-                        Icon(Icons.audio_file_rounded, size: 20, color: tk.mint),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(f.uri.pathSegments.last,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      fontSize: 12.5, fontWeight: FontWeight.w600)),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${_size(f.statSync().size)} · ${_date(f.statSync().modified)}',
-                                style: TextStyle(fontSize: 11, color: tk.ink3),
-                              ),
-                            ],
+                    // Task 116 (Славан): тап по файлу — открыть в приложении
+                    // (плеер: прослушать, расшифровать, фрагменты).
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => _openInApp(f),
+                      child: Row(
+                        children: [
+                          Icon(Icons.audio_file_rounded, size: 20, color: tk.mint),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(f.uri.pathSegments.last,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontSize: 12.5, fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${_size(f.statSync().size)} · ${_date(f.statSync().modified)}',
+                                  style: TextStyle(fontSize: 11, color: tk.ink3),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        IconButton(
-                          tooltip: 'Поделиться',
-                          icon: Icon(Icons.ios_share_rounded, size: 20, color: tk.ink2),
-                          onPressed: () => Share.shareXFiles([XFile(f.path)]),
-                        ),
-                      ],
+                          IconButton(
+                            tooltip: 'Поделиться',
+                            icon: Icon(Icons.ios_share_rounded, size: 20, color: tk.ink2),
+                            onPressed: () => Share.shareXFiles([XFile(f.path)]),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

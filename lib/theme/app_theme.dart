@@ -298,6 +298,9 @@ class AppTheme {
       snackBarTheme: SnackBarThemeData(
         backgroundColor: surface2,
         contentTextStyle: t.bodyMedium!.copyWith(color: text),
+        // Task 116 (Славан): действие («Поделиться») сливалось с фоном.
+        actionTextColor: accent,
+        disabledActionTextColor: faint,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
