@@ -226,6 +226,51 @@ class AppStrings {
     },
     // ---------- Task 113: баннер бесплатного лимита на главном экране ----------
     // {n} — фактический дневной лимит минут (UsageLimitService.dailyMinutesLimit).
+    // Task 116 (Славан 24.10): бегущая строка — локализация.
+    'marquee_free': {
+      'ru': 'Без интернета бесплатно расшифровка {n} минут в день, остаток {left} минут',
+      'en': 'Works offline. Free transcription: {n} min/day, {left} min left',
+      'de': 'Ohne Internet. Kostenlose Transkription: {n} Min./Tag, noch {left} Min.',
+      'fr': 'Sans internet. Transcription gratuite : {n} min/jour, reste {left} min',
+      'es': 'Sin internet. Transcripción gratis: {n} min/día, quedan {left} min',
+      'it': 'Senza internet. Trascrizione gratis: {n} min/giorno, restano {left} min',
+    },
+    'marquee_tier_until': {
+      'ru': 'Тариф «{tier}» до {date}',
+      'en': 'Plan "{tier}" until {date}',
+      'de': 'Tarif „{tier}" bis {date}',
+      'fr': 'Forfait « {tier} » jusqu\'au {date}',
+      'es': 'Plan «{tier}» hasta el {date}',
+      'it': 'Piano «{tier}» fino al {date}',
+    },
+    'marquee_tier_diary': {
+      'ru': 'Дневник', 'en': 'Diary', 'de': 'Tagebuch',
+      'fr': 'Journal', 'es': 'Diario', 'it': 'Diario',
+    },
+    'marquee_tier_assistant': {
+      'ru': 'Ассистент', 'en': 'Assistant', 'de': 'Assistent',
+      'fr': 'Assistant', 'es': 'Asistente', 'it': 'Assistente',
+    },
+    'marquee_tier_unlimited': {
+      'ru': 'Безлимит', 'en': 'Unlimited', 'de': 'Unbegrenzt',
+      'fr': 'Illimité', 'es': 'Ilimitado', 'it': 'Illimitato',
+    },
+    'marquee_left_tr': {
+      'ru': 'остаток часов расшифровки {h} ч',
+      'en': '{h} h of transcription left',
+      'de': 'noch {h} Std. Transkription',
+      'fr': 'reste {h} h de transcription',
+      'es': 'quedan {h} h de transcripción',
+      'it': 'restano {h} h di trascrizione',
+    },
+    'marquee_left_ai': {
+      'ru': 'остаток ИИ-часов {h} ч',
+      'en': '{h} h of AI time left',
+      'de': 'noch {h} Std. KI-Zeit',
+      'fr': 'reste {h} h d\'heures IA',
+      'es': 'quedan {h} h de IA',
+      'it': 'restano {h} h di ore IA',
+    },
     'free_limit_banner': {
       'ru': 'Бесплатно: {n} минут расшифровки в день', 'es': 'Gratis: {n} minutos de transcripción al día', 'fr': 'Gratuit : {n} minutes de transcription par jour',
       'en': 'Free: {n} minutes of transcription per day',

@@ -2738,6 +2738,7 @@ class _LiveMarqueeState extends State<_LiveMarquee> {
     // 2) есть тариф: «Тариф «Дневник» до 21.11.2026, остаток часов
     //    расшифровки 10.2 ч, остаток ИИ-часов 5.1 ч».
     String dec(num v) => v.toStringAsFixed(1).replaceAll('.', ',');
+    final ctx = context;
     if (tier == SubscriptionTier.none) {
       var freeLeftMin = UsageLimitService.dailyMinutesLimit;
       try {
@@ -2745,9 +2746,10 @@ class _LiveMarqueeState extends State<_LiveMarquee> {
         freeLeftMin = (UsageLimitService.dailyMinutesLimit - usedMin)
             .clamp(0, UsageLimitService.dailyMinutesLimit);
       } catch (_) {}
-      final text = 'Без интернета бесплатно расшифровка '
-          '${UsageLimitService.dailyMinutesLimit} минут в день, '
-          'остаток $freeLeftMin минут';
+      final text = AppStrings.tf('marquee_free', ctx, {
+        'n': '${UsageLimitService.dailyMinutesLimit}',
+        'left': '$freeLeftMin',
+      });
       if (!mounted) return;
       setState(() {
         _seenRevision = rev;
@@ -2758,26 +2760,34 @@ class _LiveMarqueeState extends State<_LiveMarquee> {
     final buf = StringBuffer();
     final expMs = p.getInt('play_subscription_expiry_v1') ??
         p.getInt('code_activated_expiry_v1');
-    final tierName = switch (tier) {
-      SubscriptionTier.diary => 'Дневник',
-      SubscriptionTier.assistant => 'Ассистент',
-      SubscriptionTier.unlimited => 'Безлимит',
-      SubscriptionTier.none => '',
+    final tierKey = switch (tier) {
+      SubscriptionTier.diary => 'marquee_tier_diary',
+      SubscriptionTier.assistant => 'marquee_tier_assistant',
+      SubscriptionTier.unlimited => 'marquee_tier_unlimited',
+      SubscriptionTier.none => 'marquee_tier_diary',
     };
+    final tierName = AppStrings.t(tierKey, ctx);
     if (expMs != null) {
       final d = DateTime.fromMillisecondsSinceEpoch(expMs);
-      buf.write('Тариф «$tierName» до ${d.day.toString().padLeft(2, '0')}.'
-          '${d.month.toString().padLeft(2, '0')}.${d.year}');
+      buf.write(AppStrings.tf('marquee_tier_until', ctx, {
+        'tier': tierName,
+        'date': '${d.day.toString().padLeft(2, '0')}.'
+            '${d.month.toString().padLeft(2, '0')}.${d.year}',
+      }));
     } else {
-      buf.write('Тариф «$tierName»');
+      // Без даты: просто «Тариф «X»» — обрезаем хвост «до ».
+      buf.write(AppStrings.tf('marquee_tier_until', ctx,
+          {'tier': tierName, 'date': ' '}).trim());
     }
     try {
       final left = await TranscriptionHoursService.instance.balanceHours();
-      if (left.isFinite) buf.write(', остаток часов расшифровки ${dec(left)} ч');
+      if (left.isFinite) {
+        buf.write(', ' + AppStrings.tf('marquee_left_tr', ctx, {'h': dec(left)}));
+      }
     } catch (_) {}
     try {
       final ai = await AiHoursService.instance.balanceHours();
-      buf.write(', остаток ИИ-часов ${dec(ai)} ч');
+      buf.write(', ' + AppStrings.tf('marquee_left_ai', ctx, {'h': dec(ai)}));
     } catch (_) {}
     final text = buf.toString();
     if (!mounted) return;

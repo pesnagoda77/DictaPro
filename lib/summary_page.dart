@@ -141,15 +141,15 @@ class _SummaryPageState extends State<SummaryPage> {
     final transcript = widget.recording.transcript;
     if (transcript == null || transcript.isEmpty || _onlineBusy) return;
 
-    // Task 116 П.6: «0.0 часов» с первого тапа — гонка: биллинг ещё
-    // инициализируется, кошелёк пуст. Дождаться restore/ready, перечитать.
+    // Task 116 П.6 (+ фидбек тестера +115): первый тап на холодном старте
+    // показывал «0.0» — биллинг ещё дорисовывал restore. Ждём ready и
+    // делаем до 3 повторных проверок с паузой (баланс мог доехать позже).
     try {
-      await PurchaseService.instance.ready;
+      await PurchaseService.instance.ready.timeout(const Duration(seconds: 10));
     } catch (_) {}
     var canSpend = await AiHoursService.instance.canSpend(_audioMs);
-    if (!canSpend) {
-      // Вторая попытка после короткой паузы (данные могли доехать).
-      await Future.delayed(const Duration(milliseconds: 600));
+    for (var attempt = 0; attempt < 3 && !canSpend; attempt++) {
+      await Future.delayed(const Duration(milliseconds: 1200));
       await _refreshHoursLabel();
       canSpend = await AiHoursService.instance.canSpend(_audioMs);
     }
