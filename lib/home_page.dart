@@ -118,6 +118,9 @@ class _HomePageState extends State<HomePage>
     // же файла.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkUnfinishedTranscription();
+      // Task 116 (Славан): файл, открытый «в DictaPro» из проводника,
+      // импортируем в список записей.
+      _handlePendingOpenFile();
     });
     _liveTimer = Timer.periodic(const Duration(seconds: 3), (_) => _refreshLiveStatus());
     // Task 114: при активации кода/покупке (planRevision) перерисовываемся —
@@ -1645,6 +1648,77 @@ class _HomePageState extends State<HomePage>
         _loadRecordings();
       }
     });
+  }
+
+  /// Task 116 (Славан): «Открыть в DictaPro» из проводника —
+  /// принимаем content:// URI, материализуем и добавляем в список.
+  Future<void> _handlePendingOpenFile() async {
+    final pending = await AudioService.takePendingOpenFile();
+    if (pending == null) return;
+    final uri = pending['uri'] ?? '';
+    if (uri.isEmpty) return;
+    final name = (pending['name'] ?? 'audio').trim();
+    final ext = name.contains('.') ? name.split('.').last.toLowerCase() : '';
+    const allowedExts = ['wav', 'mp3', 'm4a', 'aac', 'ogg', 'flac', 'wma'];
+    try {
+      String sourcePath;
+      if (allowedExts.contains(ext)) {
+        final materialized = await AudioService.materializeUri(uri, name);
+        if (materialized == null || materialized.isEmpty) throw 'materialize';
+        sourcePath = materialized;
+      } else {
+        // Незнакомый контейнер — материализуем как есть, расширение spare.
+        final materialized = await AudioService.materializeUri(
+            uri, allowedExts.contains(ext) ? name : '$name.wav');
+        if (materialized == null || materialized.isEmpty) throw 'materialize';
+        sourcePath = materialized;
+      }
+
+      final dir = await getApplicationDocumentsDirectory();
+      final id = DateTime.now().millisecondsSinceEpoch.toString();
+      final useExt = allowedExts.contains(ext) ? ext : 'wav';
+      final destPath = '${dir.path}/imported_${id}.$useExt';
+      await File(sourcePath).copy(destPath);
+
+      final file = File(destPath);
+      final size = await file.length();
+      final now = DateTime.now();
+
+      int durationMs = 0;
+      try {
+        final player = AudioPlayer();
+        await player.setFilePath(destPath);
+        final dur = await player.durationStream.firstWhere(
+          (d) => d != null && d.inMilliseconds > 0,
+          orElse: () => null,
+        );
+        if (dur != null) durationMs = dur.inMilliseconds;
+        await player.dispose();
+      } catch (_) {}
+
+      final recording = Recording(
+        id: id,
+        filePath: destPath,
+        createdAt: now,
+        durationMs: durationMs,
+        fileSize: size,
+        title: name,
+      );
+      await AudioService().updateRecording(recording);
+      _loadRecordings();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppStrings.tf('imported', context, {'n': '1'}))),
+        );
+      }
+    } catch (e) {
+      debugPrint('[open-with] import failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppStrings.t('import_open_failed', context))),
+        );
+      }
+    }
   }
 
   Future<void> _importFile() async {

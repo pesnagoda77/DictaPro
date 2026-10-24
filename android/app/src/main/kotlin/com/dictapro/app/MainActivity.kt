@@ -35,7 +35,37 @@ class MainActivity : FlutterActivity() {
     private val RECORDINGS_RELATIVE_PATH =
         "${android.os.Environment.DIRECTORY_DOCUMENTS}/DictaPro/Записи"
 
+    // Task 116 (Славан): файл, открытый «в DictaPro» из проводника.
+    private var pendingOpenUri: String? = null
+    private var pendingOpenName: String? = null
+
+    private fun stashViewIntent(intent: android.content.Intent?) {
+        if (intent?.action != android.content.Intent.ACTION_VIEW) return
+        val uri = intent.data ?: return
+        pendingOpenUri = uri.toString()
+        var name: String? = null
+        try {
+            contentResolver.query(
+                uri,
+                arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+                null, null, null
+            )?.use { c ->
+                if (c.moveToFirst()) {
+                    val idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (idx >= 0) name = c.getString(idx)
+                }
+            }
+        } catch (_: Exception) {}
+        pendingOpenName = name ?: uri.lastPathSegment ?: "audio"
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        stashViewIntent(intent)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        stashViewIntent(intent)
         super.configureFlutterEngine(flutterEngine)
 
         // Task 116 П.2: публикация/чтение/удаление записей в публичной
@@ -44,6 +74,18 @@ class MainActivity : FlutterActivity() {
         // ≤28 — прямой путь + медиасканер.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, RECORDINGS_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
+                "takePendingOpenFile" -> {
+                    // Отдать Dart файл, открытый снаружи (и забыть его).
+                    val uri = pendingOpenUri
+                    pendingOpenUri = null
+                    val name = pendingOpenName
+                    pendingOpenName = null
+                    if (uri == null) {
+                        result.success(null)
+                    } else {
+                        result.success(mapOf("uri" to uri, "name" to (name ?: "")))
+                    }
+                }
                 "ensureRecordingsFolder" -> {
                     // Славан 24.10: папка должна существовать и быть видна
                     // сразу после установки, а не после первой записи.

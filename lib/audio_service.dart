@@ -216,6 +216,38 @@ class AudioService {
   /// (contentUri != null), scoped storage запрещает читать её по пути
   /// напрямую — нативно копируем во временный файл в app-кэш.
   /// Кэш чистится при каждом init — копии не копятся между сессиями.
+  /// Task 116 (Славан): файл, открытый «в DictaPro» из проводника.
+  /// Возвращает {uri, name} или null (нечего открывать).
+  static Future<Map<String, String>?> takePendingOpenFile() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      final out = await _recordingsChannel
+          .invokeMethod<Map<dynamic, dynamic>>('takePendingOpenFile');
+      if (out == null) return null;
+      return {
+        'uri': out['uri']?.toString() ?? '',
+        'name': out['name']?.toString() ?? '',
+      };
+    } catch (e) {
+      debugPrint('[recordings] takePendingOpenFile: $e');
+      return null;
+    }
+  }
+
+  /// Task 116: материализовать произвольный content:// uri (открыт снаружи).
+  static Future<String?> materializeUri(String uri, String name) async {
+    try {
+      final out = await _recordingsChannel.invokeMethod<String>(
+        'materializeRecording',
+        {'uri': uri, 'name': name.isEmpty ? 'audio.wav' : name},
+      );
+      if (out != null && out.isNotEmpty) return out;
+    } catch (e) {
+      debugPrint('[recordings] materializeUri failed: $e');
+    }
+    return null;
+  }
+
   static Future<String> materializePath(Recording rec) async {
     final uri = rec.contentUri;
     if (uri != null && uri.isNotEmpty) {

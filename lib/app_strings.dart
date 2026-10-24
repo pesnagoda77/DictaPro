@@ -242,6 +242,14 @@ class AppStrings {
       'es': 'Más de 20 funciones. Transcripción en más de 10 idiomas.',
       'it': 'Oltre 20 funzioni. Trascrizione in oltre 10 lingue.',
     },
+    'import_open_failed': {
+      'ru': 'Не удалось импортировать файл',
+      'en': 'Could not import the file',
+      'de': 'Datei konnte nicht importiert werden',
+      'fr': 'Impossible d\'importer le fichier',
+      'es': 'No se pudo importar el archivo',
+      'it': 'Impossibile importare il file',
+    },
     'hs_rec_t': {
       'ru': 'Запись', 'en': 'Record', 'de': 'Aufnahme',
       'fr': 'Enregistrement', 'es': 'Grabación', 'it': 'Registrazione',
