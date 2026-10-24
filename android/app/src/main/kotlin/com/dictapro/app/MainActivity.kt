@@ -143,19 +143,51 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "openFolder" -> {
+                    // Task 116 фидбек: старый URI (resource/folder + ручной
+                    // percent-encoding) не открывался почти нигде — кириллица
+                    // в пути («Записи») не кодировалась. Правильно — строить
+                    // URI через DocumentsContract: системный Files (DocumentsUI)
+                    // открывает папку напрямую.
                     val path = call.argument<String>("path") ?: ""
                     try {
                         val dir = java.io.File(path)
                         if (!dir.exists()) dir.mkdirs()
-                        val uri = android.net.Uri.parse(
-                            "content://com.android.externalstorage.documents/document/primary%3A" +
-                                path.removePrefix("/storage/emulated/0/").replace("/", "%2F")
-                        )
-                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
-                        intent.setDataAndType(uri, "resource/folder")
-                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                        startActivity(intent)
-                        runOnUiThread { result.success(true) }
+                        val rel = path.removePrefix("/storage/emulated/0/")
+                        var opened = false
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                            try {
+                                val docUri = android.provider.DocumentsContract.buildDocumentUri(
+                                    "com.android.externalstorage.documents",
+                                    "primary:$rel"
+                                )
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+                                intent.setDataAndType(
+                                    docUri,
+                                    android.provider.DocumentsContract.Document.MIME_TYPE_DIR
+                                )
+                                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                startActivity(intent)
+                                opened = true
+                            } catch (e: Exception) {
+                                Log.e(TAG, "openFolder documentsui failed", e)
+                            }
+                        }
+                        if (!opened) {
+                            // Фолбэк: выбор «проводника» у пользователя.
+                            try {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+                                intent.setDataAndType(
+                                    android.net.Uri.parse("content://com.android.externalstorage.documents/document/primary:" + rel),
+                                    "vnd.android.document/directory"
+                                )
+                                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                startActivity(intent)
+                                opened = true
+                            } catch (e: Exception) {
+                                Log.e(TAG, "openFolder fallback failed", e)
+                            }
+                        }
+                        runOnUiThread { result.success(opened) }
                     } catch (e: Exception) {
                         Log.e(TAG, "openFolder failed", e)
                         runOnUiThread { result.success(false) }
