@@ -331,6 +331,23 @@ class AudioService {
     try {
       final sdk = Platform.isAndroid ? await _androidSdk() : 0;
       var migrated = 0;
+
+      // Task 116 (Славан): индекс «имя файла → путь» по всему Documents —
+      // для записей, чей путь не удаётся восстановить через '/Documents/'.
+      Map<String, String> docIndex = {};
+      if (Platform.isIOS) {
+        try {
+          final docs = await getApplicationDocumentsDirectory();
+          await for (final e
+              in docs.list(recursive: true, followLinks: false)) {
+            if (e is File) {
+              final name = e.uri.pathSegments.last;
+              docIndex.putIfAbsent(name, () => e.path);
+            }
+          }
+        } catch (_) {}
+      }
+
       for (final key in box.keys) {
         final raw = box.get(key);
         if (raw == null) continue;
@@ -352,6 +369,16 @@ class AudioService {
             if (await File(candidate).exists()) {
               oldPath = candidate;
               oldFile = File(candidate);
+            }
+          }
+          // Глубокий поиск: у части старых записей путь был вообще без
+          // '/Documents/' — ищем файл по имени по всему Documents.
+          if (!await oldFile.exists()) {
+            final name = oldPath.split(RegExp(r'[\\/]')).last;
+            final hit = docIndex[name];
+            if (hit != null) {
+              oldPath = hit;
+              oldFile = File(hit);
             }
           }
         }
