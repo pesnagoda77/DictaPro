@@ -1,13 +1,16 @@
-// Task 116 (Славан): экран «Папка записей» для iOS — показывает файлы
-// папки Documents/DictaPro/Записи с размером, датой и отправкой.
 import 'dart:io';
 
+// Task 116 (Славан): экран «Папка записей» — единый на обеих платформах.
+// Список файлов: Android — MediaStore, iOS — файловая система.
+// Тап по файлу → он появляется в списке на главной (если его там нет)
+// и происходит переход на главную. Кнопка «Поделиться» — отправка файла.
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'app_strings.dart';
 import 'audio_service.dart';
 import 'main_shell.dart';
+import 'services/audio_normalizer.dart';
 import 'theme/app_theme.dart';
 import 'widgets/dicta_ui.dart';
 
@@ -19,7 +22,7 @@ class RecordingsFolderPage extends StatefulWidget {
 }
 
 class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
-  List<File> _files = const [];
+  List<Map<String, String>> _files = const [];
   bool _loading = true;
 
   @override
@@ -29,19 +32,13 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
   }
 
   Future<void> _load() async {
-    final out = <File>[];
-    try {
-      final dir = await AudioService.recordingsDir();
-      if (await dir.exists()) {
-        await for (final e in dir.list()) {
-          if (e is File) out.add(e);
-        }
-        out.sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
-      }
-    } catch (_) {}
+    final files = await AudioService.listPublicFolder();
+    files.sort((a, b) =>
+        (int.tryParse(b['dateMs'] ?? '0') ?? 0)
+            .compareTo(int.tryParse(a['dateMs'] ?? '0') ?? 0));
     if (!mounted) return;
     setState(() {
-      _files = out;
+      _files = files;
       _loading = false;
     });
   }
@@ -52,51 +49,71 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
     return '$bytes Б';
   }
 
-  /// Славан: тап по файлу — открыть как запись (плеер).
-  /// Если файла ещё нет в базе — добавляем (это и есть импорт) и открываем.
-  Future<void> _openInApp(File f) async {
+  String _date(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year} '
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+
+  /// Славан: тап по файлу — файл попадает в список на главной (если его
+  /// там нет) и происходит переход на главную.
+  Future<void> _openInApp(Map<String, String> f) async {
+    final name = f['name'] ?? '';
     final box = await AudioService.openRecordingsBox();
-    Recording? found;
     for (final key in box.keys) {
       final raw = box.get(key);
       if (raw == null) continue;
       try {
         final rec = Recording.fromMap(Map<String, dynamic>.from(raw));
-        if (rec.filePath == f.path) {
-          found = rec;
-          break;
+        final recName = rec.filePath.split(RegExp(r'[/]')).last;
+        if (recName == name) {
+          _goHome();
+          return;
         }
       } catch (_) {}
     }
-    if (found == null) {
-      // Славан: файла нет в списке — он появляется в списке на главной.
-      final st = f.statSync();
-      found = Recording(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        filePath: f.path,
-        createdAt: st.modified,
-        durationMs: 0,
-        fileSize: st.size,
-        title: f.uri.pathSegments.last,
-      );
-      await AudioService().updateRecording(found);
-      await _load();
-    }
-    // Славан: после тапа — главная со списком (там можно всё), не плеер.
-    // Папку могут открыть и из настроек — закрываем ВСЁ до корня.
+    // Нет в базе — импортируем.
+    final st = f;
+    final rec = Recording(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      filePath: st['path'] ?? '',
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+          int.tryParse(st['dateMs'] ?? '0') ?? 0),
+      durationMs: 0,
+      fileSize: int.tryParse(st['size'] ?? '0') ?? 0,
+      title: name,
+    );
+    if ((st['uri'] ?? '').isNotEmpty) rec.contentUri = st['uri'];
+    await AudioService().updateRecording(rec);
+    _goHome();
+  }
+
+  void _goHome() {
     if (!mounted) return;
     MainShell.requestedTab.value = 0;
     Navigator.of(context).popUntil((r) => r.isFirst);
   }
 
-  String _date(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year} '
-      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  Future<void> _share(Map<String, String> f) async {
+    // Android: свои файлы в публичной папке шарятся по пути;
+    // если путь недоступен цели — материализуем копию.
+    var path = f['path'] ?? '';
+    if (Platform.isAndroid && (f['uri'] ?? '').isNotEmpty) {
+      try {
+        final test = File(path);
+        if (!await test.exists()) {
+          final tmp = await AudioService.materializeUri(
+              f['uri'] ?? '', f['name'] ?? 'audio.wav');
+          if (tmp != null) path = tmp;
+        }
+      } catch (_) {}
+    }
+    await Share.shareXFiles([XFile(path)]);
+  }
 
   @override
   Widget build(BuildContext context) {
     final tk = DictaTokens.of(context);
     return Scaffold(
+      backgroundColor: Colors.transparent,
       bottomNavigationBar: DictaBottomNav(
         index: 3,
         onTap: (i) {
@@ -104,7 +121,6 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
           MainShell.requestedTab.value = i;
         },
       ),
-      backgroundColor: Colors.transparent,
       body: DictaBackground(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
@@ -117,6 +133,10 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
               Expanded(
                 child: Text(AppStrings.t('folder_recordings_title', context),
                     style: Theme.of(context).textTheme.headlineMedium),
+              ),
+              IconButton(
+                onPressed: _load,
+                icon: const Icon(Icons.refresh_rounded),
               ),
             ]),
             const SizedBox(height: 6),
@@ -138,8 +158,6 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: DictaCard(
-                    // Task 116 (Славан): тап по файлу — открыть в приложении
-                    // (плеер: прослушать, расшифровать, фрагменты).
                     child: InkWell(
                       borderRadius: BorderRadius.circular(14),
                       onTap: () => _openInApp(f),
@@ -151,14 +169,14 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(f.uri.pathSegments.last,
+                                Text(f['name'] ?? '',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                         fontSize: 12.5, fontWeight: FontWeight.w600)),
                                 const SizedBox(height: 2),
                                 Text(
-                                  '${_size(f.statSync().size)} · ${_date(f.statSync().modified)}',
+                                  '${_size(int.tryParse(f['size'] ?? '0') ?? 0)} · ${_date(DateTime.fromMillisecondsSinceEpoch(int.tryParse(f['dateMs'] ?? '0') ?? 0))}',
                                   style: TextStyle(fontSize: 11, color: tk.ink3),
                                 ),
                               ],
@@ -167,7 +185,7 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
                           IconButton(
                             tooltip: 'Поделиться',
                             icon: Icon(Icons.ios_share_rounded, size: 20, color: tk.ink2),
-                            onPressed: () => Share.shareXFiles([XFile(f.path)]),
+                            onPressed: () => _share(f),
                           ),
                         ],
                       ),

@@ -86,6 +86,62 @@ class MainActivity : FlutterActivity() {
                         result.success(mapOf("uri" to uri, "name" to (name ?: "")))
                     }
                 }
+                "listRecordingsFolder" -> {
+                    // Task 116 (Славан): полный список файлов папки записей
+                    // через MediaStore (Directory.list видел только часть).
+                    Thread {
+                        try {
+                            val list = ArrayList<Map<String, Any>>()
+                            if (Build.VERSION.SDK_INT >= 29) {
+                                val collection = android.provider.MediaStore.Files
+                                    .getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                                val relArg = RECORDINGS_RELATIVE_PATH + "/"
+                                val cur = contentResolver.query(
+                                    collection,
+                                    arrayOf(
+                                        android.provider.MediaStore.Files.FileColumns.DISPLAY_NAME,
+                                        android.provider.MediaStore.Files.FileColumns._ID,
+                                        android.provider.MediaStore.Files.FileColumns.SIZE,
+                                        android.provider.MediaStore.Files.FileColumns.DATE_MODIFIED),
+                                    android.provider.MediaStore.Files.FileColumns.RELATIVE_PATH + "=?",
+                                    arrayOf(relArg), null)
+                                cur?.use { c ->
+                                    val iName = c.getColumnIndex(android.provider.MediaStore.Files.FileColumns.DISPLAY_NAME)
+                                    val iId = c.getColumnIndex(android.provider.MediaStore.Files.FileColumns._ID)
+                                    val iSize = c.getColumnIndex(android.provider.MediaStore.Files.FileColumns.SIZE)
+                                    val iDate = c.getColumnIndex(android.provider.MediaStore.Files.FileColumns.DATE_MODIFIED)
+                                    while (c.moveToNext()) {
+                                        val name = c.getString(iName)
+                                        val id = c.getLong(iId)
+                                        val uri = android.content.ContentUris.withAppendedId(collection, id)
+                                        list.add(mapOf(
+                                            "name" to name,
+                                            "path" to "/storage/emulated/0/$RECORDINGS_RELATIVE_PATH/$name",
+                                            "uri" to uri.toString(),
+                                            "size" to c.getLong(iSize),
+                                            "dateMs" to ((c.getDouble(iDate)) * 1000).toLong()))
+                                    }
+                                }
+                            } else {
+                                val dir = java.io.File(
+                                    android.os.Environment.getExternalStoragePublicDirectory(
+                                        android.os.Environment.DIRECTORY_DOCUMENTS),
+                                    "DictaPro/Записи")
+                                dir.listFiles()?.forEach { f ->
+                                    list.add(mapOf(
+                                        "name" to f.name,
+                                        "path" to f.absolutePath,
+                                        "size" to f.length(),
+                                        "dateMs" to f.lastModified()))
+                                }
+                            }
+                            runOnUiThread { result.success(list) }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "listRecordingsFolder FAILED", e)
+                            runOnUiThread { result.success(null) }
+                        }
+                    }.start()
+                }
                 "ensureRecordingsFolder" -> {
                     // Славан 24.10: папка должна существовать и быть видна
                     // сразу после установки, а не после первой записи.

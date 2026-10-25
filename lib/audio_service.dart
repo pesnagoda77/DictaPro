@@ -235,6 +235,51 @@ class AudioService {
   }
 
   /// Task 116: материализовать произвольный content:// uri (открыт снаружи).
+  /// Task 116 (Славан): полный список файлов папки записей.
+  /// Android — через MediaStore (все файлы); iOS — по файловой системе.
+  /// Каждый элемент: name, path, uri ('' на iOS), size, dateMs.
+  static Future<List<Map<String, String>>> listPublicFolder() async {
+    final out = <Map<String, String>>[];
+    if (Platform.isAndroid) {
+      try {
+        final raw = await _recordingsChannel
+            .invokeMethod<List<dynamic>>('listRecordingsFolder');
+        for (final e in raw ?? <dynamic>[]) {
+          final m = Map<String, dynamic>.from(e as Map);
+          out.add({
+            'name': m['name']?.toString() ?? '',
+            'path': m['path']?.toString() ?? '',
+            'uri': m['uri']?.toString() ?? '',
+            'size': m['size']?.toString() ?? '0',
+            'dateMs': m['dateMs']?.toString() ?? '0',
+          });
+        }
+      } catch (e) {
+        debugPrint('[recordings] listPublicFolder: $e');
+      }
+      return out;
+    }
+    // iOS: файловая система.
+    try {
+      final dir = await recordingsDir();
+      if (await dir.exists()) {
+        await for (final e in dir.list()) {
+          if (e is File) {
+            final st = e.statSync();
+            out.add({
+              'name': e.uri.pathSegments.last,
+              'path': e.path,
+              'uri': '',
+              'size': '${st.size}',
+              'dateMs': '${st.modified.millisecondsSinceEpoch}',
+            });
+          }
+        }
+      }
+    } catch (_) {}
+    return out;
+  }
+
   static Future<String?> materializeUri(String uri, String name) async {
     try {
       final out = await _recordingsChannel.invokeMethod<String>(

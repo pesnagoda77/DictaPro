@@ -487,37 +487,11 @@ class _SettingsPageState extends State<SettingsPage> {
   /// Task 112: открыть папку записей в файловом менеджере.
   /// Task 116 П.2: публичная Documents/DictaPro/Записи.
   Future<void> _openRecordingsFolder(BuildContext context) async {
-    // Task 116 (Славан): на iOS сначала свой экран — нативный вызов
-    // отвечал «успех», и до экрана со списком файлов дело не доходило.
-    if (Platform.isIOS) {
-      if (!context.mounted) return;
-      Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => const RecordingsFolderPage()));
-      return;
-    }
-    try {
-      // 21.10: сначала нативный intent (лучше работает на Vivo/MIUI).
-      try {
-        const platform = MethodChannel('dictapro/convert');
-        final ok = await platform.invokeMethod<bool>(
-            'openFolder', {'path': AudioService.publicRecordingsDisplayPath});
-        if (ok == true) return;
-      } catch (_) {}
-      final uri = Uri.directory(AudioService.publicRecordingsDisplayPath);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
-      } else {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppStrings.t('folder_open_failed', context))),
-        );
-      }
-    } catch (_) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppStrings.t('folder_open_failed', context))),
-      );
-    }
+    // Task 116 (Славан 26.10): единый экран списка файлов на обеих
+    // платформах — никаких системных проводников.
+    if (!context.mounted) return;
+    Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => const RecordingsFolderPage()));
   }
 
   // ── Элементы в стиле V3 (экран 13 макета) ───────────────────────────────
