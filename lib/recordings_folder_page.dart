@@ -96,6 +96,13 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
   Widget build(BuildContext context) {
     final tk = DictaTokens.of(context);
     return Scaffold(
+      bottomNavigationBar: DictaBottomNav(
+        index: 3,
+        onTap: (i) {
+          Navigator.of(context).popUntil((r) => r.isFirst);
+          MainShell.requestedTab.value = i;
+        },
+      ),
       backgroundColor: Colors.transparent,
       body: DictaBackground(
         child: ListView(

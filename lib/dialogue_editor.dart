@@ -5,6 +5,7 @@ import 'export_service.dart';
 import 'package:share_plus/share_plus.dart';
 import 'services/share_helper.dart';
 import 'services/audio_fragment_service.dart';
+import 'services/audio_normalizer.dart';
 import 'services/glossary_service.dart';
 import 'theme/app_theme.dart';
 
@@ -37,6 +38,9 @@ class _DialogueEditorState extends State<DialogueEditor> {
   final Set<int> _selected = <int>{};
   bool _exportingFragment = false;
 
+  /// Task 116 (Славан): галка «Улучшить качество звука» — модуль усиления.
+  bool _boost = true;
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +48,9 @@ class _DialogueEditorState extends State<DialogueEditor> {
         TextEditingController(text: widget.recording.hotwords ?? '');
     _rebuildFromRecording();
     _initControllers();
+    AudioNormalizer.isEnabled().then((v) {
+      if (mounted) setState(() => _boost = v);
+    });
     HotwordsStorage.recent().then((w) {
       if (mounted && w.isNotEmpty) setState(() => _recentTerms = w);
     });
@@ -653,6 +660,33 @@ class _DialogueEditorState extends State<DialogueEditor> {
           const SizedBox(height: 7),
           Text(AppStrings.t('terms_note', context),
               style: TextStyle(fontSize: 10.5, height: 1.35, color: tk.ink3)),
+          const SizedBox(height: 8),
+          // Task 116 (Славан): галка над «Заново» — усиление тихого звука
+          // перед расшифровкой (модуль AudioNormalizer).
+          Row(
+            children: [
+              SizedBox(
+                width: 32,
+                height: 24,
+                child: Checkbox(
+                  value: _boost,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  onChanged: _retranscribing
+                      ? null
+                      : (v) {
+                          setState(() => _boost = v ?? true);
+                          AudioNormalizer.setEnabled(v ?? true);
+                        },
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(AppStrings.t('agc_checkbox', context),
+                    style: TextStyle(fontSize: 11.5, color: tk.ink2)),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,

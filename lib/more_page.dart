@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'app_strings.dart';
 import 'theme/app_theme.dart';
 import 'widgets/dicta_ui.dart';
+import 'main_shell.dart';
 import 'settings_page.dart';
 import 'subscription_page.dart';
 import 'how_to_use_page.dart';
@@ -218,6 +219,13 @@ class AboutPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final tk = DictaTokens.of(context);
     return Scaffold(
+      bottomNavigationBar: DictaBottomNav(
+        index: 3,
+        onTap: (i) {
+          Navigator.of(context).popUntil((r) => r.isFirst);
+          MainShell.requestedTab.value = i;
+        },
+      ),
       backgroundColor: Colors.transparent,
       body: DictaBackground(
         child: ListView(

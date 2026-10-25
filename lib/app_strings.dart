@@ -250,6 +250,14 @@ class AppStrings {
       'es': 'No se pudo importar el archivo',
       'it': 'Impossibile importare il file',
     },
+    'agc_checkbox': {
+      'ru': 'Улучшить качество звука',
+      'en': 'Enhance audio quality',
+      'de': 'Tonqualität verbessern',
+      'fr': 'Améliorer la qualité audio',
+      'es': 'Mejorar la calidad del sonido',
+      'it': "Migliora la qualità dell'audio",
+    },
     'folder_empty': {
       'ru': 'В папке пока нет файлов. Запишите что-нибудь — файл появится здесь.',
       'en': 'No files yet. Record something — the file will appear here.',

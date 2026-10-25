@@ -8,6 +8,8 @@ import 'audio_service.dart';
 import 'services/keep_alive.dart';
 import 'services/purchase_service.dart';
 import 'subscription_page.dart';
+import 'widgets/dicta_ui.dart';
+import 'main_shell.dart';
 import 'theme/app_theme.dart';
 import 'locale_controller.dart';
 import 'app_strings.dart';
@@ -248,6 +250,13 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final tk = DictaTokens.of(context);
     return Scaffold(
+      bottomNavigationBar: DictaBottomNav(
+        index: 3,
+        onTap: (i) {
+          Navigator.of(context).popUntil((r) => r.isFirst);
+          MainShell.requestedTab.value = i;
+        },
+      ),
       body: DictaBackground(
         child: !_loaded
             ? const Center(child: CircularProgressIndicator())

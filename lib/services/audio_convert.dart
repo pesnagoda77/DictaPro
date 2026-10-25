@@ -12,6 +12,8 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'audio_normalizer.dart';
+
 class AudioConvert {
   static const _platform = MethodChannel('dictapro/convert');
 
@@ -25,14 +27,23 @@ class AudioConvert {
   /// Вызователь обязан удалить временный файл (он в temp-директории).
   static Future<String> toWav16k(String audioPath) async {
     final ext = audioPath.toLowerCase().split('.').last;
-    if (ext == 'wav' && await _isWav16kMono(audioPath)) return audioPath;
+    if (ext == 'wav' && await _isWav16kMono(audioPath)) {
+      // Task 116 (Славан): тихая запись уже 16к — усиливаем временную
+      // копию (оригинал не трогаем), чтобы движок получил нормальный уровень.
+      final boosted =
+          await AudioNormalizer.boostIfQuiet(audioPath);
+      return boosted ?? audioPath;
+    }
 
     final running = _inFlight[audioPath];
     if (running != null) return running;
     final future = _convert(audioPath, ext);
     _inFlight[audioPath] = future;
     try {
-      return await future;
+      final out = await future;
+      // Task 116 (Славан): та же логика для сконвертированного файла.
+      final boosted = await AudioNormalizer.boostIfQuiet(out);
+      return boosted ?? out;
     } finally {
       _inFlight.remove(audioPath);
     }

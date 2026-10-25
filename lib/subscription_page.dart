@@ -10,6 +10,7 @@ import 'services/purchase_service.dart';
 import 'services/transcription_hours_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/dicta_ui.dart';
+import 'main_shell.dart';
 
 class SubscriptionPage extends StatefulWidget {
   const SubscriptionPage({super.key});
@@ -234,7 +235,16 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
 
   @override
   Widget build(BuildContext context) {
-    return DictaBackground(
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      bottomNavigationBar: DictaBottomNav(
+        index: 3,
+        onTap: (i) {
+          Navigator.of(context).popUntil((r) => r.isFirst);
+          MainShell.requestedTab.value = i;
+        },
+      ),
+      body: DictaBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
@@ -322,6 +332,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
           },
         ),
       ),
+    ),
     );
   }
 
