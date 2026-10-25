@@ -335,9 +335,26 @@ class AudioService {
         final raw = box.get(key);
         if (raw == null) continue;
         final rec = Recording.fromMap(Map<String, dynamic>.from(raw));
-        final oldPath = rec.filePath;
+        var oldPath = rec.filePath;
         if (oldPath.isEmpty) continue;
-        final oldFile = File(oldPath);
+        var oldFile = File(oldPath);
+        if (!await oldFile.exists() && Platform.isIOS) {
+          // Task 116 (Славан): iOS при обновлении приложения меняет UUID
+          // контейнера — абсолютные пути в базе ломаются, хотя файл на
+          // месте (тот же относительный путь в новом контейнере).
+          final marker = '/Documents/';
+          final idx = oldPath.indexOf(marker);
+          if (idx >= 0) {
+            final docs =
+                await getApplicationDocumentsDirectory();
+            final candidate =
+                docs.path + oldPath.substring(idx + marker.length - 1);
+            if (await File(candidate).exists()) {
+              oldPath = candidate;
+              oldFile = File(candidate);
+            }
+          }
+        }
         if (!await oldFile.exists()) continue;
 
         // Уже опубликован в публичной коллекции — путь указывает туда.

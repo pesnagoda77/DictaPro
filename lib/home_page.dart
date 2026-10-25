@@ -31,6 +31,7 @@ import 'dialogue_editor.dart';
 import 'tag_service.dart';
 import 'app_strings.dart';
 import 'main_shell.dart';
+import 'recordings_folder_page.dart';
 import 'widgets/dicta_ui.dart';
 import 'export_service.dart';
 import 'how_to_use_page.dart';
@@ -2251,6 +2252,19 @@ class _HomePageState extends State<HomePage>
               )
             : null,
         actions: [
+          if (!_isSearching && widget.tab == 0)
+            IconButton(
+              tooltip: AppStrings.t('folder_recordings_title', context),
+              icon: const Icon(Icons.folder_open_rounded),
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const RecordingsFolderPage()),
+                );
+                _loadRecordings();
+              },
+            ),
           if (!_isSearching)
             IconButton(
               icon: const Icon(Icons.search),

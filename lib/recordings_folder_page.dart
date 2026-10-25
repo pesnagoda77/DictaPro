@@ -7,7 +7,7 @@ import 'package:share_plus/share_plus.dart';
 
 import 'app_strings.dart';
 import 'audio_service.dart';
-import 'player_page.dart';
+import 'main_shell.dart';
 import 'theme/app_theme.dart';
 import 'widgets/dicta_ui.dart';
 
@@ -69,6 +69,7 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
       } catch (_) {}
     }
     if (found == null) {
+      // Славан: файла нет в списке — он появляется в списке на главной.
       final st = f.statSync();
       found = Recording(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -81,9 +82,10 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
       await AudioService().updateRecording(found);
       await _load();
     }
+    // Славан: после тапа — главная со списком (там можно всё), не плеер.
     if (!mounted) return;
-    Navigator.push(context,
-        MaterialPageRoute(builder: (_) => PlayerPage(recording: found!)));
+    MainShell.requestedTab.value = 0;
+    Navigator.pop(context);
   }
 
   String _date(DateTime d) =>
