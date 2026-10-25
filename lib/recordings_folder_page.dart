@@ -83,9 +83,10 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
       await _load();
     }
     // Славан: после тапа — главная со списком (там можно всё), не плеер.
+    // Папку могут открыть и из настроек — закрываем ВСЁ до корня.
     if (!mounted) return;
     MainShell.requestedTab.value = 0;
-    Navigator.pop(context);
+    Navigator.of(context).popUntil((r) => r.isFirst);
   }
 
   String _date(DateTime d) =>
