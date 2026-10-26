@@ -344,6 +344,13 @@ class AudioService {
     try {
       if (stored.isEmpty) return stored;
       if (await File(stored).exists()) return stored;
+      // Task 116 (защита аудио): относительный вид 'Documents/...' —
+      // переживает смену UUID контейнера на iOS.
+      if (!Platform.isAndroid && stored.startsWith('Documents/')) {
+        final docs = await getApplicationDocumentsDirectory();
+        final candidate = File('${docs.path}/${stored}');
+        if (await candidate.exists()) return candidate.path;
+      }
       final name = stored.split(RegExp(r'[\\/]')).last;
       if (name.isEmpty) return stored;
       // Task 112: сначала ищем в новой папке DictaPro/Записи.
@@ -442,13 +449,22 @@ class AudioService {
               {'srcPath': oldPath, 'displayName': name},
             );
             if (pub != null && pub['path'] != null) {
-              rec.filePath = pub['path'] as String;
-              rec.contentUri = pub['uri'] as String?;
-              await box.put(key, rec.toMap());
-              try {
-                if (await oldFile.exists()) await oldFile.delete();
-              } catch (_) {}
-              migrated++;
+              // Защита аудио: старый файл удаляем ТОЛЬКО если копия
+              // существует и размер совпадает байт-в-байт.
+              final newF = File(pub['path'] as String);
+              final oldSize = await oldFile.length();
+              if (await newF.exists() && await newF.length() == oldSize) {
+                rec.filePath = pub['path'] as String;
+                rec.contentUri = pub['uri'] as String?;
+                await box.put(key, rec.toMap());
+                try {
+                  if (await oldFile.exists()) await oldFile.delete();
+                } catch (_) {}
+                migrated++;
+              } else {
+                debugPrint('[migrate] размер копии не совпал — '
+                    'старый файл $oldPath сохранён');
+              }
             }
           } catch (e) {
             debugPrint('[migrate] publish failed for $oldPath: $e');
@@ -458,14 +474,31 @@ class AudioService {
 
         // iOS / ≤API 28: локальная папка Documents/DictaPro/Записи.
         final newDir = await recordingsDir();
-        if (oldPath.startsWith(newDir.path)) continue;
+        if (oldPath.startsWith(newDir.path)) {
+          // Защита аудио: путь уже в новой папке — сохраняем ОТНОСИТЕЛЬНО
+          // (Documents/...), чтобы переживать смену UUID контейнера.
+          final docs = await getApplicationDocumentsDirectory();
+          if (Platform.isIOS && oldPath.startsWith(docs.path)) {
+            final rel = oldPath.substring(docs.path.length + 1);
+            if (rel != rec.filePath) {
+              rec.filePath = rel;
+              await box.put(key, rec.toMap());
+            }
+          }
+          continue;
+        }
         final name = oldPath.split(RegExp(r'[\\/]')).last;
         final newFile = File('${newDir.path}/$name');
         if (await newFile.exists()) {
-          // Уже скопирован — обновляем путь, старый удаляем.
+          // Уже скопирован — обновляем путь; старый удаляем только
+          // при совпадении размеров (защита аудио).
+          final oldSize = await oldFile.length();
+          final newSize = await newFile.length();
           rec.filePath = newFile.path;
           await box.put(key, rec.toMap());
-          if (await oldFile.exists() && oldPath != newFile.path) {
+          if (await oldFile.exists() &&
+              oldPath != newFile.path &&
+              oldSize == newSize) {
             await oldFile.delete();
           }
           migrated++;
@@ -474,9 +507,15 @@ class AudioService {
         // Копируем.
         try {
           await oldFile.copy(newFile.path);
-          rec.filePath = newFile.path;
-          await box.put(key, rec.toMap());
-          await oldFile.delete();
+          // Защита аудио: удаление старого только при совпадении размеров.
+          if (await newFile.length() == await oldFile.length()) {
+            rec.filePath = newFile.path;
+            await box.put(key, rec.toMap());
+            await oldFile.delete();
+          } else {
+            debugPrint('[migrate] размер копии $name не совпал — '
+                'старый файл сохранён');
+          }
           migrated++;
         } catch (e) {
           debugPrint('[migrate] failed to copy $name: $e');
