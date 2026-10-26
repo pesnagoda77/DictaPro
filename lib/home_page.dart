@@ -119,6 +119,9 @@ class _HomePageState extends State<HomePage>
     // при открытии приложения, а не только при повторном запуске того
     // же файла.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Задача 26.10 (Славан): если язык интерфейса сменился — сохранённые
+      // итоги пересобираем, иначе «Конспект лекции» остаётся на старом языке.
+      _relocalizeSummaries();
       _checkUnfinishedTranscription();
       // Task 116 (Славан): файл, открытый «в DictaPro» из проводника,
       // импортируем в список записей.
@@ -1571,6 +1574,7 @@ class _HomePageState extends State<HomePage>
             .formatted
             .trim();
         rec.summary = local.isEmpty ? AppStrings.t('summary_failed', context) : local;
+        rec.summaryLang = AppStrings.globalLangCode();
       } catch (_) {
         rec.summary = AppStrings.t('summary_failed', context);
       }
@@ -1725,6 +1729,42 @@ class _HomePageState extends State<HomePage>
           SnackBar(content: Text(AppStrings.t('import_open_failed', context))),
         );
       }
+    }
+  }
+
+  /// Задача 26.10 (Славан): пересобрать итоги на текущем языке интерфейса.
+  /// Трогает только записи, у которых есть текст и итог на другом языке.
+  Future<void> _relocalizeSummaries() async {
+    try {
+      final lang = AppStrings.globalLangCode();
+      final box = await AudioService.openRecordingsBox();
+      var updated = 0;
+      for (final key in box.keys) {
+        final raw = box.get(key);
+        if (raw == null) continue;
+        final rec = Recording.fromMap(Map<String, dynamic>.from(raw));
+        if (rec.summary == null || rec.summary!.isEmpty) continue;
+        final t = rec.transcription;
+        if (t == null || t.isEmpty) continue;
+        if ((rec.summaryLang ?? 'ru') == lang) continue;
+        try {
+          final res =
+              await EnhancedSummaryService.generateSummaryAsync(t);
+          final text = res.formatted.trim();
+          if (text.isEmpty) continue;
+          rec.summary = text;
+          rec.summaryLang = lang;
+          await box.put(key, rec.toMap());
+          updated++;
+        } catch (_) {}
+        if (updated >= 20) break; // не грузим старт бесконечно
+      }
+      if (updated > 0) {
+        debugPrint('[summary] пересобрано на языке $lang: $updated');
+        _loadRecordings();
+      }
+    } catch (e) {
+      debugPrint('[summary] relocalize: $e');
     }
   }
 

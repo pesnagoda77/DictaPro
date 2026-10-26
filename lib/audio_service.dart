@@ -34,6 +34,11 @@ class Recording {
 
   List<String>? tags;
   String? summary;
+
+  /// Задача 26.10 (Славан): на каком языке собран [summary].
+  /// Меняется вместе с языком интерфейса — при расхождении итог
+  /// пересобирается автоматически (иначе текст оставался русским).
+  String? summaryLang;
   List<String>? decisions;
   List<Map<String, dynamic>>? speakerStats;
 
@@ -57,6 +62,7 @@ class Recording {
     this.isFavorite = false,
     this.tags,
     this.summary,
+    this.summaryLang,
     this.decisions,
     this.speakerStats,
     this.contentUri,
@@ -75,6 +81,7 @@ class Recording {
         'isFavorite': isFavorite,
         'tags': tags,
         'summary': summary,
+        'summaryLang': summaryLang,
         'decisions': decisions,
         'speakerStats': speakerStats?.map((s) => s.map((k, v) => MapEntry(k, v.toString()))).toList(),
         'contentUri': contentUri,
@@ -99,6 +106,7 @@ class Recording {
             ? (map['tags'] as List).cast<String>()
             : null,
         summary: map['summary'] as String?,
+        summaryLang: map['summaryLang'] as String?,
         decisions: map['decisions'] != null
             ? (map['decisions'] as List).cast<String>()
             : null,
