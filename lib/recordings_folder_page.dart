@@ -3,8 +3,12 @@ import 'dart:io';
 // Task 116 (Славан): экран «Папка записей» — единый на обеих платформах.
 // Список файлов: Android — MediaStore, iOS — файловая система.
 // Тап по файлу → он появляется в списке на главной (если его там нет)
-// и происходит переход на главную. Кнопка «Поделиться» — отправка файла.
+// и происходит переход на главную.
+// Task 117: полный абсолютный путь (тап — копировать), кнопка «Открыть
+// в проводнике», синхронизация внешних переименований, переход на главную
+// с прокруткой и подсветкой записи.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'app_strings.dart';
@@ -25,6 +29,9 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
   List<Map<String, String>> _files = const [];
   bool _loading = true;
 
+  /// Task 117 П.4: полный абсолютный путь к папке (показываем на экране).
+  String _folderPath = '';
+
   @override
   void initState() {
     super.initState();
@@ -32,15 +39,134 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
   }
 
   Future<void> _load() async {
+    await _resolveFolderPath();
     final files = await AudioService.listPublicFolder();
     files.sort((a, b) =>
         (int.tryParse(b['dateMs'] ?? '0') ?? 0)
             .compareTo(int.tryParse(a['dateMs'] ?? '0') ?? 0));
+    // Task 117 П.5: файл переименовали снаружи — подтягиваем новое имя
+    // в базу, чтобы на главной не висело старое.
+    await _syncExternalRenames(files);
     if (!mounted) return;
     setState(() {
       _files = files;
       _loading = false;
     });
+  }
+
+  Future<void> _resolveFolderPath() async {
+    try {
+      if (Platform.isAndroid) {
+        _folderPath = AudioService.publicRecordingsDisplayPath;
+      } else {
+        final dir = await AudioService.recordingsDir();
+        _folderPath = dir.path;
+      }
+    } catch (_) {}
+  }
+
+  /// Task 117 П.4: тап по пути — копировать в буфер.
+  Future<void> _copyPath() async {
+    if (_folderPath.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: _folderPath));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(AppStrings.t('folder_path_copied', context)),
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
+  /// Task 117 П.4: «Открыть в проводнике» — Android: системный Files
+  /// через DocumentsContract; iOS: своя подсказка (системные «Файлы»
+  /// открывали не ту папку).
+  Future<void> _openInExplorer() async {
+    if (_folderPath.isEmpty) return;
+    if (!Platform.isAndroid) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(AppStrings.t('folder_ios_hint', context)),
+        duration: const Duration(seconds: 4),
+      ));
+      return;
+    }
+    final ok = await AudioService.openFolderInSystemExplorer(_folderPath);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(AppStrings.t('folder_open_failed', context)),
+      ));
+    }
+  }
+
+  /// Task 117 П.5: если файл в папке переименовали снаружи — обновляем
+  /// title/filePath записи в базе (иначе на главной кажется, что это
+  /// два разных файла).
+  Future<void> _syncExternalRenames(List<Map<String, String>> files) async {
+    try {
+      final box = await AudioService.openRecordingsBox();
+      if (Platform.isAndroid) {
+        // Точное сопоставление по contentUri.
+        final byUri = <String, Map<String, String>>{};
+        for (final f in files) {
+          final uri = f['uri'] ?? '';
+          if (uri.isNotEmpty) byUri[uri] = f;
+        }
+        for (final key in box.keys) {
+          final raw = box.get(key);
+          if (raw == null) continue;
+          try {
+            final rec = Recording.fromMap(Map<String, dynamic>.from(raw));
+            final uri = rec.contentUri ?? '';
+            if (uri.isEmpty) continue;
+            final f = byUri[uri];
+            if (f == null) continue;
+            final newName = f['name'] ?? '';
+            final oldName = rec.filePath.split(RegExp(r'[\\/]')).last;
+            if (newName.isNotEmpty && newName != oldName) {
+              rec.filePath = f['path']?.isNotEmpty == true
+                  ? f['path']!
+                  : rec.filePath;
+              rec.title = newName.contains('.')
+                  ? newName.substring(0, newName.lastIndexOf('.'))
+                  : newName;
+              await box.put(key, rec.toMap());
+            }
+          } catch (_) {}
+        }
+        return;
+      }
+      // iOS: сопоставление ненадёжно — минимум: файл с сохранённым именем
+      // исчез — ищем по размеру среди файлов папки и обновляем путь/имя.
+      final byName = <String, Map<String, String>>{};
+      for (final f in files) {
+        final n = f['name'] ?? '';
+        if (n.isNotEmpty) byName[n] = f;
+      }
+      for (final key in box.keys) {
+        final raw = box.get(key);
+        if (raw == null) continue;
+        try {
+          final rec = Recording.fromMap(Map<String, dynamic>.from(raw));
+          final oldName = rec.filePath.split(RegExp(r'[\\/]')).last;
+          if (oldName.isEmpty || byName.containsKey(oldName)) continue;
+          Map<String, String>? match;
+          for (final f in files) {
+            if ((int.tryParse(f['size'] ?? '0') ?? -1) == rec.fileSize) {
+              match = f;
+              break;
+            }
+          }
+          if (match == null) continue;
+          final newName = match['name'] ?? '';
+          rec.filePath = match['path']?.isNotEmpty == true
+              ? match['path']!
+              : rec.filePath;
+          rec.title = newName.contains('.')
+              ? newName.substring(0, newName.lastIndexOf('.'))
+              : newName;
+          await box.put(key, rec.toMap());
+        } catch (_) {}
+      }
+    } catch (_) {}
   }
 
   String _size(int bytes) {
@@ -55,6 +181,7 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
 
   /// Славан: тап по файлу — файл попадает в список на главной (если его
   /// там нет) и происходит переход на главную.
+  /// Task 117 П.3: главная прокрутится к записи и подсветит её рамкой.
   Future<void> _openInApp(Map<String, String> f) async {
     final name = f['name'] ?? '';
     final box = await AudioService.openRecordingsBox();
@@ -65,6 +192,7 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
         final rec = Recording.fromMap(Map<String, dynamic>.from(raw));
         final recName = rec.filePath.split(RegExp(r'[/]')).last;
         if (recName == name) {
+          MainShell.focusRecordingId.value = rec.id;
           _goHome();
           return;
         }
@@ -83,6 +211,7 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
     );
     if ((st['uri'] ?? '').isNotEmpty) rec.contentUri = st['uri'];
     await AudioService().updateRecording(rec);
+    MainShell.focusRecordingId.value = rec.id;
     _goHome();
   }
 
@@ -140,8 +269,27 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
               ),
             ]),
             const SizedBox(height: 6),
-            Text('Documents/DictaPro/Записи',
-                style: TextStyle(fontSize: 12, color: tk.ink3)),
+            // Task 117 П.4: полный абсолютный путь. Тап — копировать.
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: _copyPath,
+                    child: Text(_folderPath,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: tk.ink3)),
+                  ),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: AppStrings.t('folder_open_explorer', context),
+                  icon: Icon(Icons.folder_open_rounded,
+                      size: 20, color: tk.ink2),
+                  onPressed: _openInExplorer,
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             if (_loading)
               const Padding(

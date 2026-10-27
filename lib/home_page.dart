@@ -128,9 +128,42 @@ class _HomePageState extends State<HomePage>
       _handlePendingOpenFile();
     });
     _liveTimer = Timer.periodic(const Duration(seconds: 3), (_) => _refreshLiveStatus());
+    // Task 117 П.3: переход из «Папки записей» — прокрутка и подсветка.
+    MainShell.focusRecordingId.addListener(_onFocusRequested);
     // Task 114: при активации кода/покупке (planRevision) перерисовываемся —
     // лимиты/плашки берут актуальный тариф без входа-выхода.
     PurchaseService.instance.planRevision.addListener(_onPlanChanged);
+  }
+
+  /// Task 117 П.3: главная должна показать конкретную запись (переход
+  /// из папки). Ставим подсветку, прокручиваем к карточке, гасим через
+  /// 3 секунды или при скролле/тапе по другой записи.
+  void _onFocusRequested() {
+    final id = MainShell.focusRecordingId.value;
+    MainShell.focusRecordingId.value = null;
+    if (id == null || !mounted) return;
+    setState(() => _focusId = id);
+    _focusTimer?.cancel();
+    _focusTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _focusId = null);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToFocused());
+  }
+
+  void _scrollToFocused() {
+    final id = _focusId;
+    if (id == null) return;
+    final ctx = _cardKeys[id]?.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(ctx,
+          duration: const Duration(milliseconds: 450), alignment: 0.3);
+    }
+  }
+
+  void _clearFocus({String? exceptId}) {
+    if (_focusId == null || _focusId == exceptId) return;
+    _focusTimer?.cancel();
+    setState(() => _focusId = null);
   }
 
   void _onPlanChanged() {
@@ -157,12 +190,24 @@ class _HomePageState extends State<HomePage>
       final path = saved?.$3;
       final startedMs = marker?.$1 ?? 0;
       final stage = marker?.$2 ?? '';
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      // Task 117 П.6: движение прогресса фиксируем; по застою — «прервана».
+      if (active && (chunks != _liveChunks || text.length != _liveChars)) {
+        _liveLastChangeMs = nowMs;
+      }
+      if (!active) {
+        _liveLastChangeMs = 0;
+        _liveStalled = false;
+      }
+      final stalled =
+          active && nowMs - _liveLastChangeMs > 3 * 60 * 1000;
       if (active != _liveActive ||
           chunks != _liveChunks ||
           text.length != _liveChars ||
           path != _livePath ||
           startedMs != _liveStartedMs ||
-          stage != _liveStage) {
+          stage != _liveStage ||
+          stalled != _liveStalled) {
         final wasActive = _liveActive;
         setState(() {
           _liveActive = active;
@@ -171,6 +216,7 @@ class _HomePageState extends State<HomePage>
           _livePath = path;
           _liveStartedMs = startedMs;
           _liveStage = stage;
+          _liveStalled = stalled;
         });
         // Расшифровка завершилась — перечитываем список, чтобы текст появился на экране
         if (wasActive && !active) _loadRecordings();
@@ -179,6 +225,9 @@ class _HomePageState extends State<HomePage>
   }
 
   /// Живая плашка «Идёт расшифровка» — видно, что процесс пошёл и сколько готово.
+  /// Task 117 П.6: если прогресс застрял — плашка честно говорит «прервана»
+  /// и даёт продолжить прямо отсюда. Технический текст этапа из маркера
+  /// (keepalive_prep) больше не показываем — это служебный лог.
   Widget _liveStatusCard() {
     String shortName = '';
     final p = _livePath;
@@ -194,15 +243,28 @@ class _HomePageState extends State<HomePage>
       ),
       child: Row(
         children: [
-          const SizedBox(
-              width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5)),
+          if (_liveStalled)
+            Icon(Icons.warning_amber_rounded,
+                size: 22, color: DictaTokens.of(context).red)
+          else
+            const SizedBox(
+                width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5)),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(AppStrings.t('transcribing_now', context),
-                    style: TextStyle(fontWeight: FontWeight.w600)),
+                Text(
+                  _liveStalled
+                      ? AppStrings.t('transcribe_stalled', context)
+                      : AppStrings.t('transcribing_now', context),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: _liveStalled
+                        ? DictaTokens.of(context).red
+                        : null,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   [
@@ -214,11 +276,27 @@ class _HomePageState extends State<HomePage>
                   ].join(' · '),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
-                if (_liveStage.isNotEmpty)
+                if (_liveStalled)
                   Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(_liveStage,
-                        style: Theme.of(context).textTheme.bodySmall),
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      children: [
+                        FilledButton.icon(
+                          onPressed: _resumeLiveJob,
+                          icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                          label: Text(AppStrings.t('long_transcribe_continue', context)),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, 34),
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          AppStrings.t('transcribe_stalled_hint', context),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
                   ),
               ],
             ),
@@ -226,6 +304,37 @@ class _HomePageState extends State<HomePage>
         ],
       ),
     );
+  }
+
+  /// Task 117 П.6: «Продолжить» с плашки — находим запись и возобновляем
+  /// расшифровку с места обрыва, без диалога выбора языка (берём сохранённый).
+  Future<void> _resumeLiveJob() async {
+    final rec = _findRecordingByPath(_livePath);
+    if (rec == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppStrings.t('recovery_resume_hint', context)),
+        ));
+      }
+      return;
+    }
+    await _transcribeRecording(rec,
+        resumeFromPartial: true, skipLangDialog: true, openEditor: false);
+  }
+
+  /// Поиск записи по пути: сначала точное совпадение, потом по имени
+  /// файла (путь мог материализоваться во временную копию на Android).
+  Recording? _findRecordingByPath(String? path) {
+    if (path == null || path.isEmpty) return null;
+    for (final r in _recordings) {
+      if (r.filePath == path) return r;
+    }
+    final base = path.split(RegExp(r'[\\/]')).last;
+    if (base.isEmpty) return null;
+    for (final r in _recordings) {
+      if (r.filePath.split(RegExp(r'[\\/]')).last == base) return r;
+    }
+    return null;
   }
 
   /// Task 045: при открытии приложения ищем оборванную расшифровку и
@@ -245,25 +354,17 @@ class _HomePageState extends State<HomePage>
   /// Кнопка [Продолжить] карточки: находим запись по пути из partial.txt
   /// и идём полным путём расшифровки — с автоматическим продолжением
   /// с куска M, без лишнего диалога (task 045).
+  /// Task 117: поиск по имени файла тоже (путь мог материализоваться
+  /// во временную копию), язык — сохранённый, диалог не показываем.
   Future<void> _resumeRecoveryJob() async {
     final job = _recoveryJob;
     if (job == null) return;
     setState(() => _recoveryJob = null);
-    final path = job.$3;
-    if (path != null) {
-      try {
-        Recording? rec;
-        for (final r in _recordings) {
-          if (r.filePath == path) {
-            rec = r;
-            break;
-          }
-        }
-        if (rec != null) {
-          await _transcribeRecording(rec, resumeFromPartial: true);
-          return;
-        }
-      } catch (_) {}
+    final rec = _findRecordingByPath(job.$3);
+    if (rec != null) {
+      await _transcribeRecording(rec,
+          resumeFromPartial: true, skipLangDialog: true, openEditor: false);
+      return;
     }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -627,6 +728,18 @@ class _HomePageState extends State<HomePage>
   int _liveStartedMs = 0;
   String _liveStage = '';
   Timer? _liveTimer;
+  /// Task 117 П.6: время последнего изменения прогресса (кусков/символов).
+  /// По нему отличаем живую расшифровку от зависшей: прогресс не двигается
+  /// 3+ минуты → плашка честно показывает «прервана» + кнопка «Продолжить».
+  int _liveLastChangeMs = 0;
+  bool _liveStalled = false;
+
+  /// Task 117 П.3: запись, к которой прокрутили/подсветили после перехода
+  /// из «Папки записей». Рамка снимается при скролле, тапе по другой
+  /// записи или по таймауту.
+  String? _focusId;
+  Timer? _focusTimer;
+  final Map<String, GlobalKey> _cardKeys = {};
 
   // Task 045: карточка «Расшифровка прервана» — состояние задачи с диска
   // (partial.txt): куски, текст, файл, статус, время старта. Видна сразу
@@ -817,6 +930,19 @@ class _HomePageState extends State<HomePage>
       await sbox.put('asr_ask', !dontAsk);
     } catch (_) {}
     return res;
+  }
+
+  /// Task 117 П.6: сохранённый язык расшифровки без диалога
+  /// (для «Продолжить» с плашки/карточки).
+  Future<String?> _savedAsrLang() async {
+    try {
+      final sbox = await Hive.openBox<dynamic>('settings');
+      final v = sbox.get('asr_lang')?.toString();
+      if (v != null && v.isNotEmpty) return v;
+      return AppStrings.defaultAsrLang();
+    } catch (_) {
+      return AppStrings.defaultAsrLang();
+    }
   }
 
   Future<TranscriptionResult> _transcribeOffline(String filePath,
@@ -1264,8 +1390,50 @@ class _HomePageState extends State<HomePage>
     );
   }
 
+  /// Task 117 П.1: удаление записи. По умолчанию файл в папке НЕ трогаем —
+  /// только запись из базы. Файл удаляется только по явному чекбоксу.
   Future<void> _deleteRecording(String id) async {
-    await AudioService().deleteRecording(id);
+    var deleteFile = false;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
+          title: Text(AppStrings.t('delete_confirm_title', ctx)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(AppStrings.t('delete_confirm_body', ctx)),
+              const SizedBox(height: 10),
+              CheckboxListTile(
+                value: deleteFile,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(AppStrings.t('delete_with_file', ctx),
+                    style: const TextStyle(fontSize: 13.5)),
+                onChanged: (v) => setSt(() => deleteFile = v ?? false),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(AppStrings.t('folder_clear_cancel', ctx)),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.red.withValues(alpha: 0.85),
+              ),
+              child: Text(AppStrings.t('btn_delete', ctx)),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+    await AudioService().deleteRecording(id, deleteFile: deleteFile);
     _loadRecordings();
   }
 
@@ -1505,7 +1673,9 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _transcribeRecording(rec,
-      {bool resumeFromPartial = false, bool openEditor = true}) async {
+      {bool resumeFromPartial = false,
+      bool openEditor = true,
+      bool skipLangDialog = false}) async {
     // Путь может содержать старый UUID контейнера (iOS меняет его при
     // переустановке) — вычисляем актуальный. Task 116 П.2: записи в
     // публичной коллекции материализуются во временный файл (scoped storage).
@@ -1543,7 +1713,11 @@ class _HomePageState extends State<HomePage>
       return;
     }
 
-    final asrLang = await _chooseAsrLang();
+    // Task 117 П.6: возобновление с плашки/карточки — язык берём из
+    // сохранённого выбора, диалог не показываем (пользователь уже нажал
+    // «Продолжить», лишний вопрос — лишний обрыв).
+    final asrLang =
+        skipLangDialog ? await _savedAsrLang() : await _chooseAsrLang();
     if (asrLang == null) return;
 
     _showTranscribingDialog();
@@ -1746,7 +1920,10 @@ class _HomePageState extends State<HomePage>
         if (rec.summary == null || rec.summary!.isEmpty) continue;
         final t = rec.transcription;
         if (t == null || t.isEmpty) continue;
-        if ((rec.summaryLang ?? 'ru') == lang) continue;
+        // Task 117 П.2: пересобираем итог, если сменился язык ИЛИ в нём
+        // остался старый уродливый формат «=== Заголовок ===».
+        final legacyFormat = rec.summary!.contains('===');
+        if ((rec.summaryLang ?? 'ru') == lang && !legacyFormat) continue;
         try {
           final res =
               await EnhancedSummaryService.generateSummaryAsync(t);
@@ -1890,23 +2067,36 @@ class _HomePageState extends State<HomePage>
           ],
         ),
       ),
-    ).then((format) {
+    ).then((format) async {
       if (format == null || !mounted) return;
 
       switch (format) {
         case 'txt':
-          final text = ExportService.formatTranscriptTxt(rec);
-          ExportService.shareFile(text, '${rec.title ?? "transcript"}.txt');
+          // Task 117 П.7: «Сохранить» — системный диалог выбора места.
+          final ok = await ExportService.saveTxt(rec);
+          if (ok && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(AppStrings.t('export_saved', context))),
+            );
+          }
           break;
         case 'html':
-          final text = ExportService.formatTranscriptHtml(rec);
-          ExportService.shareFile(text, '${rec.title ?? "transcript"}.html');
+          final ok = await ExportService.saveHtml(rec);
+          if (ok && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(AppStrings.t('export_saved', context))),
+            );
+          }
           break;
         case 'pdf':
           _showExportingDialog();
-          ExportService.exportAsPdf(rec).then((path) async {
+          ExportService.savePdf(rec).then((ok) {
             _hideExportingDialog();
-            await shareFileWithReturn(path, text: AppStrings.t('share_pdf_caption', context));
+            if (ok && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(AppStrings.t('export_saved', context))),
+              );
+            }
           }).catchError((e) {
             _hideExportingDialog();
             if (mounted) {
@@ -2084,6 +2274,14 @@ class _HomePageState extends State<HomePage>
 
     if (newTitle != null && newTitle.isNotEmpty) {
       rec.title = newTitle;
+      // Task 117 П.5: файл в папке переименовываем вместе с записью,
+      // иначе в папке оставалось старое имя и казалось, что это разные файлы.
+      try {
+        final newPath = await AudioService.renameRecordingFile(rec, newTitle);
+        if (newPath != null && newPath.isNotEmpty) {
+          rec.filePath = newPath;
+        }
+      } catch (_) {}
       await AudioService().updateRecording(rec);
       _loadRecordings();
     }
@@ -2191,6 +2389,8 @@ class _HomePageState extends State<HomePage>
 
   void dispose() {
     PurchaseService.instance.planRevision.removeListener(_onPlanChanged);
+    MainShell.focusRecordingId.removeListener(_onFocusRequested);
+    _focusTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _levelSub?.cancel();
     _timer?.cancel();
@@ -2565,7 +2765,16 @@ class _HomePageState extends State<HomePage>
                   Expanded(
                     child: filtered.isEmpty
                         ? _emptyState()
-                        : ListView.builder(
+                        : NotificationListener<ScrollUpdateNotification>(
+                            onNotification: (n) {
+                              // Task 117 П.3: подсветка гаснет, когда
+                              // пользователь сам тянет список (dragDetails
+                              // != null — это рука, не программный скролл
+                              // ensureVisible).
+                              if (n.dragDetails != null) _clearFocus();
+                              return false;
+                            },
+                            child: ListView.builder(
                             padding: EdgeInsets.only(
                                 left: 16, right: 16, top: 8, bottom: MediaQuery.of(context).padding.bottom + 16),
                             itemCount: filtered.length,
@@ -2579,15 +2788,27 @@ class _HomePageState extends State<HomePage>
                               final timeStr =
                                   DateFormat('HH:mm').format(rec.createdAt);
 
-                              return Container(
+                              // Task 117 П.3: ключ карточки — по нему
+                              // Scrollable.ensureVisible после перехода из папки.
+                              final cardKey =
+                                  _cardKeys.putIfAbsent(rec.id, () => GlobalKey());
+                              final isFocused = _focusId == rec.id;
+                              return GestureDetector(
+                                onTapDown: (_) => _clearFocus(exceptId: rec.id),
+                                child: Container(
+                                key: cardKey,
                                 margin: const EdgeInsets.only(bottom: 12),
                                 decoration: BoxDecoration(
                                   color: Theme.of(context).colorScheme.surface,
                                   borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
                                     // 06.10: рамка чуть заметнее (просьба Славана)
-                                    color: Colors.white.withValues(alpha: 0.14),
-                                    width: 1,
+                                    // Task 117 П.3: подсветка мятной рамкой,
+                                    // когда запись открыли из папки записей.
+                                    color: isFocused
+                                        ? DictaTokens.of(context).mint
+                                        : Colors.white.withValues(alpha: 0.14),
+                                    width: isFocused ? 2 : 1,
                                   ),
                                 ),
                                 child: Column(
@@ -2775,9 +2996,11 @@ class _HomePageState extends State<HomePage>
                                     ),
                                   ],
                                 ),
+                                ),
                               );
                             },
                           ),
+                            ),
                   ),
                 ],
               ),

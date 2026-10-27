@@ -1,5 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'services/share_helper.dart';
@@ -19,6 +23,87 @@ class ExportService {
 
   static Future<void> shareAudioFile(String filePath) async {
     await shareFileWithReturn(filePath, text: AppStrings.tGlobal('share_audio_caption'));
+  }
+
+  /// Task 117 П.7: имя файла по умолчанию — «<Название> — <дата>.<ext>»
+  /// без техмусора. Запрещённые символы заменяем на «_».
+  static String exportFileName(Recording rec, String ext) {
+    final raw = (rec.title ?? 'transcript').trim();
+    final safe = raw.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+    final date = DateFormat('dd.MM.yyyy').format(rec.createdAt);
+    return '${safe.isEmpty ? 'transcript' : safe} — $date.$ext';
+  }
+
+  /// Task 117 П.7: «Сохранить» — системный диалог выбора места и имени
+  /// (FilePicker.saveFile с bytes). Возвращает true, если файл сохранён.
+  static Future<bool> saveWithPicker({
+    required Recording rec,
+    required String ext,
+    required Uint8List bytes,
+  }) async {
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: AppStrings.tGlobal('export_save_dialog_title'),
+      fileName: exportFileName(rec, ext),
+      type: FileType.custom,
+      allowedExtensions: [ext],
+      bytes: bytes,
+    );
+    return path != null && path.isNotEmpty;
+  }
+
+  static Future<bool> saveTxt(Recording rec) async {
+    final text = formatTranscriptTxt(rec);
+    return saveWithPicker(rec: rec, ext: 'txt', bytes: utf8.encode(text));
+  }
+
+  static Future<bool> saveHtml(Recording rec) async {
+    final text = formatTranscriptHtml(rec);
+    return saveWithPicker(rec: rec, ext: 'html', bytes: utf8.encode(text));
+  }
+
+  static Future<bool> savePdf(Recording rec) async {
+    final fontData = await rootBundle.load('assets/fonts/Roboto-Regular.ttf');
+    final ttf = pw.Font.ttf(fontData);
+    final pdf = pw.Document();
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                AppStrings.tGlobal('export_title'),
+                style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, font: ttf),
+              ),
+              pw.SizedBox(height: 8),
+              pw.Text(AppStrings.tfGlobal('export_label_date', {'v': '${rec.createdAt}'}), style: pw.TextStyle(fontSize: 12, font: ttf)),
+              pw.Text(AppStrings.tfGlobal('export_label_duration_sec', {'v': '${rec.durationMs ~/ 1000}'}), style: pw.TextStyle(fontSize: 12, font: ttf)),
+              pw.Divider(),
+              pw.SizedBox(height: 8),
+              if (rec.segments != null && rec.segments!.isNotEmpty)
+                ...rec.segments!.asMap().entries.map((e) {
+                  final no = e.key + 1;
+                  final seg = e.value;
+                  return pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                    child: pw.Text(
+                      '[${AppStrings.tfGlobal('dialogue_speaker', {'n': '$no'})}] ${seg['text']}',
+                      style: pw.TextStyle(fontSize: 14, font: ttf),
+                    ),
+                  );
+                })
+              else
+                pw.Text(
+                  rec.transcription ?? AppStrings.tGlobal('no_text'),
+                  style: pw.TextStyle(fontSize: 14, font: ttf),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+    return saveWithPicker(rec: rec, ext: 'pdf', bytes: await pdf.save());
   }
 
   static Future<String> saveAsTxt(String text, String fileName) async {
@@ -93,37 +178,49 @@ class ExportService {
     return buffer.toString();
   }
 
+  /// Task 117 П.7: читаемый HTML — заголовок (название записи), мета
+  /// (дата, длительность), фразы списком. Светлая тема, без «пузырей».
   static String formatTranscriptHtml(Recording rec) {
+    final title = (rec.title ?? '').trim();
+    final date = DateFormat('dd.MM.yyyy HH:mm').format(rec.createdAt);
+    final dur = _fmtTime(rec.durationMs);
+    final esc = (String? s) => (s ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+
     final buffer = StringBuffer();
-    buffer.writeln('<html><head><meta charset="UTF-8"><style>');
-    buffer.writeln(
-        'body{font-family:Arial,sans-serif;max-width:600px;margin:20px auto;padding:20px;background:#1a1a2e;color:#fff;}');
-    buffer.writeln('.header{color:#888;font-size:12px;margin-bottom:20px;}');
-    buffer.writeln(
-        '.speaker-a{background:#1e3a5f;padding:10px 15px;border-radius:12px;margin:8px 0;text-align:left;}');
-    buffer.writeln(
-        '.speaker-b{background:#1e4a3a;padding:10px 15px;border-radius:12px;margin:8px 0;text-align:right;}');
-    buffer
-        .writeln('.label{font-size:10px;font-weight:bold;margin-bottom:4px;}');
-    buffer.writeln('.text{font-size:14px;}');
+    buffer.writeln('<!DOCTYPE html>');
+    buffer.writeln('<html><head><meta charset="UTF-8">');
+    buffer.writeln('<meta name="viewport" content="width=device-width, initial-scale=1">');
+    buffer.writeln('<title>${esc(title.isEmpty ? AppStrings.tGlobal('export_title') : title)}</title>');
+    buffer.writeln('<style>');
+    buffer.writeln('body{font-family:Georgia,serif;max-width:720px;margin:24px auto;padding:0 16px;color:#1a1a1a;line-height:1.5;}');
+    buffer.writeln('h1{font-family:Arial,sans-serif;font-size:22px;margin:0 0 4px;}');
+    buffer.writeln('.meta{color:#666;font-size:13px;font-family:Arial,sans-serif;margin-bottom:20px;}');
+    buffer.writeln('.phrase{margin:0 0 12px;}');
+    buffer.writeln('.time{color:#888;font-size:12px;font-family:Arial,sans-serif;}');
+    buffer.writeln('.speaker{font-weight:bold;font-size:13px;font-family:Arial,sans-serif;}');
     buffer.writeln('</style></head><body>');
-    buffer.writeln(
-        '<div class="header">' +
-            AppStrings.tfGlobal('export_html_header', {'d': '${rec.createdAt}', 's': '${rec.durationMs ~/ 1000}'}) +
-            '</div>');
+    buffer.writeln('<h1>${esc(title.isEmpty ? AppStrings.tGlobal('export_title') : title)}</h1>');
+    buffer.writeln('<div class="meta">${esc(date)} · ${esc(dur)}</div>');
 
     if (rec.segments != null && rec.segments!.isNotEmpty) {
       var phraseNo = 0;
       for (var seg in rec.segments!) {
         phraseNo++;
-        buffer.writeln('<div class="speaker-a">');
-        buffer.writeln('<div class="label">${AppStrings.tfGlobal('dialogue_speaker', {'n': '$phraseNo'})}</div>');
-        buffer.writeln('<div class="text">${seg['text']}</div>');
+        final t = seg['time'] as int?;
+        final time = t != null ? _fmtTime(t) : '';
+        final label = AppStrings.tfGlobal('dialogue_speaker', {'n': '$phraseNo'});
+        buffer.writeln('<div class="phrase">');
+        if (time.isNotEmpty) {
+          buffer.writeln('<span class="time">[$time]</span> ');
+        }
+        buffer.writeln('<span class="speaker">${esc(label)}:</span> ${esc(seg['text'] as String?)}');
         buffer.writeln('</div>');
       }
     } else {
-      buffer.writeln(
-          '<div class="speaker-a"><div class="text">${rec.transcription ?? AppStrings.tGlobal('no_text')}</div></div>');
+      buffer.writeln('<p>${esc(rec.transcription ?? AppStrings.tGlobal('no_text'))}</p>');
     }
 
     buffer.writeln('</body></html>');

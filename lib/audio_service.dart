@@ -739,21 +739,81 @@ class AudioService {
     return box;
   }
 
-  Future<void> deleteRecording(String id) async {
+  /// Task 117 П.1: удаление записи НЕ удаляет аудиофайл из публичной
+  /// папки (блокер прода). По умолчанию стираем только запись из базы;
+  /// файл удаляется только по явному согласию (чекбокс в диалоге).
+  /// «Очистить папку» в настройках — отдельная функция (clearRecordingFiles),
+  /// она файлы удаляет и не трогается.
+  Future<void> deleteRecording(String id, {bool deleteFile = false}) async {
     final map = _box!.get(id);
     if (map != null) {
-      // Task 116 П.2: файл может жить в публичной коллекции — удаляем
-      // через MediaStore по contentUri (свой файл, разрешения не нужны).
-      final uri = map['contentUri'] as String?;
-      if (uri != null && uri.isNotEmpty) {
+      if (deleteFile) {
+        // Явное согласие пользователя — удаляем и файл.
+        final uri = map['contentUri'] as String?;
+        if (uri != null && uri.isNotEmpty) {
+          try {
+            await _recordingsChannel
+                .invokeMethod<bool>('deleteRecording', {'uri': uri});
+          } catch (_) {}
+        }
         try {
-          await _recordingsChannel
-              .invokeMethod<bool>('deleteRecording', {'uri': uri});
+          final resolved = await resolveFilePath(map['filePath'] as String);
+          final file = File(resolved);
+          if (await file.exists()) await file.delete();
         } catch (_) {}
       }
-      final file = File(map['filePath'] as String);
-      if (await file.exists()) await file.delete();
       await _box!.delete(id);
+    }
+  }
+
+  /// Task 117 П.5: переименовать физический файл записи в папке.
+  /// Возвращает новый путь или null (переименовать не удалось).
+  static Future<String?> renameRecordingFile(
+      Recording rec, String newTitle) async {
+    final oldName = rec.filePath.split(RegExp(r'[\\/]')).last;
+    final ext =
+        oldName.contains('.') ? '.${oldName.split('.').last}' : '.wav';
+    var safe = newTitle.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+    if (safe.isEmpty) safe = rec.id;
+    final newName = '$safe$ext';
+    if (newName == oldName) return rec.filePath;
+    // Android 10+: имя меняется через MediaStore по contentUri.
+    if (Platform.isAndroid && (rec.contentUri ?? '').isNotEmpty) {
+      try {
+        final ok = await _recordingsChannel.invokeMethod<bool>(
+          'renameRecording',
+          {'uri': rec.contentUri, 'name': newName},
+        );
+        if (ok == true) {
+          return '/storage/emulated/0/$publicRecordingsRelativePath/$newName';
+        }
+        return null;
+      } catch (_) {
+        return null;
+      }
+    }
+    // iOS / старый Android: прямое переименование файла.
+    try {
+      final resolved = await resolveFilePath(rec.filePath);
+      final f = File(resolved);
+      if (await f.exists()) {
+        final newPath = '${f.parent.path}/$newName';
+        await f.rename(newPath);
+        return newPath;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Task 117 П.4: открыть папку записей в системном проводнике
+  /// (нативный обработчик openFolder на канале dictapro/convert).
+  static Future<bool> openFolderInSystemExplorer(String path) async {
+    try {
+      const ch = MethodChannel('dictapro/convert');
+      return await ch.invokeMethod<bool>('openFolder', {'path': path}) ??
+          false;
+    } catch (_) {
+      return false;
     }
   }
 

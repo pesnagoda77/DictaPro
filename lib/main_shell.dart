@@ -16,6 +16,11 @@ class MainShell extends StatefulWidget {
   /// Нужно после открытия аудиофайла из проводника.
   static final ValueNotifier<int?> requestedTab = ValueNotifier<int?>(null);
 
+  /// Task 117 П.3: после перехода из «Папки записей» главная прокручивается
+  /// к этой записи и подсвечивает её рамкой. Сюда передаётся id записи.
+  static final ValueNotifier<String?> focusRecordingId =
+      ValueNotifier<String?>(null);
+
   @override
   State<MainShell> createState() => _MainShellState();
 }

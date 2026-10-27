@@ -201,6 +201,28 @@ class MainActivity : FlutterActivity() {
                         result.success(false)
                     }
                 }
+                // Task 117 П.5: переименование файла записи — MediaStore
+                // update DISPLAY_NAME по contentUri (scoped storage).
+                "renameRecording" -> {
+                    val uri = call.argument<String>("uri") ?: ""
+                    val name = call.argument<String>("name") ?: ""
+                    if (uri.isEmpty() || name.isEmpty()) {
+                        result.error("INVALID_ARGUMENTS", "uri/name", null)
+                        return@setMethodCallHandler
+                    }
+                    Thread {
+                        try {
+                            val values = android.content.ContentValues().apply {
+                                put(android.provider.MediaStore.Files.FileColumns.DISPLAY_NAME, name)
+                            }
+                            val updated = contentResolver.update(Uri.parse(uri), values, null, null)
+                            runOnUiThread { result.success(updated > 0) }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "renameRecording FAILED", e)
+                            runOnUiThread { result.success(false) }
+                        }
+                    }.start()
+                }
                 else -> result.notImplemented()
             }
         }

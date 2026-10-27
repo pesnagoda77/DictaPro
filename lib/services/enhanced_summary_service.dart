@@ -822,12 +822,15 @@ class SummaryResult {
     fullText: '',
   );
 
+  /// Task 117: без «=== X ===» — первая строка заголовок, дальше «• пункт».
   String get formatted {
     final buffer = StringBuffer();
-    buffer.writeln('=== $title ===');
+    buffer.writeln(title);
     buffer.writeln();
     for (final point in points) {
-      buffer.writeln(point);
+      final p = point.trim();
+      if (p.isEmpty) continue;
+      buffer.writeln(p.startsWith('•') ? p : '• $p');
     }
     return buffer.toString();
   }

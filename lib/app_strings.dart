@@ -967,6 +967,15 @@ class AppStrings {
       'ru': 'Ошибка PDF: {e}', 'es': 'Error de PDF: {e}', 'fr': 'Erreur PDF : {e}', 'en': 'PDF error: {e}',
       'de': 'PDF-Fehler: {e}', 'it': 'Errore PDF: {e}',
     },
+    // Task 117 П.7: «Сохранить» — системный диалог выбора места/имени.
+    'export_save_dialog_title': {
+      'ru': 'Сохранить файл', 'es': 'Guardar archivo', 'fr': 'Enregistrer le fichier', 'en': 'Save file',
+      'de': 'Datei speichern', 'it': 'Salva file',
+    },
+    'export_saved': {
+      'ru': 'Файл сохранён', 'es': 'Archivo guardado', 'fr': 'Fichier enregistré', 'en': 'File saved',
+      'de': 'Datei gespeichert', 'it': 'File salvato',
+    },
     'text_copied': {
       'ru': 'Текст скопирован', 'es': 'Texto copiado', 'fr': 'Texte copié', 'en': 'Text copied',
       'de': 'Text kopiert', 'it': 'Testo copiato',
@@ -2007,6 +2016,41 @@ class AppStrings {
     'folder_clear_cancel': {
       'ru': 'Отмена', 'es': 'Cancelar', 'fr': 'Annuler', 'en': 'Cancel',
       'de': 'Abbrechen', 'it': 'Annulla',
+    },
+    // Task 117 П.1: удаление записи — файл в папке по умолчанию НЕ трогаем.
+    'delete_confirm_title': {
+      'ru': 'Удалить запись?', 'es': '¿Eliminar la grabación?', 'fr': 'Supprimer l\'enregistrement ?', 'en': 'Delete recording?',
+      'de': 'Aufnahme löschen?', 'it': 'Eliminare la registrazione?',
+    },
+    'delete_confirm_body': {
+      'ru': 'Запись и её расшифровка будут удалены из приложения. Аудиофайл в папке останется.', 'es': 'La grabación y su transcripción se eliminarán de la aplicación. El archivo de audio permanecerá en la carpeta.', 'fr': 'L\'enregistrement et sa transcription seront supprimés de l\'application. Le fichier audio restera dans le dossier.', 'en': 'The recording and its transcription will be removed from the app. The audio file will stay in the folder.',
+      'de': 'Die Aufnahme und ihre Transkription werden aus der App entfernt. Die Audiodatei bleibt im Ordner.', 'it': 'La registrazione e la sua trascrizione verranno rimosse dall\'app. Il file audio rimarrà nella cartella.',
+    },
+    'delete_with_file': {
+      'ru': 'Удалить и файл из папки', 'es': 'Eliminar también el archivo de la carpeta', 'fr': 'Supprimer aussi le fichier du dossier', 'en': 'Also delete the file from the folder',
+      'de': 'Auch die Datei im Ordner löschen', 'it': 'Elimina anche il file dalla cartella',
+    },
+    // Task 117 П.4: папка записей — путь, проводник.
+    'folder_path_copied': {
+      'ru': 'Путь скопирован', 'es': 'Ruta copiada', 'fr': 'Chemin copié', 'en': 'Path copied',
+      'de': 'Pfad kopiert', 'it': 'Percorso copiato',
+    },
+    'folder_open_explorer': {
+      'ru': 'Открыть в проводнике', 'es': 'Abrir en el explorador', 'fr': 'Ouvrir dans l\'explorateur', 'en': 'Open in file explorer',
+      'de': 'Im Dateimanager öffnen', 'it': 'Apri nel file manager',
+    },
+    'folder_ios_hint': {
+      'ru': 'Файлы доступны в приложении «Файлы» → On My iPhone → DictaPro → Записи', 'es': 'Los archivos están en «Archivos» → En mi iPhone → DictaPro → Grabaciones', 'fr': 'Les fichiers sont dans « Fichiers » → Sur mon iPhone → DictaPro → Enregistrements', 'en': 'Files are in the Files app → On My iPhone → DictaPro → Recordings',
+      'de': 'Dateien sind in «Dateien» → Auf meinem iPhone → DictaPro → Aufnahmen', 'it': 'I file sono in «File» → Sul mio iPhone → DictaPro → Registrazioni',
+    },
+    // Task 117 П.6: зависшая расшифровка — честная плашка + продолжение.
+    'transcribe_stalled': {
+      'ru': 'Расшифровка прервана', 'es': 'Transcripción interrumpida', 'fr': 'Transcription interrompue', 'en': 'Transcription interrupted',
+      'de': 'Transkription unterbrochen', 'it': 'Trascrizione interrotta',
+    },
+    'transcribe_stalled_hint': {
+      'ru': 'прогресс не меняется несколько минут', 'es': 'el progreso no cambia desde hace varios minutos', 'fr': 'le progrès n\'a pas changé depuis plusieurs minutes', 'en': 'no progress for several minutes',
+      'de': 'kein Fortschritt seit mehreren Minuten', 'it': 'nessun progresso da diversi minuti',
     },
     'summary_prep_text': {
       'ru': 'Готовим текст…', 'en': 'Preparing text…', 'de': 'Text wird vorbereitet…',
