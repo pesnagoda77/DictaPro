@@ -32,6 +32,15 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
   /// Task 117 П.4: полный абсолютный путь к папке (показываем на экране).
   String _folderPath = '';
 
+  /// Task 118 П.2: путь как его видит человек — без /storage/emulated/0
+  /// (это та же внутренняя память, в проводнике она называется «Документы»).
+  String get _displayPath {
+    if (Platform.isAndroid) {
+      return AudioService.publicRecordingsRelativePath;
+    }
+    return 'DictaPro/Записи';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -65,10 +74,12 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
     } catch (_) {}
   }
 
-  /// Task 117 П.4: тап по пути — копировать в буфер.
+  /// Task 117 П.4 / 118 П.2: тап по пути — копировать в буфер
+  /// дружелюбный вид (тот, что видит пользователь в проводнике).
   Future<void> _copyPath() async {
-    if (_folderPath.isEmpty) return;
-    await Clipboard.setData(ClipboardData(text: _folderPath));
+    final toCopy = _displayPath;
+    if (toCopy.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: toCopy));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(AppStrings.t('folder_path_copied', context)),
@@ -269,13 +280,15 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
               ),
             ]),
             const SizedBox(height: 6),
-            // Task 117 П.4: полный абсолютный путь. Тап — копировать.
+            // Task 117 П.4: путь к папке (тап — копировать).
+            // Task 118 П.2: показываем дружелюбный вид без /storage/emulated/0
+            // и подсказку, где искать папку в проводнике.
             Row(
               children: [
                 Expanded(
                   child: GestureDetector(
                     onTap: _copyPath,
-                    child: Text(_folderPath,
+                    child: Text(_displayPath,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(fontSize: 12, color: tk.ink3)),
@@ -290,6 +303,9 @@ class _RecordingsFolderPageState extends State<RecordingsFolderPage> {
                 ),
               ],
             ),
+            const SizedBox(height: 2),
+            Text(AppStrings.t('folder_path_hint', context),
+                style: TextStyle(fontSize: 11, color: tk.ink3)),
             const SizedBox(height: 12),
             if (_loading)
               const Padding(

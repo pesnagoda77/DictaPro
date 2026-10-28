@@ -817,6 +817,104 @@ class AudioService {
     }
   }
 
+  /// Task 118 П.3: санитайз имени файла. Буквы любых алфавитов (кириллица
+  /// в том числе), цифры, пробел и дефис сохраняются; запрещённые символы
+  /// → «_» с схлопыванием повторов; концевые точки/пробелы убираем.
+  static String sanitizeFileName(String name) {
+    var s = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    s = s.replaceAll(RegExp(r'\s+'), ' ');
+    s = s.replaceAll(RegExp(r'_+'), '_');
+    s = s.trim();
+    s = s.replaceAll(RegExp(r'[.\s]+$'), '');
+    if (s.isEmpty) s = 'recording';
+    return s;
+  }
+
+  /// Task 118 П.1: разовая миграция — имя файла в папке приводим к title
+  /// записи. Старые записи лежали под recording_xxx.wav, а на главной —
+  /// «синхрон», пользователь видел два разных файла. Флаг
+  /// filenames_migrated_v1 — прогон строго один раз. Коллизии имён —
+  /// суффикс « (2)», « (3)»… Возвращает число переименованных файлов.
+  static Future<int> migrateRecordingFileNames() async {
+    var migrated = 0;
+    try {
+      final sbox = await Hive.openBox<dynamic>('settings');
+      if (sbox.get('filenames_migrated_v1') == true) return 0;
+      final box = await openRecordingsBox();
+
+      // Занятые имена — чтобы новые имена не перекрыли существующие файлы.
+      final taken = <String>{};
+      if (Platform.isAndroid) {
+        final files = await listPublicFolder();
+        for (final f in files) {
+          final n = f['name'] ?? '';
+          if (n.isNotEmpty) taken.add(n);
+        }
+      } else {
+        final dir = await recordingsDir();
+        if (await dir.exists()) {
+          for (final e in dir.listSync()) {
+            if (e is File) taken.add(e.uri.pathSegments.last);
+          }
+        }
+      }
+
+      for (final key in box.keys) {
+        try {
+          final raw = box.get(key);
+          if (raw == null) continue;
+          final rec = Recording.fromMap(Map<String, dynamic>.from(raw));
+          final title = (rec.title ?? '').trim();
+          if (title.isEmpty) continue;
+          final oldName = rec.filePath.split(RegExp(r'[\\/]')).last;
+          if (oldName.isEmpty) continue;
+          final ext =
+              oldName.contains('.') ? '.${oldName.split('.').last}' : '.wav';
+          final wantBase = sanitizeFileName(title);
+          var wantName = '$wantBase$ext';
+          if (wantName == oldName) {
+            taken.add(wantName);
+            continue;
+          }
+          var n = 2;
+          while (taken.contains(wantName)) {
+            wantName = '$wantBase ($n)$ext';
+            n++;
+          }
+
+          if (Platform.isAndroid) {
+            final uri = rec.contentUri ?? '';
+            if (uri.isEmpty) continue;
+            final ok = await _recordingsChannel.invokeMethod<bool>(
+              'renameRecording',
+              {'uri': uri, 'name': wantName},
+            );
+            if (ok == true) {
+              rec.filePath = '$publicRecordingsDisplayPath/$wantName';
+              await box.put(key, rec.toMap());
+              migrated++;
+            }
+          } else {
+            final resolved = await resolveFilePath(rec.filePath);
+            final f = File(resolved);
+            if (!await f.exists()) continue;
+            // Только файлы внутри папки записей — внешние импорты не трогаем.
+            final dir = await recordingsDir();
+            if (f.parent.path != dir.path) continue;
+            final newPath = '${dir.path}/$wantName';
+            await f.rename(newPath);
+            rec.filePath = newPath;
+            await box.put(key, rec.toMap());
+            migrated++;
+          }
+          taken.add(wantName);
+        } catch (_) {}
+      }
+      await sbox.put('filenames_migrated_v1', true);
+    } catch (_) {}
+    return migrated;
+  }
+
   /// Task 059: достать запись по id (сохранение онлайн-итогов обратно).
   Recording? getRecordingById(String id) {
     final box = _box;

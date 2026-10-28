@@ -2035,6 +2035,11 @@ class AppStrings {
       'ru': 'Путь скопирован', 'es': 'Ruta copiada', 'fr': 'Chemin copié', 'en': 'Path copied',
       'de': 'Pfad kopiert', 'it': 'Percorso copiato',
     },
+    // Task 118 П.2: где искать папку в проводнике (emulated/0 — внутренняя память).
+    'folder_path_hint': {
+      'ru': 'Папка в «Документах» телефона; emulated/0 — это внутренняя память', 'es': 'Carpeta en «Documentos» del teléfono; emulated/0 es la memoria interna', 'fr': 'Dossier dans « Documents » du téléphone ; emulated/0 est la mémoire interne', 'en': 'Folder is in phone «Documents»; emulated/0 is the internal storage',
+      'de': 'Ordner in «Dokumente» des Telefons; emulated/0 ist der interne Speicher', 'it': 'Cartella in «Documenti» del telefono; emulated/0 è la memoria interna',
+    },
     'folder_open_explorer': {
       'ru': 'Открыть в проводнике', 'es': 'Abrir en el explorador', 'fr': 'Ouvrir dans l\'explorateur', 'en': 'Open in file explorer',
       'de': 'Im Dateimanager öffnen', 'it': 'Apri nel file manager',

@@ -126,6 +126,12 @@ class _HomePageState extends State<HomePage>
       // Task 116 (Славан): файл, открытый «в DictaPro» из проводника,
       // импортируем в список записей.
       _handlePendingOpenFile();
+      // Task 118 П.1: разовая миграция имён файлов под title (старые
+      // recording_*.wav → «синхрон.wav»). Фоном, без блокировки старта;
+      // если что-то переименовали — перечитываем список.
+      AudioService.migrateRecordingFileNames().then((n) {
+        if (n > 0 && mounted) _loadRecordings();
+      });
     });
     _liveTimer = Timer.periodic(const Duration(seconds: 3), (_) => _refreshLiveStatus());
     // Task 117 П.3: переход из «Папки записей» — прокрутка и подсветка.
@@ -192,6 +198,11 @@ class _HomePageState extends State<HomePage>
       final stage = marker?.$2 ?? '';
       final nowMs = DateTime.now().millisecondsSinceEpoch;
       // Task 117 П.6: движение прогресса фиксируем; по застою — «прервана».
+      // Task 118 П.4: после перезапуска приложения (в т.ч. падения посреди
+      // расшифровки) пустой _liveLastChangeMs = старт отсчёта от текущего
+      // момента — иначе «прервана» вспыхнет мгновенно на живой задаче,
+      // а зависшая после краша корректно дотикает до «прервана» за 3 мин.
+      if (active && _liveLastChangeMs == 0) _liveLastChangeMs = nowMs;
       if (active && (chunks != _liveChunks || text.length != _liveChars)) {
         _liveLastChangeMs = nowMs;
       }

@@ -25,13 +25,14 @@ class ExportService {
     await shareFileWithReturn(filePath, text: AppStrings.tGlobal('share_audio_caption'));
   }
 
-  /// Task 117 П.7: имя файла по умолчанию — «<Название> — <дата>.<ext>»
-  /// без техмусора. Запрещённые символы заменяем на «_».
+  /// Task 117 П.7 / 118 П.3: имя файла по умолчанию —
+  /// «<санитайзнутый title> — <дата>.<ext>». Санитайзер общий с миграцией
+  /// имён (audio_service) — кириллица сохраняется.
   static String exportFileName(Recording rec, String ext) {
-    final raw = (rec.title ?? 'transcript').trim();
-    final safe = raw.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+    final safe = AudioService.sanitizeFileName(
+        (rec.title ?? 'transcript').trim());
     final date = DateFormat('dd.MM.yyyy').format(rec.createdAt);
-    return '${safe.isEmpty ? 'transcript' : safe} — $date.$ext';
+    return '$safe — $date.$ext';
   }
 
   /// Task 117 П.7: «Сохранить» — системный диалог выбора места и имени
@@ -62,6 +63,10 @@ class ExportService {
   }
 
   static Future<bool> savePdf(Recording rec) async {
+    // Task 118 П.3: перед генерацией перечитываем запись из базы — в списке
+    // на главной может лежать устаревшая копия (транскрипция обновилась
+    // после «Заново»), а PDF обязан содержать ПОЛНЫЙ актуальный текст.
+    final fresh = AudioService().getRecordingById(rec.id) ?? rec;
     final fontData = await rootBundle.load('assets/fonts/Roboto-Regular.ttf');
     final ttf = pw.Font.ttf(fontData);
     final pdf = pw.Document();
@@ -77,12 +82,12 @@ class ExportService {
                 style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, font: ttf),
               ),
               pw.SizedBox(height: 8),
-              pw.Text(AppStrings.tfGlobal('export_label_date', {'v': '${rec.createdAt}'}), style: pw.TextStyle(fontSize: 12, font: ttf)),
-              pw.Text(AppStrings.tfGlobal('export_label_duration_sec', {'v': '${rec.durationMs ~/ 1000}'}), style: pw.TextStyle(fontSize: 12, font: ttf)),
+              pw.Text(AppStrings.tfGlobal('export_label_date', {'v': '${fresh.createdAt}'}), style: pw.TextStyle(fontSize: 12, font: ttf)),
+              pw.Text(AppStrings.tfGlobal('export_label_duration_sec', {'v': '${fresh.durationMs ~/ 1000}'}), style: pw.TextStyle(fontSize: 12, font: ttf)),
               pw.Divider(),
               pw.SizedBox(height: 8),
-              if (rec.segments != null && rec.segments!.isNotEmpty)
-                ...rec.segments!.asMap().entries.map((e) {
+              if (fresh.segments != null && fresh.segments!.isNotEmpty)
+                ...fresh.segments!.asMap().entries.map((e) {
                   final no = e.key + 1;
                   final seg = e.value;
                   return pw.Padding(
@@ -95,7 +100,7 @@ class ExportService {
                 })
               else
                 pw.Text(
-                  rec.transcription ?? AppStrings.tGlobal('no_text'),
+                  fresh.transcription ?? AppStrings.tGlobal('no_text'),
                   style: pw.TextStyle(fontSize: 14, font: ttf),
                 ),
             ],
