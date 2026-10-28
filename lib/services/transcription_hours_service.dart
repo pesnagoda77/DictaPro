@@ -123,6 +123,25 @@ class TranscriptionHoursService {
     debugPrint('[transcr-hours] сброс в бесплатный: total=0, used=0');
   }
 
+  /// Task 119: однократный санитар заражённых балансов (дубли грантов
+  /// до фикса по purchaseToken: 192 ч вместо 24). [expectedTotal] =
+  /// честные включённые тарифа + пакеты (в часах). used не трогаем;
+  /// если used больше ожидаемого — total = used + 0.1 (честный минус).
+  Future<String> sanitizeV2(double expectedTotal) async {
+    if (isUnlimited) return ''; // бесконечная корзина, total не используется
+    final p = await SharedPreferences.getInstance();
+    final used = p.getString(_kMonth) == _monthKey()
+        ? (p.getDouble(_kIncludedUsed) ?? 0)
+        : 0;
+    var want = expectedTotal;
+    if (used > want) want = used + 0.1;
+    final cur = p.getDouble(_kIncludedTotal);
+    if (cur == null || cur <= want) return '';
+    await p.setDouble(_kIncludedTotal, want);
+    PurchaseService.instance.planRevision.value++;
+    return 'transcr: включённые $cur→$want (дубли грантов)';
+  }
+
   /// Task 116 П.5: санитар баланса расшифровки. used не может быть
   /// отрицательным, total не превышает накопленную базу + пакеты.
   /// Возвращает отчёт или '' (всё чисто).

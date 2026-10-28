@@ -109,6 +109,16 @@ class PurchaseService {
   static const _kCodePeriod = 'code_activated_period_v1';
 static const _kPlayExpiry = 'play_subscription_expiry_v1'; // Task 110: expiryTimeMillis активной Play-подписки
 static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены, по которым бонус ИИ-часов уже начислен
+  /// Task 119: кулдаун ИИ-бонуса тарифа против схемы «купил-отменил-купил».
+  /// Ключ = '$_kAiBonusLastPrefix' + tier.name, значение — мс последнего
+  /// начисления. Месячные тиры: 20 дней, годовые: 320. Отмена подписки
+  /// кулдаун НЕ сбрасывает — это и есть защита.
+  static const _kAiBonusLastPrefix = 'ai_bonus_last_ms_';
+  static const int aiBonusCooldownDays = 20;
+  static const int aiBonusCooldownDaysYearly = 320;
+  /// Task 119: однократная миграция-санитар заражённых балансов
+  /// (дубли грантов до фикса по токену).
+  static const _kBalancesSanitizedV2 = 'balances_sanitized_v2';
   // Task 079: токены уже зачисленных покупок пакетов (Set<String>) —
   // защита от перезачисления при redelivery/restore.
   static const _kAppliedPacks = 'applied_pack_tokens_v1';
@@ -201,7 +211,12 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       await restore();
       // Task 116 П.5: санитар балансов после старта — лечит устройства,
       // уже накопившие лишние бонусы (2210 ч у тестера BY).
-      lastSanitizeReport = await _runBalanceSanity();
+      // Task 119: санитар v2 — клэмп к честной формуле (тариф + пакеты)
+      // заражённых дублями грантов устройств (тестер DE: 192 ч / 50 ИИ-ч).
+      lastSanitizeReport = [
+        await _runBalanceSanity(),
+        await _runSanitizeV2(),
+      ].where((e) => e.isNotEmpty).join('\n');
       }
     } catch (e) {
       debugPrint('[purchase] store недоступен ($e) — работаем на локальном кэше');
@@ -230,6 +245,34 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
     if (report.isNotEmpty) {
       debugPrint('[purchase] SANITY:\n$report');
     }
+    return report;
+  }
+
+  /// Task 119: однократная миграция-санитар заражённых балансов (дубли
+  /// грантов до фикса по токену). Часы: total = включённые тарифа +
+  /// купленные пакеты. ИИ: включённые = бонус тарифа (пакеты — отдельная
+  /// бессрочная корзина). Факт больше ожидаемого — клэмп + отчёт.
+  /// Кулдаун ИИ-бонуса сидим, если бонус уже выдавался: иначе первый же
+  /// токен-грант после обновления насыпал бы второй бонус сверху.
+  Future<String> _runSanitizeV2() async {
+    final p = await SharedPreferences.getInstance();
+    if (p.getBool(_kBalancesSanitizedV2) == true) return '';
+    final t = tier.value;
+    final trReport = await TranscriptionHoursService.instance.sanitizeV2(
+      t == SubscriptionTier.none
+          ? 0.0
+          : ((includedTranscriptionHours[t] ?? 0) +
+              (await TranscriptionHoursService.instance.packMinutesLeft()) /
+                  60.0),
+    );
+    final (aiReport, aiHadBonus) = await AiHoursService.instance
+        .sanitizeV2((includedHours[t] ?? 0).toDouble());
+    if (t != SubscriptionTier.none && aiHadBonus) {
+      await _markAiBonusGranted(t);
+    }
+    await p.setBool(_kBalancesSanitizedV2, true);
+    final report = [trReport, aiReport].where((e) => e.isNotEmpty).join('\n');
+    if (report.isNotEmpty) debugPrint('[purchase] SANITY V2:\n$report');
     return report;
   }
 
@@ -549,6 +592,38 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
     }
   }
 
+  /// Task 119: очередь грантов — покупки из стрима/restore могут прийти
+  /// пачкой и одновременно пройти «прочитал-нет ключа-начислил» (race),
+  /// из-за которого дедуп раньше и пробивался. Гранты сериализуем.
+  Future<void> _grantQueue = Future.value();
+  Future<T> _serializeGrants<T>(Future<T> Function() fn) {
+    final next = _grantQueue.then((_) => fn());
+    _grantQueue = next.then((_) {}, onError: (_) {});
+    return next;
+  }
+
+  /// Task 119: укороченный хэш purchaseToken для ключей дедупа.
+  /// Полный токен в prefs не кладём (он же «секрет» сверки).
+  static String _shortTok(String t) =>
+      t.length > 40 ? t.substring(t.length - 40) : t;
+
+  /// Task 119: кулдаун ИИ-бонуса тарифа (20 дней мес / 320 год).
+  Future<bool> _aiBonusCooldownOk(SubscriptionTier t,
+      {required bool yearly}) async {
+    final p = await SharedPreferences.getInstance();
+    final last = p.getInt('$_kAiBonusLastPrefix${t.name}') ?? 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final cd = (yearly ? aiBonusCooldownDaysYearly : aiBonusCooldownDays) *
+        24 * 60 * 60 * 1000;
+    return now - last >= cd;
+  }
+
+  Future<void> _markAiBonusGranted(SubscriptionTier t) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setInt('$_kAiBonusLastPrefix${t.name}',
+        DateTime.now().millisecondsSinceEpoch);
+  }
+
   /// Task 079: приём только «своего» типа покупок. Продукты вне каталога
   /// (full_unlock / pack_* / sub_* и их *_year) не применяются — только
   /// acknowledge (completePurchase ниже), чтобы посторонняя/устаревшая
@@ -588,38 +663,55 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
 
       // 20.10: бонусные ИИ-часы тарифа (Дневник 10 / Ассистент 20 / Безлимит 40).
       // Раньше были только текстом в карточке — покупатель не получал ничего.
-      // Начисляем один раз на покупку (по purchaseID), в том числе при restore.
       final pref = await SharedPreferences.getInstance();
-      // Task 116 П.5: дедуп по БАЗОВОМУ orderId. Play при авто-продлении
-      // тестовой подписки (каждые 5 мин) выдаёт новый orderId с суффиксом
-      // '..N' — иначе бонус +10 падал на каждое продление (2210 ч).
-      String baseOrderId(String? id) {
-        if (id == null) return '';
-        final i = id.indexOf('..');
-        return i > 0 ? id.substring(0, i) : id;
-      }
-      final bonusKey = () {
-        final base = baseOrderId(purchase.purchaseID);
-        if (base.isNotEmpty) return 'order:$base';
-        // Task 116 П.5: iOS/нет orderId — продления меняют transactionDate,
-        // ограничиваем одним бонусом в месяц на продукт (месячную выдачу
-        // делает ролловер цикла).
-        final n = DateTime.now();
-        return 'sub:${purchase.productID}:m${n.year}-${n.month.toString().padLeft(2, '0')}';
-      }();
-      final applied = (pref.getStringList(_kSubBonusApplied) ?? []).toSet();
-      if (!applied.contains(bonusKey)) {
-        final bonus = includedHours[t] ?? 0;
-        if (bonus > 0) {
-          await AiHoursService.instance.addMonthlyBonus(bonus.toDouble());
-          debugPrint('[purchase] бонус ИИ-часов +$bonus за $t');
-        }
-        applied.add(bonusKey);
-        await pref.setStringList(_kSubBonusApplied, applied.toList());
-        // Task 115: якорь цикла + включённые часы расшифровки при покупке.
-        await ensureBillingCycle();
-        await TranscriptionHoursService.instance
-            .addIncludedHours(includedTranscriptionHours[t]?.toDouble() ?? 0);
+      // Task 119 (БЛОКЕР, возврат «2210 ч»): дедуп грантов по purchaseToken.
+      // orderId на Android плагин часто не отдаёт (purchaseID=null), а
+      // transactionDate меняется у КАЖДОГО авто-продления — дедуп по ним
+      // пробивался, и тестовая подписка (продление каждые 5 мин) накидала
+      // 24 ч × 8 и 10 ИИ-ч × 5 за 40 минут. serverVerificationData
+      // (purchaseToken) при авто-продлении СТАБИЛЕН — ключ по нему.
+      // Часы и ИИ-бонус разведены: часы грантим по токену (покупка после
+      // отмены = новый токен = честные +24 ч), бонус — по кулдауну 20 дней
+      // на тир (схема «купил-отменил-купил» не фармит ИИ-часы). Пакеты
+      // (разовые) без кулдауна — это товар.
+      final rawTok = purchase.verificationData.serverVerificationData.trim();
+      final yearly = productId.endsWith('_year');
+      if (rawTok.isEmpty) {
+        // fail-closed: лучше недоначислить, чем размножить. Токен Play
+        // отдаёт всегда; пусто — аномалия доставки, грант пропускаем.
+        lastSanitizeReport += '; refusal:$productId:no-token@${DateTime.now().millisecondsSinceEpoch}';
+        debugPrint('[purchase] нет purchaseToken — грант $productId '
+            'пропущен (fail-closed)');
+      } else {
+        final tokKey = 'tok:${_shortTok(rawTok)}';
+        await _serializeGrants(() async {
+          // Список перечитываем внутри очереди — за время ожидания другой
+          // грант мог уже записать свой ключ (race fix).
+          final applied =
+              (pref.getStringList(_kSubBonusApplied) ?? []).toSet();
+          if (applied.contains(tokKey)) {
+            debugPrint('[purchase] грант $productId по токену уже применён'
+                ' (авто-продление/redelivery) — skip');
+            return;
+          }
+          // Включённые часы расшифровки — по токену покупки.
+          await ensureBillingCycle();
+          await TranscriptionHoursService.instance.addIncludedHours(
+              includedTranscriptionHours[t]?.toDouble() ?? 0);
+          // ИИ-бонус — по кулдауну тарифа, отмена подписки его НЕ сбрасывает.
+          if (await _aiBonusCooldownOk(t, yearly: yearly)) {
+            final bonus = includedHours[t] ?? 0;
+            if (bonus > 0) {
+              await AiHoursService.instance.addMonthlyBonus(bonus.toDouble());
+              debugPrint('[purchase] бонус ИИ-часов +$bonus за $t');
+            }
+            await _markAiBonusGranted(t);
+          } else {
+            debugPrint('[purchase] ИИ-бонус $t в кулдауне — пропуск');
+          }
+          applied.add(tokKey);
+          await pref.setStringList(_kSubBonusApplied, applied.toList());
+        });
       }
 
       if (_rebuild) {
@@ -891,17 +983,22 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
     await p.setString(
         _kCodePeriod, isYearly ? yearlyBasePlanId : monthlyBasePlanId);
 
-    // Бонусные ИИ-часы тарифа — один раз на код.
+    // Бонусные ИИ-часы тарифа — один раз на код + кулдаун тира (task 119):
+    // схема «активировал-дал сгореть-активировал» не фармит бонус.
     final bonus = includedHours[codeTier] ?? 0;
     if (bonus > 0 && rawCode.isNotEmpty) {
       final applied = (p.getStringList(_kSubBonusApplied) ?? []).toSet();
       final key = 'code:$rawCode';
-      if (!applied.contains(key)) {
+      if (!applied.contains(key) &&
+          await _aiBonusCooldownOk(codeTier, yearly: isYearly)) {
         // 22.10 (Славан): бонус тарифа СГОРАЕТ в конце месяца — месячная корзина.
         await AiHoursService.instance.addMonthlyBonus(bonus);
         applied.add(key);
         await p.setStringList(_kSubBonusApplied, applied.toList());
+        await _markAiBonusGranted(codeTier);
         debugPrint('[purchase] код $typeKey: бонус ИИ-часов +$bonus');
+      } else if (!applied.contains(key)) {
+        debugPrint('[purchase] код $typeKey: ИИ-бонус $codeTier в кулдауне — пропуск');
       }
     }
 

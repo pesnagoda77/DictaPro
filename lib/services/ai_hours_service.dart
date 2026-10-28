@@ -74,6 +74,27 @@ class AiHoursService {
     return p.getDouble(_kIncludedUsed) ?? 0;
   }
 
+  /// Task 119: однократный санитар заражённых балансов (дубли грантов
+  /// до фикса по purchaseToken: 50 ИИ-ч вместо 10). [expectedIncluded] —
+  /// честный месячный бонус текущего тарифа; пакеты — отдельная
+  /// бессрочная корзина, их НЕ трогаем. Возвращает (отчёт, был ли
+  /// вообще бонус) — PurchaseService по этому флагу сидит кулдаун,
+  /// чтобы токен-грант после обновления не насыпал второй бонус.
+  Future<(String, bool)> sanitizeV2(double expectedIncluded) async {
+    final p = await SharedPreferences.getInstance();
+    final used = p.getString(_kMonth) == _monthKey()
+        ? (p.getDouble(_kIncludedUsed) ?? 0)
+        : 0;
+    var want = expectedIncluded;
+    if (used > want) want = used + 0.1; // честный минус, не обнуляем расход
+    final cur = p.getDouble(_kIncludedTotal);
+    final hadBonus = (cur ?? 0) > 0;
+    if (cur == null || cur <= want) return ('', hadBonus);
+    await p.setDouble(_kIncludedTotal, want);
+    PurchaseService.instance.planRevision.value++;
+    return ('ai_hours: включённые $cur→$want (дубли грантов)', hadBonus);
+  }
+
   /// Task 116 П.5: санитар баланса. Месячная часть (включённые тарифа)
   /// не может превышать includedHours(tier). Пакеты не трогаем — они
   /// бессрочные и приходят отдельно. Возвращает отчёт или '' (всё чисто).
