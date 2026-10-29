@@ -209,6 +209,8 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       // При запуске — сверка если нужна.
       await BillingVerifyService.instance.verifyAll();
       await restore();
+      // Задача 120 (Славан): старт периодического опроса отмен.
+      startRenewalWatch();
       // Task 116 П.5: санитар балансов после старта — лечит устройства,
       // уже накопившие лишние бонусы (2210 ч у тестера BY).
       // Task 119: санитар v2 — клэмп к честной формуле (тариф + пакеты)
@@ -746,6 +748,30 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
             debugPrint('[purchase] expiry сохранён: '
                 '${DateTime.fromMillisecondsSinceEpoch(exp)}');
           }
+          // Задача 120 (Славан): пользователь ОТМЕНИЛ подписку — Play сразу
+          // ставит autoRenewing=false (подписка ещё активна до конца
+          // периода). Вариант Б немедленно, если нет более высокого
+          // активного тарифа (защита апгрейда).
+          if (j['autoRenewing'] == false) {
+            final subs = (p.getStringList(_kActiveSubs) ?? [])
+                .where((s) => s != productId)
+                .toList();
+            var maxRank = 0;
+            for (final s in subs) {
+              final r = _tierRank(_tierOfProduct(s));
+              if (r > maxRank) maxRank = r;
+            }
+            if (_tierRank(_tierOfProduct(productId)) > maxRank) {
+              debugPrint('[purchase] autoRenewing=false → вариант Б '
+                  'немедленно ($productId)');
+              final set3 =
+                  (p.getStringList(_kActiveSubs) ?? []).toSet()
+                    ..remove(productId);
+              await p.setStringList(_kActiveSubs, set3.toList());
+              await _applyEffectiveTier();
+              await _hardResetToFree();
+            }
+          }
         }
       } catch (e) {
         debugPrint('[purchase] expiry parse: $e');
@@ -1117,7 +1143,23 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
         SubscriptionTier.unlimited => 3,
       };
 
+  /// Задача 120 (Славан): быстрое обнаружение отмены — раз в 60 сек
+  /// запрашиваем покупки у Play; события идут в purchaseStream, их ловит
+  /// _applyPurchase (autoRenewing=false → вариант Б немедленно).
+  Timer? _renewPoll;
+  void startRenewalWatch() {
+    _renewPoll?.cancel();
+    _renewPoll = Timer.periodic(const Duration(seconds: 60), (_) async {
+      if (!_storeAvailable) return;
+      try {
+        await _iap.restorePurchases();
+      } catch (_) {}
+    });
+  }
+
+  @override
   Future<void> dispose() async {
+    _renewPoll?.cancel();
     await _sub?.cancel();
   }
 }
