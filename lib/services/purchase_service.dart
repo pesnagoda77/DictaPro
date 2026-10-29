@@ -768,6 +768,9 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
                   (p.getStringList(_kActiveSubs) ?? []).toSet()
                     ..remove(productId);
               await p.setStringList(_kActiveSubs, set3.toList());
+              // Протухшую дату окончания убираем — иначе «до …» висит
+              // на отменённом тарифе.
+              await p.remove(_kPlayExpiry);
               await _applyEffectiveTier();
               await _hardResetToFree();
             }
