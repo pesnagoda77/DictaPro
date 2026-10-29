@@ -342,6 +342,27 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
     if (tier == SubscriptionTier.none) {
       rows.add(Text(AppStrings.t('sub_status_none', context),
           style: TextStyle(fontSize: 12.5, color: tk.ink2, height: 1.5)));
+      // Славан 28.10: остатки пакетов видны и без тарифа — как при тарифе.
+      rows.add(const SizedBox(height: 6));
+      rows.add(FutureBuilder<String>(
+        future: TranscriptionHoursService.instance.balanceLabel(),
+        builder: (context, snap) {
+          final label = snap.data ?? '';
+          if (label.isEmpty) return const SizedBox.shrink();
+          return Text(label,
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: tk.ink));
+        },
+      ));
+      rows.add(const SizedBox(height: 4));
+      rows.add(FutureBuilder<String>(
+        future: AiHoursService.instance.balanceLabel(),
+        builder: (context, snap) {
+          final label = snap.data ?? '';
+          if (label.isEmpty) return const SizedBox.shrink();
+          return Text(label,
+              style: TextStyle(fontSize: 11.5, color: tk.ink3));
+        },
+      ));
     } else {
       // Task 110: шапка — тариф · дата окончания · часы расшифровки.
       final tierName = _tierName(context, tier);
