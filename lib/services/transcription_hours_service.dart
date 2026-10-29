@@ -86,6 +86,16 @@ class TranscriptionHoursService {
     debugPrint('[transcr-hours] включённые часы +$hours, всего ${cur + hours}');
   }
 
+  /// Task 119 фикс (Славан): ЗАМЕНИТЬ включённые часы тарифа (не суммировать).
+  /// Используется при повторной покупке того же тарифа до срабатывания
+  /// варианта Б (отмена → сброс) — иначе total растёт 24+24+24...
+  Future<void> setIncludedAllowance(double hours) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setDouble(_kIncludedTotal, hours);
+    PurchaseService.instance.planRevision.value++;
+    debugPrint('[transcr-hours] allowance установлен: $hours ч');
+  }
+
   /// Сколько минут осталось из пакетов.
   Future<double> packMinutesLeft() async {
     final p = await SharedPreferences.getInstance();

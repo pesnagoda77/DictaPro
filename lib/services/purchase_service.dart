@@ -695,9 +695,19 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
             return;
           }
           // Включённые часы расшифровки — по токену покупки.
+          // Task 119 фикс (Славан): если тариф УЖЕ активен (повторная
+          // покупка без срабатывания варианта Б) — ЗАМЕНЯЕМ allowance,
+          // а не суммируем (иначе 24+24+24 = 192 ч у тестера DE).
           await ensureBillingCycle();
-          await TranscriptionHoursService.instance.addIncludedHours(
-              includedTranscriptionHours[t]?.toDouble() ?? 0);
+          final alreadyActive =
+              (pref.getStringList(_kActiveSubs) ?? []).contains(productId);
+          if (alreadyActive) {
+            await TranscriptionHoursService.instance.setIncludedAllowance(
+                includedTranscriptionHours[t]?.toDouble() ?? 0);
+          } else {
+            await TranscriptionHoursService.instance.addIncludedHours(
+                includedTranscriptionHours[t]?.toDouble() ?? 0);
+          }
           // ИИ-бонус — по кулдауну тарифа, отмена подписки его НЕ сбрасывает.
           if (await _aiBonusCooldownOk(t, yearly: yearly)) {
             final bonus = includedHours[t] ?? 0;
