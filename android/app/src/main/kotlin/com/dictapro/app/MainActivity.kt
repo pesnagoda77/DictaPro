@@ -190,16 +190,44 @@ class MainActivity : FlutterActivity() {
                     }.start()
                 }
                 "deleteRecording" -> {
+                    // Славан 28.10: удаление с проверкой. Сначала по uri,
+                    // если не удалилось (нет uri/строка чужая) — по имени
+                    // в нашей папке записей.
                     val uri = call.argument<String>("uri") ?: ""
-                    try {
-                        if (uri.isNotEmpty()) {
-                            contentResolver.delete(Uri.parse(uri), null, null)
+                    val name = call.argument<String>("name")
+                        ?: uri.substringAfterLast('/')
+                    Thread {
+                        var deleted = false
+                        try {
+                            if (uri.isNotEmpty()) {
+                                deleted = try {
+                                    contentResolver.delete(
+                                        Uri.parse(uri), null, null) > 0
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "delete by uri: ${e.message}")
+                                    false
+                                }
+                            }
+                            if (!deleted && name.isNotEmpty()) {
+                                val collection = if (Build.VERSION.SDK_INT >= 29) {
+                                    android.provider.MediaStore.Files.getContentUri(
+                                        android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                                } else {
+                                    android.provider.MediaStore.Files.getContentUri("external")
+                                }
+                                val relArg = RECORDINGS_RELATIVE_PATH + "/"
+                                deleted = contentResolver.delete(
+                                    collection,
+                                    android.provider.MediaStore.Files.FileColumns.RELATIVE_PATH + "=? AND " +
+                                        android.provider.MediaStore.Files.FileColumns.DISPLAY_NAME + "=?",
+                                    arrayOf(relArg, name)) > 0
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "deleteRecording: ${e.message}")
                         }
-                        result.success(true)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "deleteRecording: ${e.message}")
-                        result.success(false)
-                    }
+                        val res = deleted
+                        runOnUiThread { result.success(res) }
+                    }.start()
                 }
                 // Task 117 П.5: переименование файла записи — MediaStore
                 // update DISPLAY_NAME по contentUri (scoped storage).

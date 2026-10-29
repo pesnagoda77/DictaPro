@@ -288,6 +288,28 @@ class AudioService {
     return out;
   }
 
+  /// Задача (Славан 28.10): опубликовать файл из app-private в публичную
+  /// папку Documents/DictaPro/Записи. Возвращает {path, uri} или null.
+  static Future<Map<String, String>?> publishPrivateRecording(
+      String filePath) async {
+    if (!Platform.isAndroid) return null;
+    try {
+      final name = filePath.split(RegExp(r'[\\/]')).last;
+      final raw = await _recordingsChannel.invokeMethod<Map<dynamic, dynamic>>(
+        'publishRecording',
+        {'srcPath': filePath, 'displayName': name},
+      );
+      if (raw == null) return null;
+      return {
+        'path': raw['path']?.toString() ?? '',
+        'uri': raw['uri']?.toString() ?? '',
+      };
+    } catch (e) {
+      debugPrint('[recordings] publishPrivateRecording: $e');
+      return null;
+    }
+  }
+
   static Future<String?> materializeUri(String uri, String name) async {
     try {
       final out = await _recordingsChannel.invokeMethod<String>(
@@ -750,14 +772,16 @@ class AudioService {
       if (deleteFile) {
         // Явное согласие пользователя — удаляем и файл.
         final uri = map['contentUri'] as String?;
+        final storedPath = (map['filePath'] as String?) ?? '';
+        final name = storedPath.split(RegExp(r'[\\/]')).last;
         if (uri != null && uri.isNotEmpty) {
           try {
-            await _recordingsChannel
-                .invokeMethod<bool>('deleteRecording', {'uri': uri});
+            await _recordingsChannel.invokeMethod<bool>(
+                'deleteRecording', {'uri': uri, 'name': name});
           } catch (_) {}
         }
         try {
-          final resolved = await resolveFilePath(map['filePath'] as String);
+          final resolved = await resolveFilePath(storedPath);
           final file = File(resolved);
           if (await file.exists()) await file.delete();
         } catch (_) {}

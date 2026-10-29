@@ -50,15 +50,11 @@ class AiHoursService {
         'bonus=${tierIncludedHours()}');
   }
 
-  /// Task 115: накопленный месячный бонус (миграция: null → константа тарифа).
+  /// Задача 120 (Славан): месячный бонус ВЫЧИСЛЯЕТСЯ из тарифа
+  /// (не хранится счётчиком — дубли грантов невозможны архитектурно).
   Future<double> includedTotal() async {
     await _rolloverIfNeeded();
-    final p = await SharedPreferences.getInstance();
-    final t = p.getDouble(_kIncludedTotal);
-    if (t != null) return t;
-    final base = tierIncludedHours();
-    await p.setDouble(_kIncludedTotal, base);
-    return base;
+    return tierIncludedHours();
   }
 
   /// Сколько минут осталось из пакетов.
@@ -139,7 +135,7 @@ class AiHoursService {
         now.millisecondsSinceEpoch >= lastSeen; // anti-rollback
     final used = monthOk ? (p.getDouble(_kIncludedUsed) ?? 0.0) : 0.0;
     final packMin = p.getDouble(_kPackMinutes) ?? 0;
-    final total = p.getDouble(_kIncludedTotal) ?? tierIncludedHours();
+    final total = await includedTotal();
 
     double inclLeft = (total - used).clamp(0.0, double.infinity).toDouble();
     var needHours = need;
@@ -178,19 +174,21 @@ class AiHoursService {
     await p.setDouble(_kPackMinutes, cur + hours * 60.0);
   }
 
-  /// Task 115: начисление БОНУСНЫХ ИИ-часов тарифа (Дневник 10 /
-  /// Ассистент 20 / Безлимит 40). СУММИРУЕТСЯ с остатком цикла
-  /// (апгрейд 10 + 20 = 30), сгорает при ролловере месячного цикла.
+  /// Задача 120 (Славан): начисление БОНУСНЫХ ИИ-часов счётчиком УДАЛЕНО.
+  /// Месячный бонус = тариф (замена, не сложение): «Ассистент» даёт ровно
+  /// 20 ИИ-ч в месяц, апгрейд с Дневника не даёт +10 сверху.
   Future<void> addMonthlyBonus(double hours) async {
     if (hours <= 0) return;
     await _rolloverIfNeeded();
-    final p = await SharedPreferences.getInstance();
-    final cur =
-        p.getDouble(_kIncludedTotal) ?? tierIncludedHours();
-    await p.setDouble(_kIncludedTotal, cur + hours);
+    // Если тарифный бонус уже выставлен ролловером/другим грантом —
+    // ничего не делаем (замена семантика).
+    final cur = await includedTotal();
+    if (cur >= hours) {
+      debugPrint('[ai-hours] бонус уже выставлен ($cur ≥ $hours) — skip');
+      return;
+    }
+    debugPrint('[ai-hours] бонус $hours уже учтён вычисляемой моделью');
     PurchaseService.instance.planRevision.value++;
-    debugPrint('[ai-hours] месячный бонус +$hours ч, всего ${cur + hours} '
-        '(сгорит при смене цикла)');
   }
 
   /// Task 087: списать неиспользованные часы пакета при возврате.

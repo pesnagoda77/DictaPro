@@ -60,40 +60,29 @@ class TranscriptionHoursService {
         'total=${tierIncludedHours() ?? 0}');
   }
 
-  /// Task 115: накопленный лимит включённых часов (миграция: если ключа
-  /// нет — берём константу текущего тарифа).
+  /// Task 120 (Славан, «опять пирамида»): лимит ВЫЧИСЛЯЕТСЯ из тарифа,
+  /// а не хранится счётчиком. Накопление удалено: оно позволяло дублям
+  /// грантов раздувать баланс (192/408 ч). Остаток цикла = total − used;
+  /// used сбрасывается на ролловере цикла (от дня активации).
   Future<double> includedTotal() async {
     if (isUnlimited) return double.infinity;
     await _rolloverIfNeeded();
-    final p = await SharedPreferences.getInstance();
-    final t = p.getDouble(_kIncludedTotal);
-    if (t != null) return t;
-    final base = (tierIncludedHours() ?? 0).toDouble();
-    await p.setDouble(_kIncludedTotal, base);
-    return base;
+    return (tierIncludedHours() ?? 0).toDouble();
   }
 
-  /// Task 115: начислить включённые часы тарифа (активация/покупка).
-  /// Суммируется с остатком (24 + 120 = 144); used не трогаем.
+  /// Задача 120 (Славан): начисление счётчиком УДАЛЕНО — баланс
+  /// вычисляется из тарифа. Оставлено для совместимости вызовов.
   Future<void> addIncludedHours(double hours) async {
     if (hours <= 0) return;
     await _rolloverIfNeeded();
-    final p = await SharedPreferences.getInstance();
-    final cur = p.getDouble(_kIncludedTotal) ??
-        (tierIncludedHours() ?? 0).toDouble();
-    await p.setDouble(_kIncludedTotal, cur + hours);
     PurchaseService.instance.planRevision.value++;
-    debugPrint('[transcr-hours] включённые часы +$hours, всего ${cur + hours}');
+    debugPrint('[transcr-hours] addIncludedHours no-op (computed): $hours');
   }
 
-  /// Task 119 фикс (Славан): ЗАМЕНИТЬ включённые часы тарифа (не суммировать).
-  /// Используется при повторной покупке того же тарифа до срабатывания
-  /// варианта Б (отмена → сброс) — иначе total растёт 24+24+24...
+  /// Задача 120: no-op — allowance вычисляется из тарифа.
   Future<void> setIncludedAllowance(double hours) async {
-    final p = await SharedPreferences.getInstance();
-    await p.setDouble(_kIncludedTotal, hours);
     PurchaseService.instance.planRevision.value++;
-    debugPrint('[transcr-hours] allowance установлен: $hours ч');
+    debugPrint('[transcr-hours] setIncludedAllowance no-op (computed): $hours');
   }
 
   /// Сколько минут осталось из пакетов.
@@ -201,8 +190,8 @@ class TranscriptionHoursService {
         now.millisecondsSinceEpoch >= lastSeen; // anti-rollback
     final used = monthOk ? (p.getDouble(_kIncludedUsed) ?? 0.0) : 0.0;
     final packMin = p.getDouble(_kPackMinutes) ?? 0;
-    final total = p.getDouble(_kIncludedTotal) ??
-        (tierIncludedHours() ?? 0).toDouble();
+    // Задача 120: total вычисляется из текущего тарифа (не хранится).
+    final total = (tierIncludedHours() ?? 0).toDouble();
 
     double inclLeft = (total - used).clamp(0.0, double.infinity).toDouble();
     var needHours = need;

@@ -2030,6 +2030,21 @@ class _HomePageState extends State<HomePage>
         );
 
         await AudioService().updateRecording(recording);
+        // Славан 28.10: импортированный файл публикуется в общую папку
+        // Documents/DictaPro/Записи (как и обычные записи).
+        try {
+          final pub = await AudioService.publishPrivateRecording(destPath);
+          if (pub != null) {
+            recording.filePath = pub['path'] ?? destPath;
+            recording.contentUri = (pub['uri'] ?? '').isEmpty
+                ? null
+                : pub['uri'];
+            await AudioService().updateRecording(recording);
+          }
+          try {
+            await File(destPath).delete(); // приватная копия больше не нужна
+          } catch (_) {}
+        } catch (_) {}
         successCount++;
       } catch (e) {
         failCount++;
