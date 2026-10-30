@@ -120,6 +120,52 @@ class Recording {
 }
 
 class AudioService {
+
+  /// 31.10 (Славан): длительность WAV из заголовка. AudioPlayer для части
+  /// файлов duration не отдаёт — у импортированных записей оставалось 00:00,
+  /// и из-за нулевой длительности не списывались бесплатные минуты и пакеты.
+  static Future<int> probeDurationMs(String path) async {
+    try {
+      final f = File(path);
+      if (!await f.exists()) return 0;
+      final raf = await f.open();
+      try {
+        final head = await raf.read(8192);
+        if (head.length < 44) return 0;
+        if (String.fromCharCodes(head.sublist(0, 4)) != 'RIFF') return 0;
+        int byteRate = 0;
+        int dataSize = 0;
+        int pos = 12;
+        while (pos + 8 <= head.length) {
+          final id = String.fromCharCodes(head.sublist(pos, pos + 4));
+          final b = head;
+          final size = b[pos + 4] |
+              (b[pos + 5] << 8) |
+              (b[pos + 6] << 16) |
+              (b[pos + 7] << 24);
+          if (id == 'fmt ' && pos + 20 <= head.length) {
+            byteRate = b[pos + 16] |
+                (b[pos + 17] << 8) |
+                (b[pos + 18] << 16) |
+                (b[pos + 19] << 24);
+          }
+          if (id == 'data') {
+            dataSize = size;
+            break;
+          }
+          pos += 8 + size + (size % 2);
+        }
+        if (byteRate > 0 && dataSize > 0) {
+          return ((dataSize / byteRate) * 1000).round();
+        }
+      } finally {
+        await raf.close();
+      }
+    } catch (_) {}
+    return 0;
+  }
+
+
   static final AudioService _instance = AudioService._internal();
   factory AudioService() => _instance;
 

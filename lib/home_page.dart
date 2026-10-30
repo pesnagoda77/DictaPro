@@ -1630,9 +1630,22 @@ class _HomePageState extends State<HomePage>
   /// (те же счётчики, что показывает шапка «использовано X из 24 ч») —
   /// раньше списание шло в другой сервис (UsageLimitService), и шапка
   /// всегда показывала 0.0.
-  Future<void> _recordTranscribeUsage(int durationMs) async {
+  Future<void> _recordTranscribeUsage(Recording rec) async {
     final ps = PurchaseService.instance;
     if (ps.unlocked.value) return;
+    // 31.10 (Славан): у записей из старых импортов durationMs=0 — из-за
+    // этого списание минут молча пропускалось. Пробуем файл и чиним базу.
+    var durationMs = rec.durationMs as int? ?? 0;
+    if (durationMs <= 0) {
+      try {
+        final filePath = await AudioService.materializePath(rec);
+        durationMs = await AudioService.probeDurationMs(filePath);
+        if (durationMs > 0) {
+          rec.durationMs = durationMs;
+          await AudioService().updateRecording(rec);
+        }
+      } catch (_) {}
+    }
     final tier = ps.tier.value;
     if (tier != SubscriptionTier.none) {
       if (!TranscriptionHoursService.instance.isUnlimited) {
@@ -1786,7 +1799,7 @@ class _HomePageState extends State<HomePage>
           ? SummaryService.getSpeakerStats(result.segments.map((s) => s.toMap()).toList())
           : null;
       await AudioService().updateRecording(rec);
-      await _recordTranscribeUsage(rec.durationMs as int? ?? 0);
+      await _recordTranscribeUsage(rec);
       // Task 056: готово в фоне → уведомление + плашка при возврате.
       if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
         _finishedInBackground = true;
@@ -1893,17 +1906,21 @@ class _HomePageState extends State<HomePage>
       final size = await file.length();
       final now = DateTime.now();
 
-      int durationMs = 0;
-      try {
-        final player = AudioPlayer();
-        await player.setFilePath(destPath);
-        final dur = await player.durationStream.firstWhere(
-          (d) => d != null && d.inMilliseconds > 0,
-          orElse: () => null,
-        );
-        if (dur != null) durationMs = dur.inMilliseconds;
-        await player.dispose();
-      } catch (_) {}
+      // 31.10: сначала заголовок WAV (мгновенно), плеер — с таймаутом:
+      // без таймаута импорт мог виснуть, без пробы оставался 00:00.
+      int durationMs = await AudioService.probeDurationMs(destPath);
+      if (durationMs <= 0) {
+        try {
+          final player = AudioPlayer();
+          await player.setFilePath(destPath);
+          final dur = await player.durationStream
+              .firstWhere((d) => d != null && d.inMilliseconds > 0,
+                  orElse: () => null)
+              .timeout(const Duration(seconds: 3), onTimeout: () => null);
+          if (dur != null) durationMs = dur.inMilliseconds;
+          await player.dispose();
+        } catch (_) {}
+      }
 
       final recording = Recording(
         id: id,
@@ -2024,19 +2041,21 @@ class _HomePageState extends State<HomePage>
         final size = await file.length();
         final now = DateTime.now();
 
-        int durationMs = 0;
-        try {
-          final player = AudioPlayer();
-          await player.setFilePath(destPath);
-          final dur = await player.durationStream.firstWhere(
-            (d) => d != null && d.inMilliseconds > 0,
-            orElse: () => null,
-          );
-          if (dur != null) {
-            durationMs = dur.inMilliseconds;
-          }
-          await player.dispose();
-        } catch (_) {}
+        int durationMs = await AudioService.probeDurationMs(destPath);
+        if (durationMs <= 0) {
+          try {
+            final player = AudioPlayer();
+            await player.setFilePath(destPath);
+            final dur = await player.durationStream
+                .firstWhere((d) => d != null && d.inMilliseconds > 0,
+                    orElse: () => null)
+                .timeout(const Duration(seconds: 3), onTimeout: () => null);
+            if (dur != null) {
+              durationMs = dur.inMilliseconds;
+            }
+            await player.dispose();
+          } catch (_) {}
+        }
 
         final recording = Recording(
           id: now.millisecondsSinceEpoch.toString() + '_$successCount',

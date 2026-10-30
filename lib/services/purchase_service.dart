@@ -47,6 +47,7 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:in_app_purchase_android/billing_client_wrappers.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'ai_hours_service.dart';
@@ -824,22 +825,59 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
   /// JSON. Вызывается и в обычном потоке, и во время restore-пересборки —
   /// раньше в rebuild-ветке срок терялся, и «до …» пропадало из UI.
   /// Берём максимум: у тестовой подписки срок сдвигается каждые 5 минут.
+  /// 31.10 (Славан): дата не появлялась 4 прогона подряд — добавляем
+  /// фолбэк и ЖУРНАЛ в видимую папку Documents/DictaPro/purchase_debug.log,
+  /// чтобы увидеть, что именно Play кладёт в покупку на устройстве.
   Future<Map<String, dynamic>?> _rememberPlayExpiry(
       PurchaseDetails purchase) async {
     final j = _purchaseJson(purchase);
-    if (j == null) return null;
-    final exp = int.tryParse('${j['expiryTimeMillis'] ?? ''}');
-    if (exp != null && exp > 0) {
-      final p = await SharedPreferences.getInstance();
-      final prev = p.getInt(_kPlayExpiry) ?? 0;
-      if (exp > prev) {
-        await p.setInt(_kPlayExpiry, exp);
-        planRevision.value++;
-        debugPrint('[purchase] expiry сохранён: '
-            '${DateTime.fromMillisecondsSinceEpoch(exp)}');
-      }
+    final exp = j == null
+        ? null
+        : int.tryParse('${j['expiryTimeMillis'] ?? ''}');
+    final p = await SharedPreferences.getInstance();
+    if (j == null) {
+      await _expiryLog('json=null productId=${purchase.productID} '
+          'local=${purchase.verificationData.localVerificationData.length}');
+    } else if (exp == null || exp <= 0) {
+      // В JSON нет срока. Фолбэк: дата покупки + период тарифа.
+      final base = int.tryParse('${j['transactionDate'] ?? ''}') ??
+          DateTime.now().millisecondsSinceEpoch;
+      final periodDays = purchase.productID.endsWith('_year') ? 365 : 30;
+      final fallback = base + periodDays * 86400000;
+      await _saveExpiry(fallback);
+      await _expiryLog('expiry отсутствует в json — фолбэк +$periodDays дн. '
+          'keys=${j.keys.toList()}');
+    } else {
+      await _saveExpiry(exp);
+      await _expiryLog('expiry из json: '
+          '${DateTime.fromMillisecondsSinceEpoch(exp)}');
     }
     return j;
+  }
+
+  Future<void> _saveExpiry(int exp) async {
+    final p = await SharedPreferences.getInstance();
+    final prev = p.getInt(_kPlayExpiry) ?? 0;
+    if (exp > prev) {
+      await p.setInt(_kPlayExpiry, exp);
+      planRevision.value++;
+      debugPrint('[purchase] expiry сохранён: '
+          '${DateTime.fromMillisecondsSinceEpoch(exp)}');
+    }
+  }
+
+  /// Журнал покупок — в публичную папку, видно через «Открыть в проводнике».
+  Future<void> _expiryLog(String line) async {
+    debugPrint('[purchase] $line');
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final pub = Directory('${dir.path}/../Documents/DictaPro');
+      final f = File('${pub.path}${Platform.pathSeparator}purchase_debug.log');
+      await f.parent.create(recursive: true);
+      await f.writeAsString(
+          '${DateTime.now().toIso8601String()} $line\n',
+          mode: FileMode.append);
+    } catch (_) {}
   }
 
   Future<bool> _isSubscriptionExpired(PurchaseDetails purchase) async {
@@ -890,7 +928,9 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
   /// 30.10 (Славан): довести потребление разового товара. Без consume
   /// Play считает пакет «уже купленным» и блокирует повторную покупку.
   Future<void> _consumeQuietly(PurchaseDetails purchase) async {
-    if (!purchase.pendingCompletePurchase) return;
+    // Без гейта pendingCompletePurchase: восстановленные (restored) покупки
+    // приходят с false, но их тоже надо потребить — иначе Play считает товар
+    // «уже купленным» и блокирует повторную покупку (Славан 31.10).
     try {
       await _iap.completePurchase(purchase);
       debugPrint('[purchase] consume ${purchase.productID}: ok');
