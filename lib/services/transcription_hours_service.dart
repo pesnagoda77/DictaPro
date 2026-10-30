@@ -38,12 +38,16 @@ class TranscriptionHoursService {
     return '${n.year.toString().padLeft(4, '0')}-${n.month.toString().padLeft(2, '0')}';
   }
 
-  /// Сколько часов включено у текущего тарифа по константе (null — безлимит).
-  int? tierIncludedHours() =>
-      PurchaseService.includedTranscriptionHours[PurchaseService.instance.tier.value];
+  /// Сколько часов включено у текущего тарифа. Для «без тарифа» — 0
+  /// (НЕ null: раньше null означал «безлимит», и безтарифный пользователь
+  /// считался безлимитным — пакеты не тратились, «без ограничений» висело).
+  double tierIncludedHours() =>
+      (PurchaseService.includedTranscriptionHours[PurchaseService.instance.tier.value]
+          ?? 0).toDouble();
 
-  /// True — текущий тариф безлимитный (часы не списываются).
-  bool get isUnlimited => tierIncludedHours() == null;
+  /// True — ТОЛЬКО тариф «Безлимит». Отсутствие тарифа — не безлимит.
+  bool get isUnlimited =>
+      PurchaseService.instance.tier.value == SubscriptionTier.unlimited;
 
   /// Task 115: ролловер месячного цикла (от дня активации). При смене
   /// цикла — сброс used и выдача свежего пакета текущего тарифа
