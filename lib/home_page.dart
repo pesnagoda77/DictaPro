@@ -1615,11 +1615,14 @@ class _HomePageState extends State<HomePage>
       return true;
     }
     final ok = await UsageLimitService.instance.canTranscribe(durationMs);
-    if (!ok) {
-      await _showPaywall();
-      return false;
+    if (ok) return true;
+    // 30.10 (Славан): купленные пакеты часов расшифровки работают и без
+    // тарифа — раньше без подписки они были недоступны вовсе.
+    if (await TranscriptionHoursService.instance.canSpend(durationMs)) {
+      return true;
     }
-    return true;
+    await _showPaywall();
+    return false;
   }
 
   /// Фиксация траты минут после УСПЕШНОЙ расшифровки.
@@ -1637,7 +1640,22 @@ class _HomePageState extends State<HomePage>
       }
       return;
     }
-    await UsageLimitService.instance.recordUsage(durationMs);
+    // 30.10 (Славан): бесплатные 30 минут/день списываются ПЕРВЫМИ,
+    // остаток записи — из купленных пакетов. Раньше цифра не уменьшалась.
+    final needMin = (durationMs / 60000).ceil();
+    final usedMin = await UsageLimitService.instance.usedMinutesToday();
+    final freeLeft = (UsageLimitService.dailyMinutesLimit - usedMin)
+        .clamp(0, UsageLimitService.dailyMinutesLimit);
+    final fromFree = needMin < freeLeft ? needMin : freeLeft;
+    if (fromFree > 0) {
+      await UsageLimitService.instance.recordUsage(fromFree * 60000);
+    }
+    final restMin = needMin - fromFree;
+    if (restMin > 0) {
+      await TranscriptionHoursService.instance.spend(restMin * 60000);
+    }
+    // Шапка/бегущая строка перечитывают остаток сразу.
+    ps.planRevision.value++;
   }
 
   /// Task 053: запись длиннее 5 часов расшифровывается часами — предупреждаем
@@ -3113,7 +3131,6 @@ class _LiveMarqueeState extends State<_LiveMarquee> {
   Future<void> _reload() async {
     final rev = PurchaseService.instance.planRevision.value;
     final tier = PurchaseService.instance.tier.value;
-    final p = await SharedPreferences.getInstance();
 
     // Task 116 (Славан, 24.10 09:16 — две формулы):
     // 1) нет тарифа: «Без интернета бесплатно расшифровка 30 минут в день,
@@ -3141,8 +3158,9 @@ class _LiveMarqueeState extends State<_LiveMarquee> {
       return;
     }
     final buf = StringBuffer();
-    final expMs = p.getInt('play_subscription_expiry_v1') ??
-        p.getInt('code_activated_expiry_v1');
+    // 30.10 (Славан): единый источник срока — сервис покупок (учитывает
+    // и Play-подписку, и код активации).
+    final exp = await PurchaseService.instance.codeExpiryDate();
     final tierKey = switch (tier) {
       SubscriptionTier.diary => 'marquee_tier_diary',
       SubscriptionTier.assistant => 'marquee_tier_assistant',
@@ -3150,17 +3168,15 @@ class _LiveMarqueeState extends State<_LiveMarquee> {
       SubscriptionTier.none => 'marquee_tier_diary',
     };
     final tierName = AppStrings.t(tierKey, ctx);
-    if (expMs != null) {
-      final d = DateTime.fromMillisecondsSinceEpoch(expMs);
+    if (exp != null) {
       buf.write(AppStrings.tf('marquee_tier_until', ctx, {
         'tier': tierName,
-        'date': '${d.day.toString().padLeft(2, '0')}.'
-            '${d.month.toString().padLeft(2, '0')}.${d.year}',
+        'date': '${exp.day.toString().padLeft(2, '0')}.'
+            '${exp.month.toString().padLeft(2, '0')}.${exp.year}',
       }));
     } else {
-      // Без даты: просто «Тариф «X»» — обрезаем хвост «до ».
-      buf.write(AppStrings.tf('marquee_tier_until', ctx,
-          {'tier': tierName, 'date': ' '}).trim());
+      // Без даты: «Тариф «X»» — без висящего «до».
+      buf.write(AppStrings.tf('marquee_tier_nodate', ctx, {'tier': tierName}));
     }
     try {
       final left = await TranscriptionHoursService.instance.balanceHours();

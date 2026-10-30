@@ -8,6 +8,7 @@ import 'services/ai_hours_service.dart';
 import 'services/code_activation_service.dart';
 import 'services/purchase_service.dart';
 import 'services/transcription_hours_service.dart';
+import 'services/usage_limit_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/dicta_ui.dart';
 import 'main_shell.dart';
@@ -342,6 +343,23 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
     if (tier == SubscriptionTier.none) {
       rows.add(Text(AppStrings.t('sub_status_none', context),
           style: TextStyle(fontSize: 12.5, color: tk.ink2, height: 1.5)));
+      // 30.10 (Славан): бесплатные 30 минут/день — видно, сколько осталось.
+      rows.add(const SizedBox(height: 6));
+      rows.add(FutureBuilder<int>(
+        future: UsageLimitService.instance.usedMinutesToday(),
+        builder: (context, snap) {
+          final used = snap.data ?? 0;
+          final left = (UsageLimitService.dailyMinutesLimit - used)
+              .clamp(0, UsageLimitService.dailyMinutesLimit);
+          return Text(
+              AppStrings.tf('sub_free_today', context, {
+                'left': '$left',
+                'n': '${UsageLimitService.dailyMinutesLimit}',
+              }),
+              style: TextStyle(
+                  fontSize: 12.5, fontWeight: FontWeight.w600, color: tk.ink));
+        },
+      ));
       // Славан 28.10: остатки пакетов видны и без тарифа — как при тарифе.
       rows.add(const SizedBox(height: 6));
       rows.add(FutureBuilder<String>(

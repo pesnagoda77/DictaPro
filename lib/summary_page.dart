@@ -65,13 +65,23 @@ class _SummaryPageState extends State<SummaryPage> {
 
   @override
   void dispose() {
+    PurchaseService.instance.planRevision
+        .removeListener(_onPlanChanged);
     _stage.dispose();
     super.dispose();
+  }
+
+  void _onPlanChanged() {
+    if (mounted) _refreshHoursLabel();
   }
 
   @override
   void initState() {
     super.initState();
+    // 30.10 (Славан): после отмены подписки экран показывал «20 по подписке»,
+    // хотя тарифа уже нет — пересчитываем при каждом изменении плана.
+    PurchaseService.instance.planRevision
+        .addListener(_onPlanChanged);
     _refreshHoursLabel();
     if (widget.recording.summary != null &&
         widget.recording.summary!.isNotEmpty &&

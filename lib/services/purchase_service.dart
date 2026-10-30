@@ -164,6 +164,9 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
   /// затем пересобираем набор с нуля — отменённые/истёкшие отпадают.
   bool _rebuild = false;
   final Set<String> _rebuildBuf = {};
+  /// 30.10 (Славан): сроки окончания, увиденные во время restore-пересборки.
+  /// Раньше rebuild-ветка выходила ДО разбора JSON, и дата подписки терялась.
+  final Map<String, int> _rebuildExpiry = {};
 
   /// Task 083: true пока идёт restore-проверка (для индикатора в UI).
   final ValueNotifier<bool> restoring = ValueNotifier<bool>(false);
@@ -512,6 +515,7 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
     restoring.value = true;
     _rebuild = true;
     _rebuildBuf.clear();
+    _rebuildExpiry.clear();
     var verified = false;
     try {
       await _iap.restorePurchases();
@@ -536,7 +540,15 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
     if (rebuild) {
       final rebuilt = _rebuildBuf.toList();
       await p.setStringList(_kActiveSubs, rebuilt);
-      if (rebuilt.isEmpty) await p.remove(_kPlayExpiry);
+      if (rebuilt.isEmpty) {
+        await p.remove(_kPlayExpiry);
+      } else if (_rebuildExpiry.isNotEmpty) {
+        var maxExp = 0;
+        for (final e in _rebuildExpiry.values) {
+          if (e > maxExp) maxExp = e;
+        }
+        if (maxExp > 0) await p.setInt(_kPlayExpiry, maxExp);
+      }
       await p.setInt(_kLastVerifiedMs, DateTime.now().millisecondsSinceEpoch);
       await _applyEffectiveTier();
       debugPrint('[purchase] restore пересобрал набор: $rebuilt, tier=${tier.value}');
@@ -729,6 +741,13 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       if (_rebuild) {
         // Идёт пересборка — копим подтверждённые подписки до финализации.
         _rebuildBuf.add(productId);
+        // 30.10 (Славан): срок запоминаем и здесь — иначе после restore
+        // дата окончания пропадала из UI.
+        final jr = await _rememberPlayExpiry(purchase);
+        if (jr != null) {
+          final e = int.tryParse('${jr['expiryTimeMillis'] ?? ''}');
+          if (e != null && e > 0) _rebuildExpiry[productId] = e;
+        }
         return;
       }
       final p = pref;
@@ -737,17 +756,8 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       // Fix 19.10: Play отдаёт expiryTimeMillis только внутри originalJson
       // (у PurchaseWrapper нет отдельного поля). Парсим JSON покупки.
       try {
-        final raw = purchase is GooglePlayPurchaseDetails
-            ? purchase.billingClientPurchase.originalJson
-            : null;
-        if (raw != null && raw.isNotEmpty) {
-          final j = jsonDecode(raw) as Map<String, dynamic>;
-          final exp = int.tryParse('${j['expiryTimeMillis'] ?? ''}');
-          if (exp != null && exp > 0) {
-            await p.setInt(_kPlayExpiry, exp);
-            debugPrint('[purchase] expiry сохранён: '
-                '${DateTime.fromMillisecondsSinceEpoch(exp)}');
-          }
+        final j = await _rememberPlayExpiry(purchase);
+        if (j != null) {
           // Задача 120 (Славан): пользователь ОТМЕНИЛ подписку — Play сразу
           // ставит autoRenewing=false (подписка ещё активна до конца
           // периода). Вариант Б немедленно, если нет более высокого
@@ -790,13 +800,52 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
   /// каждые ~5 мин; после отмены expiry сжимается до минут и быстро
   /// оказывается в прошлом. Нет данных (iOS/пустой originalJson) —
   /// не решаем, считаем живой (решит restore/серверная сверка).
+  /// JSON покупки Play. [originalJson] есть не всегда (в restore-потоке
+  /// приходит пустым), поэтому второй источник — localVerificationData:
+  /// на Android это та же подписанная JSON-строка покупки.
+  Map<String, dynamic>? _purchaseJson(PurchaseDetails purchase) {
+    final candidates = <String>[];
+    if (purchase is GooglePlayPurchaseDetails) {
+      final rawJson = purchase.billingClientPurchase.originalJson;
+      if (rawJson.isNotEmpty) candidates.add(rawJson);
+    }
+    final local = purchase.verificationData.localVerificationData;
+    if (local.trimLeft().startsWith('{')) candidates.add(local);
+    for (final raw in candidates) {
+      try {
+        final parsed = jsonDecode(raw);
+        if (parsed is Map<String, dynamic>) return parsed;
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  /// 30.10 (Славан): сохранить срок окончания подписки из покупки и вернуть
+  /// JSON. Вызывается и в обычном потоке, и во время restore-пересборки —
+  /// раньше в rebuild-ветке срок терялся, и «до …» пропадало из UI.
+  /// Берём максимум: у тестовой подписки срок сдвигается каждые 5 минут.
+  Future<Map<String, dynamic>?> _rememberPlayExpiry(
+      PurchaseDetails purchase) async {
+    final j = _purchaseJson(purchase);
+    if (j == null) return null;
+    final exp = int.tryParse('${j['expiryTimeMillis'] ?? ''}');
+    if (exp != null && exp > 0) {
+      final p = await SharedPreferences.getInstance();
+      final prev = p.getInt(_kPlayExpiry) ?? 0;
+      if (exp > prev) {
+        await p.setInt(_kPlayExpiry, exp);
+        planRevision.value++;
+        debugPrint('[purchase] expiry сохранён: '
+            '${DateTime.fromMillisecondsSinceEpoch(exp)}');
+      }
+    }
+    return j;
+  }
+
   Future<bool> _isSubscriptionExpired(PurchaseDetails purchase) async {
     try {
-      final raw = purchase is GooglePlayPurchaseDetails
-          ? purchase.billingClientPurchase.originalJson
-          : null;
-      if (raw == null || raw.isEmpty) return false;
-      final j = jsonDecode(raw) as Map<String, dynamic>;
+      final j = _purchaseJson(purchase);
+      if (j == null) return false;
       final exp = int.tryParse('${j['expiryTimeMillis'] ?? ''}');
       if (exp == null || exp <= 0) return false;
       return exp < DateTime.now().millisecondsSinceEpoch;
@@ -838,6 +887,18 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
     debugPrint('[purchase] подписка $productId истекла — тариф снят, часы сброшены (Б)');
   }
 
+  /// 30.10 (Славан): довести потребление разового товара. Без consume
+  /// Play считает пакет «уже купленным» и блокирует повторную покупку.
+  Future<void> _consumeQuietly(PurchaseDetails purchase) async {
+    if (!purchase.pendingCompletePurchase) return;
+    try {
+      await _iap.completePurchase(purchase);
+      debugPrint('[purchase] consume ${purchase.productID}: ok');
+    } catch (e) {
+      debugPrint('[purchase] consume ${purchase.productID}: $e');
+    }
+  }
+
   /// Task 079: зачислить пакет ровно один раз на один платёж.
   /// Дедупликация по токену покупки (purchaseID стабилен для транзакции;
   /// fallback — productID + transactionDate). Consume вызывает вызывающий
@@ -851,12 +912,17 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
     final p = await SharedPreferences.getInstance();
     final applied = (p.getStringList(_kAppliedPacks) ?? []).toSet();
     if (applied.contains(token)) {
+      // 30.10 (Славан): покупка уже зачислена, но могла остаться
+      // неотреблённой в Play — тогда магазин отвечает «уже есть этот
+      // контент» и повторная покупка пакета запрещена. Доводим consume.
+      await _consumeQuietly(purchase);
       debugPrint('[purchase] пакет $productId уже зачислен ($token) — skip');
       return;
     }
     await AiHoursService.instance.addPackHours(packIds[productId]!);
     applied.add(token);
     await p.setStringList(_kAppliedPacks, applied.toList());
+    await _consumeQuietly(purchase);
     debugPrint('[purchase] пакет $productId зачислен: '
         '+${packIds[productId]} ч (токен $token)');
   }
@@ -870,12 +936,14 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
     final p = await SharedPreferences.getInstance();
     final applied = (p.getStringList(_kAppliedPacks) ?? []).toSet();
     if (applied.contains(token)) {
+      await _consumeQuietly(purchase);
       debugPrint('[purchase] пакет расшифровки $productId уже зачислен ($token) — skip');
       return;
     }
     await TranscriptionHoursService.instance.addPackHours(packTrIds[productId]!);
     applied.add(token);
     await p.setStringList(_kAppliedPacks, applied.toList());
+    await _consumeQuietly(purchase);
     debugPrint('[purchase] пакет расшифровки $productId зачислен: '
         '+${packTrIds[productId]} ч (токен $token)');
   }
@@ -968,11 +1036,17 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
   /// Task 096: текущий срок действия кода (null — нет кода или бессрочно).
   Future<DateTime?> codeExpiryDate() async {
     final p = await SharedPreferences.getInstance();
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
     final expMs = p.getInt(_kCodeExpiry);
-    if (expMs != null) return DateTime.fromMillisecondsSinceEpoch(expMs);
+    if (expMs != null && expMs > nowMs) {
+      return DateTime.fromMillisecondsSinceEpoch(expMs);
+    }
     // Task 110 fix: если кода нет — дата окончания активной Play-подписки.
+    // 30.10 (Славан): показываем срок, пока тариф активен. Проверка «> now»
+    // у тестовой подписки (продление каждые 5 минут) съедала дату между
+    // продлениями — «до ...» мигало и исчезало.
     final playMs = p.getInt(_kPlayExpiry);
-    if (playMs != null && playMs > DateTime.now().millisecondsSinceEpoch) {
+    if (playMs != null && tier.value != SubscriptionTier.none) {
       return DateTime.fromMillisecondsSinceEpoch(playMs);
     }
     return null;
@@ -1132,8 +1206,13 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
           expMs == null || DateTime.now().millisecondsSinceEpoch < expMs;
       if (valid) codeTier = ct;
     }
-    tier.value =
+    final effective =
         _tierRank(playTier) >= _tierRank(codeTier) ? playTier : codeTier;
+    tier.value = effective;
+    // 30.10 (Славан): тарифа нет — срок окончания не должен висеть в UI.
+    if (effective == SubscriptionTier.none && p.getInt(_kPlayExpiry) != null) {
+      await p.remove(_kPlayExpiry);
+    }
     // Task 114: оповещаем UI (шапка подписки/главной) — тариф или срок
     // могли измениться. Слушатели перечитывают балансы без пересоздания.
     planRevision.value++;

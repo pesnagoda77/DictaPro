@@ -503,6 +503,23 @@ class AppStrings {
       'es': 'Plan «{tier}» hasta el {date}',
       'it': 'Piano «{tier}» fino al {date}',
     },
+    // 30.10 (Славан): тариф без известной даты — без висящего «до {date}».
+    'marquee_tier_nodate': {
+      'ru': 'Тариф «{tier}»',
+      'en': 'Plan "{tier}"',
+      'de': 'Tarif „{tier}"',
+      'fr': 'Forfait « {tier} »',
+      'es': 'Plan «{tier}»',
+      'it': 'Piano «{tier}»',
+    },
+    'sub_free_today': {
+      'ru': 'Бесплатно сегодня: осталось {left} из {n} мин',
+      'en': 'Free today: {left} of {n} min left',
+      'de': 'Heute gratis: noch {left} von {n} Min.',
+      'fr': "Gratuit aujourd'hui : reste {left} sur {n} min",
+      'es': 'Gratis hoy: quedan {left} de {n} min',
+      'it': 'Gratis oggi: restano {left} di {n} min',
+    },
     'marquee_tier_diary': {
       'ru': 'Дневник', 'en': 'Diary', 'de': 'Tagebuch',
       'fr': 'Journal', 'es': 'Diario', 'it': 'Diario',
