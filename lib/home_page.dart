@@ -3052,8 +3052,7 @@ class _HomePageState extends State<HomePage>
                                                 ? _openDialogueEditor(rec)
                                                 : _transcribeRecording(rec),
                                           ),
-                                          if (hasTranscription &&
-                                              (rec.transcription?.split(' ').length ?? 0) >= 100)
+                                          if (hasTranscription)
                                             _ActionButton(
                                               icon: Icons.auto_awesome,
                                               color: DictaTokens.of(context).mint,
