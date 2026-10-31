@@ -11,6 +11,19 @@ const CORS = {
   "Access-Control-Allow-Headers": "content-type,x-app-key,content-encoding",
   "Access-Control-Allow-Methods": "POST,OPTIONS"
 };
+// v4 (01.11.2026): язык итогов. Модель отвечала по-русски даже при lang=en —
+// промпт и заголовки были русскими. Теперь имя языка, заголовки и инструкция
+// берутся из таблицы, а требование языка продублировано в system.
+const LANGS = {
+  ru: { name: "Russian", what: "О чём договорились", tasks: "Задачи", nums: "Цифры и даты", talked: "О чём говорили" },
+  en: { name: "English", what: "What was agreed", tasks: "Action items", nums: "Numbers and dates", talked: "What was discussed" },
+  de: { name: "German", what: "Was vereinbart wurde", tasks: "Aufgaben", nums: "Zahlen und Termine", talked: "Worüber gesprochen wurde" },
+  fr: { name: "French", what: "Ce qui a été convenu", tasks: "Tâches", nums: "Chiffres et dates", talked: "De quoi on a parlé" },
+  es: { name: "Spanish", what: "Qué se acordó", tasks: "Tareas", nums: "Cifras y fechas", talked: "De qué se habló" },
+  it: { name: "Italian", what: "Cosa è stato concordato", tasks: "Attività", nums: "Numeri e date", talked: "Di cosa si è parlato" },
+};
+const langOf = (code) => LANGS[String(code || "ru").slice(0, 2).toLowerCase()] || LANGS.ru;
+
 const j = (o, s = 200) => new Response(JSON.stringify(o), {
   status: s, headers: { "content-type": "application/json", ...CORS }
 });
@@ -53,20 +66,23 @@ export default {
     } else if (mode === "chunk") {
       // task 098: конспект одного фрагмента длинной записи
       if (text.length < 20) return j({ error: "text too short" }, 400);
-      sys = "Ты делаешь краткий конспект фрагмента деловой расшифровки. Пиши только то, что есть в тексте, без выдумок и без вступлений.";
-      user = `Язык ответа: ${lang}. Составь краткий конспект фрагмента: решения, договорённости, задачи (пунктами), цифры и даты. Только важное, кратко.\n\nФРАГМЕНТ:\n${text.slice(0, 20000)}`;
+      const L = langOf(lang);
+      sys = `You summarize a fragment of a business transcript. Write ONLY in ${L.name}. Never answer in another language. Use only facts from the text, no invented details, no preamble.`;
+      user = `Answer language: ${L.name}. Write a short digest of this fragment: decisions, agreements, action items (as a list), numbers and dates. Only what matters, briefly.\n\nFRAGMENT:\n${text.slice(0, 20000)}`;
       maxTokens = 500;
     } else if (mode === "final") {
       // task 098: сводный итог по конспектам частей
       if (text.length < 10) return j({ error: "text too short" }, 400);
-      sys = "Ты собираешь один сводный деловой итог из конспектов частей одной расшифровки. Пиши только то, что есть в материале, без выдумок; убирай повторы.";
-      user = `Язык ответа: ${lang}. Ниже по порядку — конспекты частей одной записи. Собери ОДИН сводный итог по структуре: «О чём говорили», «О чём договорились», «Задачи» (пунктами), «Цифры и даты». Убери повторы, объедини близкие пункты.\n\nКОНСПЕКТЫ ЧАСТЕЙ:\n${text.slice(0, 60000)}`;
+      const L = langOf(lang);
+      sys = `You merge digests of parts of one transcript into a single business summary. Write ONLY in ${L.name}. Never answer in another language. Use only facts from the material, remove repetitions.`;
+      user = `Answer language: ${L.name}. Below are digests of parts of one recording, in order. Produce ONE merged summary with exactly these headings: "${L.talked}", "${L.what}", "${L.tasks}" (as a list), "${L.nums}". Remove repetitions, merge similar items.\n\nPART DIGESTS:\n${text.slice(0, 60000)}`;
       maxTokens = 1100;
     } else {
       // Режим итогов (Дикта, короткие записи) — как было
       if (text.length < 20) return j({ error: "text too short" }, 400);
-      sys = "Ты собираешь краткие деловые итоги по расшифровке. Пиши только то, что есть в тексте, без выдумок.";
-      user = `Язык ответа: ${lang}. Сделай конспект: «О чём договорились», «Задачи» (пунктами), «Цифры и даты».\n\nТЕКСТ:\n${text.slice(0, 60000)}`;
+      const L = langOf(lang);
+      sys = `You write a brief business summary of a transcript. Write ONLY in ${L.name}. Never answer in another language. Use only facts from the text, no invented details.`;
+      user = `Answer language: ${L.name}. Produce a summary with exactly these headings: "${L.what}", "${L.tasks}" (as a list), "${L.nums}".\n\nTEXT:\n${text.slice(0, 60000)}`;
       maxTokens = 900;
     }
 

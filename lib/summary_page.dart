@@ -156,6 +156,16 @@ class _SummaryPageState extends State<SummaryPage> {
   /// Task 059: онлайн-итоги. Gate для бесплатных: без подписки и без
   /// пакетов кнопка неактивна, серверная авторизация — второй рубеж
   /// (проверка «бесплатный не может отправить ничего» — перехватом).
+  /// Грубая, но надёжная проверка: если ждём не русский, а в тексте есть
+  /// кириллица — язык не тот. И наоборот: ждём русский, а кириллицы нет.
+  bool _wrongSummaryLanguage(String text, String wantLang) {
+    if (text.trim().isEmpty) return false;
+    final cyr = RegExp(r'[а-яА-ЯёЁ]');
+    final hasCyr = cyr.hasMatch(text);
+    if (wantLang == 'ru') return !hasCyr;
+    return hasCyr;
+  }
+
   Future<void> _generateOnlineSummary() async {
     final transcript = widget.recording.transcript;
     if (transcript == null || transcript.isEmpty || _onlineBusy) return;
@@ -226,6 +236,32 @@ class _SummaryPageState extends State<SummaryPage> {
       if (res == null) {
         setState(() => _onlineFailed = true);
         _showSnack(AppStrings.t('online_summary_failed', context));
+        return;
+      }
+      // 01.11 (Славан): сервер отвечал по-русски при английском интерфейсе.
+      // Если язык итога не совпал — не показываем чужой язык и НЕ списываем
+      // ИИ-часы: считаем итог локально на нужном языке.
+      final wantLang = Localizations.localeOf(context).languageCode;
+      if (_wrongSummaryLanguage(res.text, wantLang)) {
+        final local =
+            await EnhancedSummaryService.generateSummaryAsync(transcript);
+        if (!mounted) return;
+        setState(() {
+          _onlineBusy = false;
+          _onlineWasUsed = false;
+          _onlineFailed = false;
+          _onlineResult = SummaryResult(
+            title: AppStrings.t('summary_local_btn', context),
+            type: TextType.general,
+            points: local.formatted
+                .split('\n')
+                .where((e) => e.trim().isNotEmpty)
+                .toList(),
+            fullText: transcript,
+          );
+        });
+        await _refreshHoursLabel();
+        await widget.onSave?.call(local.formatted);
         return;
       }
       setState(() {
