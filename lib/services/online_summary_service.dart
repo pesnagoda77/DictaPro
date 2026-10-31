@@ -158,6 +158,47 @@ class OnlineSummaryService {
     );
   }
 
+  /// Названия языков и заголовки итогов — по коду интерфейса.
+  /// Воркер использует наш system-промпт как есть (ветка body.system),
+  /// поэтому русские шаблоны сервера в ответ не попадают.
+  static const Map<String, Map<String, String>> _langPack = {
+    'ru': {'name': 'Russian', 'what': 'О чём договорились', 'tasks': 'Задачи', 'nums': 'Цифры и даты'},
+    'en': {'name': 'English', 'what': 'What was agreed', 'tasks': 'Action items', 'nums': 'Numbers and dates'},
+    'de': {'name': 'German', 'what': 'Was vereinbart wurde', 'tasks': 'Aufgaben', 'nums': 'Zahlen und Termine'},
+    'fr': {'name': 'French', 'what': 'Ce qui a été convenu', 'tasks': 'Tâches', 'nums': 'Chiffres et dates'},
+    'es': {'name': 'Spanish', 'what': 'Qué se acordó', 'tasks': 'Tareas', 'nums': 'Cifras y fechas'},
+    'it': {'name': 'Italian', 'what': 'Cosa è stato concordato', 'tasks': 'Attività', 'nums': 'Numeri e date'},
+  };
+
+  static Map<String, String> _pack(String lang) =>
+      _langPack[lang] ?? _langPack['ru']!;
+
+  static String _systemSingle(String lang) {
+    final L = _pack(lang);
+    return 'You write a brief business summary of a transcript. '
+        'Write ONLY in ${L['name']}. Never answer in another language. '
+        'Use only facts from the text, no invented details, no preamble. '
+        'Use exactly these headings: "${L['what']}", "${L['tasks']}" '
+        '(as a list), "${L['nums']}".';
+  }
+
+  static String _systemChunk(String lang) {
+    final L = _pack(lang);
+    return 'You summarize a fragment of a business transcript. '
+        'Write ONLY in ${L['name']}. Never answer in another language. '
+        'Use only facts from the fragment, no preamble: decisions, '
+        'agreements, action items as a list, numbers and dates.';
+  }
+
+  static String _systemFinal(String lang) {
+    final L = _pack(lang);
+    return 'You merge digests of parts of one transcript into a single '
+        'business summary. Write ONLY in ${L['name']}. Never answer in '
+        'another language. Use only facts from the material, remove '
+        'repetitions. Use exactly these headings: "${L['what']}", '
+        '"${L['tasks']}" (as a list), "${L['nums']}".';
+  }
+
   /// Одиночный режим (короткие тексты): один запрос, тело без mode.
   /// Task 105: Bearer-токен, audioMs один раз на файл.
   Future<String?> _summarizeSingle(
@@ -166,6 +207,8 @@ class OnlineSummaryService {
     final body = jsonEncode({
       'text': text,
       'lang': lang,
+      'system': _systemSingle(lang),
+      'max_tokens': 900,
       if (sendAudioMs) 'audioMs': audioMs,
       if (deviceId != null) 'device_id': deviceId,
     });
@@ -188,7 +231,8 @@ class OnlineSummaryService {
       final body = jsonEncode({
         'text': chunks[i],
         'lang': lang,
-        'mode': 'chunk',
+        'system': _systemChunk(lang),
+        'max_tokens': 500,
         if (i == 0 && audioMs != null) 'audioMs': audioMs,
         if (deviceId != null) 'device_id': deviceId,
       });
@@ -201,13 +245,14 @@ class OnlineSummaryService {
       final note =
           (jsonDecode(resp) as Map<String, dynamic>)['summary'] as String?;
       if (note == null || note.trim().isEmpty) return null;
-      notes.add('Часть ${i + 1}:\n$note');
+      notes.add('Part ${i + 1}:\n$note');
     }
 
     final finalBody = jsonEncode({
       'text': notes.join('\n\n'),
       'lang': lang,
-      'mode': 'final',
+      'system': _systemFinal(lang),
+      'max_tokens': 1100,
       if (deviceId != null) 'device_id': deviceId,
     });
     final resp = await _postGzip(finalBody, token: token);
