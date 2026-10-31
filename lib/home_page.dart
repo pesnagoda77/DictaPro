@@ -783,7 +783,14 @@ class _HomePageState extends State<HomePage>
   void _hideTranscribingDialog() {
     if (_isTranscribing && mounted) {
       _isTranscribing = false;
+      PurchaseService.trace('pop start');
       Navigator.of(context, rootNavigator: true).pop();
+      PurchaseService.trace('pop done');
+      // Кадр после pop: если зависает построение главного экрана
+      // (список/карточки/бегущая строка) — увидим здесь.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        PurchaseService.trace('frame after pop done');
+      });
     }
   }
 
@@ -1011,6 +1018,7 @@ class _HomePageState extends State<HomePage>
     // Task 045: время старта задачи — фиксируем в состоянии на диске,
     // чтобы при перезапуске отличать «считалось сейчас» от «оборвалось».
     final jobStartedMs = DateTime.now().millisecondsSinceEpoch;
+    DateTime? _lastPartialSave;
     // Окно работ появляется сразу и всё время показывает движение: этап, полоса
     // и секундомер. Раньше оно всплывало только после подготовки звука, поэтому
     // во время декодирования казалось, что ничего не происходит.
@@ -1062,7 +1070,9 @@ class _HomePageState extends State<HomePage>
     var elapsedSec = 0;
     try {
       final convStart = DateTime.now();
+      PurchaseService.trace('toWav16k start');
       wav16k = await AudioConvert.toWav16k(filePath);
+      PurchaseService.trace('toWav16k done');
       final convSec = DateTime.now().difference(convStart).inMilliseconds / 1000.0;
       diagLines.add('конвертация: ${convSec.toStringAsFixed(1)} с (${filePath.split('.').last.toLowerCase()} → wav16k)');
       stage.value = skipChunks > 0
@@ -1088,12 +1098,24 @@ class _HomePageState extends State<HomePage>
           // открывает нужную запись напрямую.
           // Task 045: пишем и состояние задачи (status/startedMs) — по
           // нему при перезапуске показываем карточку «прервана».
+          // 31.10 (Славан): троттлинг 5 с — на больших файлах кусков сотни,
+          // и полная перезапись растущего текста на каждый кусок душила
+          // главный поток к концу файла (ANR «Итоги/Суть»).
           final merged =
               baseText.isEmpty ? partial : '$baseText $partial'.trim();
-          TranscribeKeepAlive.savePartial(done, merged,
-              path: filePath, status: 'running', startedMs: jobStartedMs);
+          final now = DateTime.now();
+          final last = _lastPartialSave;
+          if (done >= all ||
+              last == null ||
+              now.difference(last).inMilliseconds >= 5000) {
+            _lastPartialSave = now;
+            TranscribeKeepAlive.savePartial(done, merged,
+                path: filePath, status: 'running', startedMs: jobStartedMs);
+          }
         },
-        onLog: (line) => diagLines.add(line),
+        onLog: (line) {
+          if (diagLines.length < 300) diagLines.add(line);
+        },
       );
       // Задача 036: дописываем текст пропущенных кусков из прерванного прогона.
       if (text != null && baseText.isNotEmpty) {
@@ -1763,6 +1785,7 @@ class _HomePageState extends State<HomePage>
     if (asrLang == null) return;
 
     _showTranscribingDialog();
+    PurchaseService.trace('transcribe start $filePath');
 
     try {
       final onlineText = await _onlineTranscript(filePath);
@@ -1784,29 +1807,36 @@ class _HomePageState extends State<HomePage>
       await AudioService().updateRecording(rec);
       // Task 057: саммари ТОЛЬКО на устройстве (BYOK-облако отменено).
       _opStage.value = AppStrings.t('summary_computing', context);
+      PurchaseService.trace('summary iso start, text=${punctuatedText.length}');
       try {
         final local = (await EnhancedSummaryService.generateSummaryAsync(
                 punctuatedText))
             .formatted
             .trim();
+        PurchaseService.trace('summary iso done');
         rec.summary = local.isEmpty ? AppStrings.t('summary_failed', context) : local;
         rec.summaryLang = AppStrings.globalLangCode();
       } catch (_) {
         rec.summary = AppStrings.t('summary_failed', context);
       }
+      PurchaseService.trace('tags done');
       rec.decisions = SummaryService.getDecisions(punctuatedText);
       rec.speakerStats = result != null
           ? SummaryService.getSpeakerStats(result.segments.map((s) => s.toMap()).toList())
           : null;
       await AudioService().updateRecording(rec);
+      PurchaseService.trace('decisions done, saved');
       await _recordTranscribeUsage(rec);
+      PurchaseService.trace('usage done');
       // Task 056: готово в фоне → уведомление + плашка при возврате.
       if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
         _finishedInBackground = true;
       }
       await LocalNotify.instance.showTranscriptionDone();
+      PurchaseService.trace('notify done');
 
       _hideTranscribingDialog();
+      PurchaseService.trace('dialog hidden');
       if (openEditor) {
         _openDialogueEditor(rec);
       }
@@ -1992,6 +2022,7 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _importFile() async {
+    PurchaseService.trace('import start');
     // 21.10: файловый пикер открывается в Documents (обычная стартовая
     // точка для пользователя), а не где придётся.
     String? initialDir;
@@ -2066,6 +2097,7 @@ class _HomePageState extends State<HomePage>
           title: picked.name,
         );
 
+        PurchaseService.trace('import probed dur=$durationMs');
         await AudioService().updateRecording(recording);
         // Славан 28.10: импортированный файл публикуется в общую папку
         // Documents/DictaPro/Записи (как и обычные записи).

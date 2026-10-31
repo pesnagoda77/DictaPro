@@ -48,6 +48,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:in_app_purchase_android/billing_client_wrappers.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'ai_hours_service.dart';
@@ -201,13 +202,24 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
     }
   }
 
+  static bool _traceTruncate = true;
   static Future<void> trace(String line) async {
-    debugPrint('[trace] $line');
+    // Публичная копия через MediaStore — читается adb pull / проводником.
     try {
+      // ignore: discarded_futures
+      MethodChannel('dictapro/recordings').invokeMethod<void>(
+          'appendDebugText', <String, String>{
+        'name': 'app_trace.log',
+        'content': '${DateTime.now().toIso8601String()} $line\n',
+        'truncate': _traceTruncate ? '1' : '0',
+      });
+      _traceTruncate = false;
+    } catch (_) {}
+    try {
+      // Приватная папка приложения: запись в общие Documents на части
+      // устройств (Vivo) молча блокируется системой (Славан, 31.10).
       final dir = await getApplicationDocumentsDirectory();
-      final f = File(
-          '${dir.path}/../Documents/DictaPro${Platform.pathSeparator}app_trace.log');
-      await f.parent.create(recursive: true);
+      final f = File('${dir.path}${Platform.pathSeparator}app_trace.log');
       if (await f.exists() && await f.length() > 2 * 1024 * 1024) {
         await f.writeAsString('');
       }
@@ -224,6 +236,7 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
   Future<void> get ready => _ready.future;
 
   Future<void> init() async {
+    trace('init start');
     final p = await SharedPreferences.getInstance();
     unlocked.value = p.getBool(_kUnlocked) ?? false;
     await _applyEffectiveTier();
@@ -541,6 +554,7 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
   /// подписки продолжали «гореть». Теперь собираем фактический набор
   /// из подтверждённых покупок.
   Future<void> restore() async {
+    trace('restore start');
     restoring.value = true;
     _rebuild = true;
     _rebuildBuf.clear();
@@ -558,6 +572,7 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
       _rebuild = false;
       await _finalizeRestore(rebuild: verified);
       restoring.value = false;
+      trace('restore done');
     }
   }
 

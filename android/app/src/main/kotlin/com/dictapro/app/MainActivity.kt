@@ -38,6 +38,7 @@ class MainActivity : FlutterActivity() {
     // Task 116 (Славан): файл, открытый «в DictaPro» из проводника.
     private var pendingOpenUri: String? = null
     private var pendingOpenName: String? = null
+    private var traceUri: Uri? = null
 
     private fun stashViewIntent(intent: android.content.Intent?) {
         if (intent?.action != android.content.Intent.ACTION_VIEW) return
@@ -140,6 +141,54 @@ class MainActivity : FlutterActivity() {
                             Log.e(TAG, "listRecordingsFolder FAILED", e)
                             runOnUiThread { result.success(null) }
                         }
+                    }.start()
+                }
+                "appendDebugText" -> {
+                    // 31.10 (Славан): диагностический журнал. Пишется через
+                    // MediaStore в Documents/DictaPro — Dart-запись в общую
+                    // папку на части устройств молча блокируется системой.
+                    // Имя уникально на сессию, uri кэшируется: коллизии имён
+                    // после ANR-убийств ломали и запрос, и вставку.
+                    val content = call.argument<String>("content") ?: ""
+                    val truncate = call.argument<String>("truncate") == "1"
+                    Thread {
+                        var ok = false
+                        try {
+                            val rel = "Documents/DictaPro/"
+                            if (Build.VERSION.SDK_INT >= 29) {
+                                val collection = android.provider.MediaStore.Files
+                                    .getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                                if (traceUri == null) {
+                                    val values = android.content.ContentValues().apply {
+                                        put(android.provider.MediaStore.Files.FileColumns.DISPLAY_NAME,
+                                            "app_trace_" + (System.currentTimeMillis() / 1000) + ".log")
+                                        put(android.provider.MediaStore.Files.FileColumns.MIME_TYPE,
+                                            "application/octet-stream")
+                                        put(android.provider.MediaStore.Files.FileColumns.RELATIVE_PATH, rel)
+                                    }
+                                    traceUri = contentResolver.insert(collection, values)
+                                }
+                                traceUri?.let {
+                                    contentResolver.openOutputStream(
+                                        it, if (truncate) "w" else "wa")?.use { os ->
+                                        os.write(content.toByteArray())
+                                    }
+                                    ok = true
+                                }
+                            } else {
+                                val dir = java.io.File(
+                                    android.os.Environment.getExternalStoragePublicDirectory(
+                                        android.os.Environment.DIRECTORY_DOCUMENTS),
+                                    "DictaPro")
+                                if (!dir.exists()) dir.mkdirs()
+                                val f = java.io.File(dir, "app_trace.log")
+                                if (truncate) f.writeText(content) else f.appendText(content)
+                                ok = true
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "appendDebugText failed: ${e.message}")
+                        }
+                        runOnUiThread { result.success(ok) }
                     }.start()
                 }
                 "ensureRecordingsFolder" -> {

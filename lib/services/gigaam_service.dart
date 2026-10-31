@@ -16,6 +16,7 @@
 // (_waitForPack/phase, task 067).
 
 import 'dart:async';
+import 'purchase_service.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -693,7 +694,15 @@ class GigaamService {
     );
 
     final completer = Completer<String?>();
+    // 31.10 (Славан): диагностика ANR — если изолят льёт сообщения в главный
+    // поток потоком, счётчик в трейлоге это покажет немедленно.
+    var msgCount = 0;
     receivePort.listen((message) {
+      msgCount++;
+      if (msgCount % 100 == 0) {
+        final kind = message is List ? '${message[0]}' : '?';
+        PurchaseService.trace('gigaam msg #$msgCount $kind');
+      }
       if (message is List) {
         switch (message[0] as String) {
           case 'progress':
