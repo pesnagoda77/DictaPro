@@ -16,6 +16,15 @@ import 'services/session_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 31.10 (Славан): чёрный экран Сути = тихое исключение построения,
+  // релиз его глотает. Пишем в диагностический журнал всё подряд.
+  FlutterError.onError = (details) {
+    PurchaseService.trace('FLUTTER ERROR: ' +
+        (details.exception.toString() +
+                (details.stack?.toString() ?? ''))
+            .substring(0, 1500));
+  };
+
   // Foreground-сервис: запись продолжается при выключенном экране
   FlutterForegroundTask.init(
     androidNotificationOptions: AndroidNotificationOptions(

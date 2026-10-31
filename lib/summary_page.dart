@@ -130,17 +130,26 @@ class _SummaryPageState extends State<SummaryPage> {
     }
   }
 
+  bool _refreshingHours = false;
   Future<void> _refreshHoursLabel() async {
-    // Task 116 П.6: гарантия, что кошельки инициализированы (init
-    // идемпотентен) — иначе первый тап видит «0.0 часов» из-за гонки.
-    await PurchaseService.instance.init();
-    final label = await AiHoursService.instance.balanceLabel();
-    final canSpend = await AiHoursService.instance.canSpend(_audioMs);
-    if (mounted) {
-      setState(() {
-        _hoursLabel = label;
-        _canSpend = canSpend;
-      });
+    // 31.10 (Славан): init() больше не зовём отсюда — он не был
+    // идемпотентным и из слушателя planRevision создавал вечную петлю
+    // (ANR «Суть/Итоги»). Ждём готовности однократного init().
+    if (_refreshingHours) return;
+    _refreshingHours = true;
+    try {
+      await PurchaseService.instance.ready
+          .timeout(const Duration(seconds: 10), onTimeout: () {});
+      final label = await AiHoursService.instance.balanceLabel();
+      final canSpend = await AiHoursService.instance.canSpend(_audioMs);
+      if (mounted) {
+        setState(() {
+          _hoursLabel = label;
+          _canSpend = canSpend;
+        });
+      }
+    } finally {
+      _refreshingHours = false;
     }
   }
 

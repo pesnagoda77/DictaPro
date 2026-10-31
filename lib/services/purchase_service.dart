@@ -235,7 +235,17 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
   final Completer<void> _ready = Completer<void>();
   Future<void> get ready => _ready.future;
 
+  /// 31.10 (Славан): init() ДОЛЖЕН быть идемпотентным. Раньше каждый вызов
+  /// заново подписывался на поток покупок и дёргал plan++, а экран «Суть»
+  /// звал init() из слушателя planRevision — получалась вечная петля,
+  /// захлёбывавшая главный поток (ANR «Суть/Итоги», вылеты).
+  bool _initStarted = false;
   Future<void> init() async {
+    if (_initStarted) {
+      // Повторные вызовы — только дожидаемся завершения первого.
+      return _ready.future;
+    }
+    _initStarted = true;
     trace('init start');
     final p = await SharedPreferences.getInstance();
     unlocked.value = p.getBool(_kUnlocked) ?? false;
