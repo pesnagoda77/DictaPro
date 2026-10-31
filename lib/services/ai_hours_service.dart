@@ -45,7 +45,7 @@ class AiHoursService {
     await p.setDouble(_kIncludedUsed, 0);
     await p.setString(_kMonth, _monthKey());
     await p.setDouble(_kIncludedTotal, tierIncludedHours());
-    PurchaseService.instance.planRevision.value++;
+    PurchaseService.instance.bump('ai-hours');
     debugPrint('[ai-hours] новый месячный цикл: used=0, '
         'bonus=${tierIncludedHours()}');
   }
@@ -87,7 +87,7 @@ class AiHoursService {
     final hadBonus = (cur ?? 0) > 0;
     if (cur == null || cur <= want) return ('', hadBonus);
     await p.setDouble(_kIncludedTotal, want);
-    PurchaseService.instance.planRevision.value++;
+    PurchaseService.instance.bump('ai-hours');
     return ('ai_hours: включённые $cur→$want (дубли грантов)', hadBonus);
   }
 
@@ -162,7 +162,7 @@ class AiHoursService {
     await p.setDouble(_kPackMinutes, packNew);
     await p.setInt(_kLastSeen, now.millisecondsSinceEpoch);
     // Task 115: шапка обновляется сразу после траты (без пересоздания).
-    PurchaseService.instance.planRevision.value++;
+    PurchaseService.instance.bump('ai-hours');
     return need;
   }
 
@@ -188,7 +188,7 @@ class AiHoursService {
       return;
     }
     debugPrint('[ai-hours] бонус $hours уже учтён вычисляемой моделью');
-    PurchaseService.instance.planRevision.value++;
+    PurchaseService.instance.bump('ai-hours');
   }
 
   /// Task 087: списать неиспользованные часы пакета при возврате.

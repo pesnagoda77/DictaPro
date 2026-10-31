@@ -1668,7 +1668,7 @@ class _HomePageState extends State<HomePage>
       await TranscriptionHoursService.instance.spend(restMin * 60000);
     }
     // Шапка/бегущая строка перечитывают остаток сразу.
-    ps.planRevision.value++;
+    ps.bump('ui-home_page.dart');
   }
 
   /// Task 053: запись длиннее 5 часов расшифровывается часами — предупреждаем
@@ -3148,6 +3148,7 @@ class _LiveMarqueeState extends State<_LiveMarquee> {
   }
 
   Future<void> _reload() async {
+    PurchaseService.trace('marquee reload');
     final rev = PurchaseService.instance.planRevision.value;
     final tier = PurchaseService.instance.tier.value;
 

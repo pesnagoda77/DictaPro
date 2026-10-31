@@ -189,6 +189,34 @@ static const _kSubBonusApplied = 'sub_bonus_applied_v1'; // 20.10: токены,
     SubscriptionTier.unlimited: null,
   };
 
+  /// 31.10 (Славан): трассировка в файл — ищем источник зависания «Итогов».
+  /// Каждое изменение плана пишется с причиной; если какая-то функция
+  /// дёргает planRevision в бесконечном цикле, это видно в файле сразу.
+  static int _traceCount = 0;
+  void bump([String reason = '']) {
+    planRevision.value++;
+    _traceCount++;
+    if (_traceCount <= 3000) {
+      trace('plan++ #' + _traceCount.toString() + ' ' + reason);
+    }
+  }
+
+  static Future<void> trace(String line) async {
+    debugPrint('[trace] $line');
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final f = File(
+          '${dir.path}/../Documents/DictaPro${Platform.pathSeparator}app_trace.log');
+      await f.parent.create(recursive: true);
+      if (await f.exists() && await f.length() > 2 * 1024 * 1024) {
+        await f.writeAsString('');
+      }
+      await f.writeAsString(
+          '${DateTime.now().toIso8601String()} $line\n',
+          mode: FileMode.append);
+    } catch (_) {}
+  }
+
   /// Task 116 П.6: завершённость полного init (включая restore).
   /// UI (ИИ-итоги) ждёт [ready] перед проверкой баланса — иначе гонка
   /// «0.0 часов» с первого тапа.

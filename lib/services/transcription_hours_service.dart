@@ -59,7 +59,7 @@ class TranscriptionHoursService {
     await p.setString(_kMonth, _monthKey());
     await p.setDouble(
         _kIncludedTotal, (tierIncludedHours() ?? 0).toDouble());
-    PurchaseService.instance.planRevision.value++;
+    PurchaseService.instance.bump('transcr');
     debugPrint('[transcr-hours] новый месячный цикл: used=0, '
         'total=${tierIncludedHours() ?? 0}');
   }
@@ -79,13 +79,13 @@ class TranscriptionHoursService {
   Future<void> addIncludedHours(double hours) async {
     if (hours <= 0) return;
     await _rolloverIfNeeded();
-    PurchaseService.instance.planRevision.value++;
+    PurchaseService.instance.bump('transcr');
     debugPrint('[transcr-hours] addIncludedHours no-op (computed): $hours');
   }
 
   /// Задача 120: no-op — allowance вычисляется из тарифа.
   Future<void> setIncludedAllowance(double hours) async {
-    PurchaseService.instance.planRevision.value++;
+    PurchaseService.instance.bump('transcr');
     debugPrint('[transcr-hours] setIncludedAllowance no-op (computed): $hours');
   }
 
@@ -122,7 +122,7 @@ class TranscriptionHoursService {
     final p = await SharedPreferences.getInstance();
     await p.setDouble(_kIncludedTotal, 0);
     await p.setDouble(_kIncludedUsed, 0);
-    PurchaseService.instance.planRevision.value++;
+    PurchaseService.instance.bump('transcr');
     debugPrint('[transcr-hours] сброс в бесплатный: total=0, used=0');
   }
 
@@ -141,7 +141,7 @@ class TranscriptionHoursService {
     final cur = p.getDouble(_kIncludedTotal);
     if (cur == null || cur <= want) return '';
     await p.setDouble(_kIncludedTotal, want);
-    PurchaseService.instance.planRevision.value++;
+    PurchaseService.instance.bump('transcr');
     return 'transcr: включённые $cur→$want (дубли грантов)';
   }
 
@@ -222,7 +222,7 @@ class TranscriptionHoursService {
     await p.setDouble(_kPackMinutes, packNew);
     await p.setInt(_kLastSeen, now.millisecondsSinceEpoch);
     // Task 115: шапка обновляется сразу после траты (без пересоздания).
-    PurchaseService.instance.planRevision.value++;
+    PurchaseService.instance.bump('transcr');
     return need;
   }
 
