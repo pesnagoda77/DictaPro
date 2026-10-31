@@ -167,8 +167,15 @@ class _SummaryPageState extends State<SummaryPage> {
       await PurchaseService.instance.ready.timeout(const Duration(seconds: 10));
     } catch (_) {}
     var canSpend = await AiHoursService.instance.canSpend(_audioMs);
-    for (var attempt = 0; attempt < 3 && !canSpend; attempt++) {
-      await Future.delayed(const Duration(milliseconds: 1200));
+    // 31.10 (Славан): первое нажатие после старта приложения показывало
+    // «осталось 0.0 из 0» — кошельки ещё не успели прочитаться. Ждём
+    // готовности init и до 6 попыток с обновлением, прежде чем отказывать.
+    for (var attempt = 0; attempt < 6 && !canSpend; attempt++) {
+      try {
+        await PurchaseService.instance.ready
+            .timeout(const Duration(seconds: 5), onTimeout: () {});
+      } catch (_) {}
+      await Future.delayed(const Duration(milliseconds: 1500));
       await _refreshHoursLabel();
       canSpend = await AiHoursService.instance.canSpend(_audioMs);
     }

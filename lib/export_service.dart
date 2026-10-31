@@ -237,11 +237,12 @@ class ExportService {
     final ttf = pw.Font.ttf(fontData);
 
     final pdf = pw.Document();
+    // 31.10 (Славан): MultiPage — полный текст на всех страницах.
     pdf.addPage(
-      pw.Page(
+      pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        build: (pw.Context context) {
-          return pw.Column(
+        build: (pw.Context context) => [
+          pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Text(
@@ -253,28 +254,31 @@ class ExportService {
               pw.Text(AppStrings.tfGlobal('export_label_duration_sec', {'v': '${rec.durationMs ~/ 1000}'}), style: pw.TextStyle(fontSize: 12, font: ttf)),
               pw.Divider(),
               pw.SizedBox(height: 8),
-              if (rec.segments != null && rec.segments!.isNotEmpty)
-                // Task 115: номер фразы = index+1 (как в TXT/HTML), а не
-                // seg['speaker'] — у всех сегментов он «Фраза 1».
-                ...rec.segments!.asMap().entries.map((e) {
-                  final no = e.key + 1;
-                  final seg = e.value;
-                  return pw.Padding(
-                    padding: const pw.EdgeInsets.symmetric(vertical: 4),
-                    child: pw.Text(
-                      '[${AppStrings.tfGlobal('dialogue_speaker', {'n': '$no'})}] ${seg['text']}',
-                      style: pw.TextStyle(fontSize: 14, font: ttf),
-                    ),
-                  );
-                })
-              else
-                pw.Text(
-                  rec.transcription ?? AppStrings.tGlobal('no_text'),
+            ],
+          ),
+          if (rec.segments != null && rec.segments!.isNotEmpty)
+            // Task 115: номер фразы = index+1 (как в TXT/HTML), а не
+            // seg['speaker'] — у всех сегментов он «Фраза 1».
+            ...rec.segments!.asMap().entries.map((e) {
+              final no = e.key + 1;
+              final seg = e.value;
+              return pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                child: pw.Text(
+                  '[${AppStrings.tfGlobal('dialogue_speaker', {'n': '$no'})}] ${seg['text']}',
                   style: pw.TextStyle(fontSize: 14, font: ttf),
                 ),
-            ],
-          );
-        },
+              );
+            })
+          else
+            pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(vertical: 4),
+              child: pw.Text(
+                rec.transcription ?? AppStrings.tGlobal('no_text'),
+                style: pw.TextStyle(fontSize: 14, font: ttf),
+              ),
+            ),
+        ],
       ),
     );
 
