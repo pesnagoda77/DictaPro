@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'ui/adaptive.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
@@ -93,6 +94,7 @@ class _HomePageState extends State<HomePage>
   bool _showFavoritesOnly = false;
   /// 0 — все, 1 — сегодня, 2 — в очереди (без расшифровки).
   int _quickFilter = 0;
+  Recording? _tabletSel; // запись в правой панели (планшет)
   Timer? _timer;
   late AnimationController _pulseController;
   final _searchController = TextEditingController();
@@ -2500,6 +2502,7 @@ class _HomePageState extends State<HomePage>
   Widget build(BuildContext context) {
     final filtered = _filteredRecordings;
 
+    final wide = widget.tab == 0 && sizeOf(context) != ScreenSize.phone;
     return DictaBackground(
       child: Scaffold(
       backgroundColor: Colors.transparent,
@@ -2607,7 +2610,13 @@ class _HomePageState extends State<HomePage>
             ),
         ],
       ),
-      body: Column(
+      body: _buildBody(wide, filtered),
+      ),
+    );
+  }
+
+  Widget _buildBody(bool wide, List<Recording> filtered) {
+    final listBody = Column(
         children: [
           if (widget.tab == 0)
           Container(
@@ -2890,6 +2899,9 @@ class _HomePageState extends State<HomePage>
                               final isFocused = _focusId == rec.id;
                               return GestureDetector(
                                 onTapDown: (_) => _clearFocus(exceptId: rec.id),
+                                onTap: wide
+                                    ? () => setState(() => _tabletSel = rec)
+                                    : null,
                                 child: Container(
                                 key: cardKey,
                                 margin: const EdgeInsets.only(bottom: 12),
@@ -3101,11 +3113,25 @@ class _HomePageState extends State<HomePage>
             ),
           ),
         ],
-      ),
-      ),
+      );
+    if (!wide) return listBody;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: listBody),
+        const VerticalDivider(width: 1),
+        if (_tabletSel != null)
+          SizedBox(
+              width: 430,
+              child: _TabletDetailPane(rec: _tabletSel!, parent: this))
+        else
+          SizedBox(width: 430, child: _TabletEmptyHint()),
+      ],
     );
   }
 }
+
+
 
 class _ActionButton extends StatelessWidget {
   final IconData icon;
@@ -3266,6 +3292,176 @@ class _LiveMarqueeState extends State<_LiveMarquee> {
         fontSize: 10.5,
         color: DictaTokens.of(context).mint,
         fontWeight: FontWeight.w500,
+      ),
+    );
+  }
+}
+
+
+/// Правая панель деталей записи (планшет).
+class _TabletDetailPane extends StatelessWidget {
+  final Recording rec;
+  final _HomePageState parent;
+  const _TabletDetailPane({required this.rec, required this.parent});
+
+  @override
+  Widget build(BuildContext context) {
+    final rec = this.rec;
+    final hasText = rec.transcription != null && rec.transcription!.isNotEmpty;
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    rec.title ?? '',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.onSurface),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 20),
+                  onPressed: () =>
+                      parent.setState(() => parent._tabletSel = null),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              rec.createdAt.toString().substring(0, 16).replaceAll('T', ' '),
+              style: TextStyle(
+                  fontSize: 11.5,
+                  color:
+                      Theme.of(context).colorScheme.onSurface.withOpacity(0.5)),
+            ),
+          ),
+          const Divider(height: 20),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (hasText)
+                    SelectableText(
+                      rec.transcription!,
+                      style: TextStyle(
+                          fontSize: 13.5,
+                          height: 1.55,
+                          color: Theme.of(context).colorScheme.onSurface),
+                    )
+                  else
+                    Text('Текст появится после расшифровки',
+                        style: TextStyle(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withOpacity(0.5))),
+                  if ((rec.summary ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color:
+                            DictaTokens.of(context).mint.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: DictaTokens.of(context)
+                                .mint
+                                .withValues(alpha: 0.24)),
+                      ),
+                      child: Text(
+                        rec.summary!,
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            height: 1.45,
+                            color: DictaTokens.of(context).ink2),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _paneBtn(context, Icons.play_arrow, 'Прослушать',
+                      () => parent._playRecording(rec)),
+                  _paneBtn(context, Icons.text_snippet, 'Текст',
+                      () => parent._openDialogueEditor(rec)),
+                  if (hasText)
+                    _paneBtn(context, Icons.auto_awesome, 'Итоги',
+                        () => parent._openSummaryPage(rec)),
+                  if (hasText)
+                    _paneBtn(context, Icons.refresh, 'Заново',
+                        () => parent._retranscribe(rec)),
+                  _paneBtn(context, Icons.share, 'Отправить',
+                      () => parent._showShareOptions(rec)),
+                  _paneBtn(context, Icons.delete_outline, 'Удалить',
+                      () => parent._deleteRecording(rec.id)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _paneBtn(BuildContext context, IconData icon, String label,
+      VoidCallback onTap) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 16, color: DictaTokens.of(context).ink2),
+      label: Text(label,
+          style: TextStyle(
+              fontSize: 12, color: DictaTokens.of(context).ink2)),
+    );
+  }
+}
+
+/// Заглушка правой панели, когда запись не выбрана.
+class _TabletEmptyHint extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.text_snippet,
+                size: 44,
+                color:
+                    Theme.of(context).colorScheme.onSurface.withOpacity(0.25)),
+            const SizedBox(height: 12),
+            Text(
+              'Выберите запись слева,\nчтобы увидеть текст и итоги',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 13,
+                  height: 1.5,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withOpacity(0.45)),
+            ),
+          ],
+        ),
       ),
     );
   }
